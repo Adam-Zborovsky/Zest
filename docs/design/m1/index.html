@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zest — M1 art directions</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; background: #ecebea; color: #252225; font: 16px/1.5 system-ui, sans-serif; }
+    header { max-width: 1264px; margin: 0 auto 24px; }
+    h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; }
+    p { margin: 0; }
+    main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; max-width: 1264px; margin: auto; }
+    article { min-width: 0; }
+    h2 { font-size: 20px; margin: 0 0 2px; }
+    article p { min-height: 48px; margin: 0 0 12px; font-size: 14px; }
+    img { display: block; width: 100%; height: auto; }
+    a { color: inherit; text-underline-offset: 3px; }
+    a:focus-visible { outline: 3px solid #252225; outline-offset: 4px; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; max-width: 412px; } article p { min-height: 0; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Zest / Three ways to pour</h1>
+    <p>M1 art-direction studies. Choose the visual language; Flutter implementation follows your choice.</p>
+  </header>
+  <main>
+    <article>
+      <h2><a href="a-citrus-print.html">A — Citrus Print</a></h2>
+      <p>Bold labels, warm paper, ink contours.<br>Most graphic and playful.</p>
+      <a href="a-mobile.png"><img src="a-mobile.png" width="412" height="2100" alt="Citrus Print gallery: cream paper, aubergine outlines, burnt-orange actions and geometric citrus illustrations."></a>
+    </article>
+    <article>
+      <h2><a href="b-midnight-aperitivo.html">B — Midnight Aperitivo</a></h2>
+      <p>Deep plum, champagne type, amber lines.<br>Quieter and more atmospheric.</p>
+      <a href="b-mobile.png"><img src="b-mobile.png" width="412" height="2100" alt="Midnight Aperitivo gallery: dark plum surfaces, amber buttons, serif titles and fine-line coupe illustrations."></a>
+    </article>
+    <article>
+      <h2><a href="c-botanical-play.html">C — Botanical Play</a></h2>
+      <p>Fennel cream, leaf green, cut-paper garnish.<br>Softer and more relaxed.</p>
+      <a href="c-mobile.png"><img src="c-mobile.png" width="412" height="2100" alt="Botanical Play gallery: pale green canvas, rounded cream cards, dark green actions and grapefruit-and-leaf illustrations."></a>
+    </article>
+  </main>
+</body>
+</html>

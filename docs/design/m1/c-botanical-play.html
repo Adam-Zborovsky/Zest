@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=412, initial-scale=1.0">
+  <title>C — Botanical Play</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Fraunces & DM Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#F3F5DF',       /* Pale fennel cream */
+            leaf: '#193F32',         /* Deep leaf */
+            celery: '#DBE9B0',       /* Pale celery */
+            grapefruit: '#F9A58C',   /* Bright grapefruit */
+            peach: '#FFF9ED',        /* White-peach card */
+            berry: '#813C4D',        /* Dark berry for error */
+          },
+          fontFamily: {
+            fraunces: ['Fraunces', 'serif'],
+            dmsans: ['"DM Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Reset & custom styling adhering to constraints */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      background-color: #F3F5DF;
+      color: #193F32;
+      font-family: 'DM Sans', sans-serif;
+      margin: 0;
+      padding: 0;
+      width: 412px;
+      min-width: 412px;
+      max-width: 412px;
+    }
+    /* Signature leaf-like asymmetrical corner radii strictly on recipe card */
+    .leaf-corners {
+      border-radius: 36px 14px 36px 14px;
+    }
+    .btn-rounded {
+      border-radius: 16px;
+    }
+  </style>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body class="bg-canvas text-leaf antialiased font-dmsans selection:bg-grapefruit/30">
+  <div class="w-[412px] min-h-[1450px] p-5 flex flex-col space-y-7">
+
+    <!-- 1. HEADER SECTION -->
+    <header class="pt-2">
+      <!-- Top Brand Wordmark & Study Subtitle -->
+      <div class="flex items-center justify-between pb-3 border-b border-leaf/15">
+        <div>
+          <span class="font-fraunces font-bold text-2xl tracking-tight text-leaf inline-block">Zest</span>
+          <span class="text-xs font-semibold text-leaf/60 ml-2 tracking-wide uppercase">Design study</span>
+        </div>
+        <div class="text-[11px] font-medium bg-celery text-leaf px-2.5 py-1 rounded-md">
+          Mobile · M1 Study
+        </div>
+      </div>
+
+      <!-- Large heading & compact citrus/glass illustration (max 120px height) -->
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <div class="flex-1">
+          <h1 class="font-fraunces font-bold text-[32px] leading-[1.12] text-leaf">
+            A little character.<br>Every pour.
+          </h1>
+        </div>
+
+        <!-- Distinctive original compact citrus/glass collage illustration (<=120px) -->
+        <div class="w-[110px] h-[110px] flex-shrink-0 flex items-center justify-center relative">
+          <svg viewBox="0 0 110 110" width="110" height="110" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- Cut-paper botanical leaf behind -->
+            <path d="M72 16 C88 28, 96 52, 82 66 C68 80, 48 64, 52 42 C56 22, 60 10, 72 16 Z" fill="#DBE9B0" />
+            <path d="M68 28 C74 40, 72 54, 62 60" stroke="#193F32" stroke-width="2" stroke-linecap="round" stroke-opacity="0.4" />
+
+            <!-- Grapefruit half-slice collage wedge -->
+            <circle cx="34" cy="46" r="26" fill="#F9A58C" />
+            <circle cx="34" cy="46" r="20" fill="#FFF9ED" />
+            <path d="M34 26 A20 20 0 0 1 54 46 L34 46 Z" fill="#F9A58C" />
+            <path d="M34 46 L20 32 A20 20 0 0 1 34 26 Z" fill="#F9A58C" />
+            <path d="M34 46 L14 46 A20 20 0 0 1 20 32 Z" fill="#F9A58C" />
+            <path d="M34 46 L24 60 A20 20 0 0 1 14 46 Z" fill="#F9A58C" />
+            <path d="M34 46 L34 66 A20 20 0 0 1 24 60 Z" fill="#F9A58C" />
+            <path d="M34 46 L48 60 A20 20 0 0 1 34 66 Z" fill="#F9A58C" />
+            <path d="M34 46 L54 46 A20 20 0 0 1 48 60 Z" fill="#F9A58C" />
+            <!-- Stem / Seed dots -->
+            <circle cx="34" cy="46" r="3" fill="#FFF9ED" />
+
+            <!-- Wide cocktail glass coupe -->
+            <!-- Glass base and stem -->
+            <rect x="52" y="90" width="28" height="4" rx="2" fill="#193F32" />
+            <rect x="64" y="74" width="4" height="18" fill="#193F32" />
+            <!-- Glass bowl (cut-paper silhouette) -->
+            <path d="M44 54 C44 76, 88 76, 88 54 Z" fill="#193F32" fill-opacity="0.1" stroke="#193F32" stroke-width="2.5" />
+            <!-- Liquid pour fill in glass -->
+            <path d="M48 60 C54 70, 78 70, 84 60 Z" fill="#F9A58C" fill-opacity="0.8" />
+            <circle cx="66" cy="62" r="3" fill="#FFF9ED" />
+          </svg>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. TYPOGRAPHY SPECIMEN RECIPE CARD -->
+    <!-- Signature card: leaf-like asymmetrical corners (36px 14px 36px 14px), white-peach card surface -->
+    <section class="bg-peach leaf-corners p-6 border border-leaf/10 shadow-sm relative">
+      <!-- Specimen Tag & Signature Illustration beside Recipe Title -->
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <span class="text-xs font-bold tracking-wider uppercase text-leaf/60">Sample recipe</span>
+          <h2 class="font-fraunces font-bold text-2xl text-leaf mt-1">Citrus Study</h2>
+        </div>
+
+        <!-- Overlapping original cut-paper mint leaves & grapefruit wedge framing low, wide glass -->
+        <div class="w-[84px] h-[72px] flex-shrink-0 flex items-center justify-center">
+          <svg viewBox="0 0 84 72" width="84" height="72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- Cut-paper mint leaf 1 -->
+            <path d="M12 28 C16 10, 36 8, 42 22 C34 32, 22 34, 12 28 Z" fill="#193F32" />
+            <path d="M20 23 C26 18, 33 17, 36 21" stroke="#DBE9B0" stroke-width="1.5" stroke-linecap="round" />
+            <!-- Cut-paper mint leaf 2 -->
+            <path d="M4 42 C6 28, 24 24, 30 38 C22 46, 12 48, 4 42 Z" fill="#DBE9B0" />
+
+            <!-- Grapefruit wedge -->
+            <path d="M26 40 A18 18 0 0 1 54 22 L40 40 Z" fill="#F9A58C" />
+            <path d="M30 38 A14 14 0 0 1 50 25 L40 38 Z" fill="#FFF9ED" />
+            <path d="M33 36 A10 10 0 0 1 47 28 L40 36 Z" fill="#F9A58C" />
+
+            <!-- Low, wide tumbler/rocks glass -->
+            <path d="M38 32 L42 66 C42 68, 74 68, 74 66 L78 32 Z" fill="#F3F5DF" stroke="#193F32" stroke-width="2.5" stroke-linejoin="round" />
+            <!-- Cut paper garnish peg -->
+            <line x1="36" y1="28" x2="48" y2="44" stroke="#193F32" stroke-width="2" stroke-linecap="round" />
+            <!-- Ice cube -->
+            <rect x="46" y="44" width="16" height="16" rx="2" fill="#DBE9B0" fill-opacity="0.6" stroke="#193F32" stroke-width="1.5" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Recipe Description (readable 16px body) -->
+      <p class="text-base text-leaf/80 leading-relaxed mb-5">
+        An invented recipe for this design preview.
+      </p>
+
+      <!-- Ingredient Chips: "Citrus", "Herbs", "Sparkling" -->
+      <!-- Citrus visibly selected with check; other chips unselected; >= 48px target-friendly row -->
+      <div class="mb-6">
+        <span class="block text-xs font-semibold text-leaf/70 uppercase tracking-wider mb-2.5">Ingredients</span>
+        <div class="flex flex-wrap gap-2.5 items-center">
+          <!-- Citrus: VISIBLY SELECTED with check -->
+          <div class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-leaf text-canvas font-medium text-base shadow-sm min-h-[44px]">
+            <svg class="w-4 h-4 text-celery flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
+            </svg>
+            <span>Citrus</span>
+          </div>
+
+          <!-- Herbs: Unselected -->
+          <div class="inline-flex items-center px-4 py-2.5 rounded-xl bg-celery/60 text-leaf border border-leaf/15 font-medium text-base min-h-[44px]">
+            <span>Herbs</span>
+          </div>
+
+          <!-- Sparkling: Unselected -->
+          <div class="inline-flex items-center px-4 py-2.5 rounded-xl bg-celery/60 text-leaf border border-leaf/15 font-medium text-base min-h-[44px]">
+            <span>Sparkling</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons: Primary, Secondary, Disabled. At least 48px high, rounded 16px instead of pills -->
+      <div class="space-y-3 pt-1">
+        <!-- Primary Button: "Save recipe" (Deep leaf with cream lettering) -->
+        <button type="button" class="w-full h-[50px] btn-rounded bg-leaf text-canvas font-semibold text-base flex items-center justify-center gap-2 hover:bg-leaf/95 active:scale-[0.99] transition-transform">
+          <svg class="w-5 h-5 text-grapefruit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Save recipe</span>
+        </button>
+
+        <!-- Secondary Button: "View ingredients" (Pale celery with deep leaf text) -->
+        <button type="button" class="w-full h-[50px] btn-rounded bg-celery text-leaf font-semibold text-base flex items-center justify-center gap-2 border border-leaf/20 hover:bg-celery/90 active:scale-[0.99] transition-transform">
+          <svg class="w-5 h-5 text-leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span>View ingredients</span>
+        </button>
+
+        <!-- Disabled Button: "Saved" (Quiet disabled state, >= 48px) -->
+        <button type="button" disabled class="w-full h-[48px] btn-rounded bg-leaf/10 text-leaf/40 font-medium text-base flex items-center justify-center gap-2 cursor-not-allowed border border-leaf/10">
+          <svg class="w-4 h-4 text-leaf/40" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
+          </svg>
+          <span>Saved</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. STATE COMPONENT: "Nothing saved yet" (Empty State) -->
+    <!-- Soft quiet rectangular form (rounded-2xl) -->
+    <section class="bg-peach rounded-2xl p-6 border border-leaf/10 text-center flex flex-col items-center">
+      <!-- Original small empty-glass illustration -->
+      <div class="w-16 h-16 mb-3 flex items-center justify-center">
+        <svg viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Empty stemless glass with subtle tilted garnish rim notch -->
+          <path d="M18 16 L22 52 C22 56, 42 56, 42 52 L46 16 Z" stroke="#193F32" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="#F3F5DF" />
+          <!-- Ellipse rim -->
+          <ellipse cx="32" cy="16" rx="14" ry="4" stroke="#193F32" stroke-width="2" fill="none" />
+          <!-- Droplet/fennel seed at bottom indicating dry/empty -->
+          <circle cx="32" cy="48" r="2.5" fill="#F9A58C" />
+          <path d="M30 36 C32 32, 36 32, 34 38" stroke="#193F32" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 3" stroke-opacity="0.4" />
+        </svg>
+      </div>
+
+      <h3 class="font-fraunces font-bold text-xl text-leaf">Nothing saved yet</h3>
+      <p class="text-base text-leaf/80 mt-1 mb-4 max-w-[260px]">
+        Save a recipe to find it here.
+      </p>
+
+      <!-- Action: "Explore recipes" (At least 48px height) -->
+      <button type="button" class="h-[48px] px-6 btn-rounded bg-celery text-leaf font-semibold text-base border border-leaf/20 hover:bg-celery/80 active:scale-95 transition-all">
+        Explore recipes
+      </button>
+    </section>
+
+    <!-- 4. LOADING COMPONENT: "Finding recipes..." -->
+    <!-- Quiet soft rectangular form with small restrained static indicator -->
+    <section class="bg-peach rounded-2xl p-4 border border-leaf/10 flex items-center gap-3.5">
+      <!-- Static restrained indicator (citrus segments / botanic compass) -->
+      <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-celery rounded-xl border border-leaf/10">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#193F32" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke-opacity="0.3"></circle>
+          <path d="M12 3 A9 9 0 0 1 21 12" stroke="#193F32"></path>
+          <circle cx="12" cy="12" r="2" fill="#193F32"></circle>
+        </svg>
+      </div>
+      <div>
+        <div class="font-fraunces font-bold text-lg text-leaf leading-tight">Finding recipes...</div>
+      </div>
+    </section>
+
+    <!-- 5. ERROR COMPONENT: "Recipes couldn't load" -->
+    <!-- Accessible: dark berry #813C4D for error text and icon, distinguished by icon AND text -->
+    <section class="bg-[#FDF2F4] rounded-2xl p-5 border border-berry/25 flex flex-col gap-3">
+      <div class="flex items-start gap-3">
+        <!-- Error icon in dark berry -->
+        <div class="w-9 h-9 rounded-xl bg-berry/15 flex items-center justify-center flex-shrink-0 mt-0.5" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#813C4D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <!-- Dark berry accessible heading and text -->
+          <h3 class="font-fraunces font-bold text-lg text-berry">Recipes couldn't load</h3>
+          <p class="text-base text-berry/90 mt-1 leading-relaxed">
+            Check your connection and try again.
+          </p>
+        </div>
+      </div>
+
+      <!-- Action: "Try again" button (48px high, distinct clear hit target) -->
+      <div class="pt-1">
+        <button type="button" class="w-full h-[48px] btn-rounded bg-berry text-peach font-semibold text-base flex items-center justify-center gap-2 hover:bg-berry/95 active:scale-[0.99] transition-transform">
+          <svg class="w-4 h-4 text-peach" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M23 4v6h-6"></path>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          <span>Try again</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 6. BOTTOM SHEET SPECIMEN (In normal document flow, not obscuring other content) -->
+    <div>
+      <!-- Specimen caption outside the sheet -->
+      <div class="flex items-center justify-between px-1 mb-2">
+        <span class="text-xs font-bold uppercase tracking-wider text-leaf/60">Specimen</span>
+        <span class="text-xs font-semibold text-leaf/80">Bottom sheet</span>
+      </div>
+
+      <!-- Specimen Container styled as a bottom sheet in normal flow -->
+      <div class="bg-peach rounded-t-3xl rounded-b-2xl border border-leaf/15 p-5 shadow-sm">
+        <!-- Drag handle -->
+        <div class="w-10 h-1.5 bg-leaf/25 rounded-full mx-auto mb-4"></div>
+
+        <!-- Sheet Header with Heading & Close Control -->
+        <div class="flex items-center justify-between pb-3 border-b border-leaf/10 mb-2">
+          <h3 class="font-fraunces font-bold text-xl text-leaf">Recipe options</h3>
+          <!-- Close control (48px touch target) -->
+          <button type="button" aria-label="Close" class="w-11 h-11 rounded-full flex items-center justify-center text-leaf/70 hover:bg-leaf/10 active:scale-90 transition-all">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Sheet Rows: "Save recipe" & "View ingredients" (>=48px touch rows) -->
+        <div class="divide-y divide-leaf/10">
+          <button type="button" class="w-full min-h-[52px] py-3 flex items-center justify-between text-left text-leaf font-medium text-base hover:bg-celery/20 rounded-xl px-2 transition-colors">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-celery flex items-center justify-center text-leaf">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </div>
+              <span class="font-medium text-leaf">Save recipe</span>
+            </div>
+            <svg class="w-5 h-5 text-leaf/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+
+          <button type="button" class="w-full min-h-[52px] py-3 flex items-center justify-between text-left text-leaf font-medium text-base hover:bg-celery/20 rounded-xl px-2 transition-colors">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-lg bg-celery flex items-center justify-center text-leaf">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+              <span class="font-medium text-leaf">View ingredients</span>
+            </div>
+            <svg class="w-5 h-5 text-leaf/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. PALETTE SWATCHES & TYPE PAIRING SPECIMEN FOOTER -->
+    <footer class="pt-2 pb-6 border-t border-leaf/15">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-leaf/70">Palette tokens</span>
+        <span class="text-xs font-semibold text-leaf/70">Fraunces + DM Sans</span>
+      </div>
+
+      <!-- Color Swatches with names and hexes -->
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#F3F5DF] border border-leaf/20 mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Fennel</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#F3F5DF</div>
+        </div>
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#193F32] mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Deep Leaf</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#193F32</div>
+        </div>
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#DBE9B0] border border-leaf/20 mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Pale Celery</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#DBE9B0</div>
+        </div>
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#F9A58C] mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Grapefruit</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#F9A58C</div>
+        </div>
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#FFF9ED] border border-leaf/20 mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Peach Card</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#FFF9ED</div>
+        </div>
+        <div class="bg-peach border border-leaf/15 p-2 rounded-xl">
+          <div class="w-full h-6 rounded-md bg-[#813C4D] mb-1.5"></div>
+          <div class="font-bold text-leaf truncate">Dark Berry</div>
+          <div class="text-[10px] text-leaf/60 font-mono">#813C4D</div>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-leaf/60 mt-3 text-center">
+        Art Direction C · Botanical Play · Mobile Component Gallery (412px)
+      </p>
+    </footer>
+
+  </div>
+</body>
+</html>

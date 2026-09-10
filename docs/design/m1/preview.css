@@ -1,0 +1,11 @@
+/* Local safeguards for static M1 studies, not the Flutter design system. */
+button { min-height: 48px; min-width: 48px; }
+button:focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}

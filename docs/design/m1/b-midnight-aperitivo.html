@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=412, initial-scale=1.0">
+  <title>B — Midnight Aperitivo</title>
+  <!-- Google Fonts: Fraunces (display) & DM Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#241A2C',
+            surface: '#35273F',
+            'surface-light': '#443350',
+            champagne: '#FFF0CD',
+            'champagne-muted': '#E4D5B1',
+            amber: '#F7BC64',
+            'amber-hover': '#EDB055',
+            'plum-dark': '#201526',
+            lilac: '#CEB7E6',
+            'lilac-muted': '#9E8BB4',
+            rose: '#F2B8B5',
+            'rose-bg': '#3D2530',
+          },
+          fontFamily: {
+            serif: ['Fraunces', 'serif'],
+            sans: ['DM Sans', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #241A2C;
+      color: #FFF0CD;
+      font-family: 'DM Sans', sans-serif;
+      margin: 0;
+      width: 412px;
+      max-width: 100%;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    * {
+      box-sizing: border-box;
+    }
+  </style>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body class="bg-canvas text-champagne min-h-[1450px] p-5 space-y-6">
+
+  <!-- Header & Brand Bar -->
+  <header class="pt-2">
+    <div class="flex items-center justify-between pb-3 border-b border-lilac/15">
+      <div class="flex items-baseline gap-2.5">
+        <span class="font-serif text-2xl font-medium tracking-tight text-champagne">Zest</span>
+        <span class="text-xs uppercase tracking-widest text-lilac font-medium">Design study</span>
+      </div>
+      <span class="text-xs px-2.5 py-1 rounded-full bg-surface text-lilac border border-lilac/25 font-mono">B · Aperitivo</span>
+    </div>
+
+    <!-- Title & Compact Coupe Illustration Row (<=120px) -->
+    <div class="mt-4 flex items-center justify-between gap-3">
+      <div class="flex-1 pr-1">
+        <h1 class="font-serif text-[27px] leading-[1.18] font-medium text-champagne">
+          A little character.<br>Every pour.
+        </h1>
+        <p class="text-[14px] text-lilac mt-1.5 leading-snug">
+          Midnight Aperitivo palette &amp; component explorations.
+        </p>
+      </div>
+
+      <!-- Original fine-line amber citrus spiral & coupe glass vector (<120px height) -->
+      <div class="w-[110px] h-[108px] shrink-0 flex items-center justify-center p-1 rounded-2xl bg-surface border border-lilac/20">
+        <svg viewBox="0 0 100 100" class="w-[96px] h-[96px]" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ambient soft aura circle -->
+          <circle cx="50" cy="50" r="44" stroke="#CEB7E6" stroke-width="1" stroke-dasharray="2 3" opacity="0.35" />
+          <!-- Coupe Glass Bowl -->
+          <path d="M22 36 C22 55, 78 55, 78 36 Z" stroke="#FFF0CD" stroke-width="1.75" stroke-linecap="round" fill="none" />
+          <!-- Liquid Level in coupe -->
+          <path d="M28 41 C34 46, 66 46, 72 41" stroke="#F7BC64" stroke-width="1.25" stroke-linecap="round" />
+          <!-- Stem -->
+          <line x1="50" y1="55" x2="50" y2="78" stroke="#FFF0CD" stroke-width="1.75" stroke-linecap="round" />
+          <!-- Base Foot -->
+          <ellipse cx="50" cy="79" rx="19" ry="3.5" stroke="#FFF0CD" stroke-width="1.75" fill="none" />
+          <!-- Amber Citrus Twist Spiral Curling Around Rim -->
+          <path d="M74 27 C84 28, 86 40, 75 45 C66 49, 63 36, 74 33 C80 31, 80 23, 73 21 C64 19, 58 29, 61 36" stroke="#F7BC64" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          <!-- Small cocktail drop / garnish pip -->
+          <circle cx="50" cy="46" r="2.2" fill="#F7BC64" />
+          <circle cx="75" cy="23" r="1.5" fill="#FFF0CD" />
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- Specimen 1: Typography Recipe Card with Elliptical Coupe Framing -->
+  <section class="space-y-2">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Card Specimen</span>
+      <span class="text-xs text-lilac/70">Elliptical coupe bowl frame</span>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-lilac/20 p-5 shadow-none overflow-hidden">
+      <!-- Signature Elliptical Coupe Header Framing Graphic -->
+      <div class="w-full h-[76px] rounded-xl bg-canvas border border-lilac/20 flex items-center justify-center relative overflow-hidden mb-4">
+        <svg viewBox="0 0 340 76" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Fine contour lines suggesting shallow coupe basin -->
+          <ellipse cx="170" cy="18" rx="145" ry="38" stroke="#35273F" stroke-width="2.5" />
+          <ellipse cx="170" cy="22" rx="130" ry="32" stroke="#CEB7E6" stroke-width="1" stroke-opacity="0.35" />
+          <ellipse cx="170" cy="28" rx="105" ry="24" stroke="#F7BC64" stroke-width="1.25" stroke-opacity="0.65" stroke-dasharray="3 3" />
+          <!-- Fine-line cocktail glassware silhouette center -->
+          <path d="M142 32 C148 48, 192 48, 198 32 Z" stroke="#FFF0CD" stroke-width="1.5" fill="none" />
+          <line x1="170" y1="48" x2="170" y2="64" stroke="#FFF0CD" stroke-width="1.5" />
+          <line x1="156" y1="64" x2="184" y2="64" stroke="#FFF0CD" stroke-width="1.5" stroke-linecap="round" />
+          <!-- Twirled amber peel accent -->
+          <path d="M192 26 C200 24, 204 33, 197 38 C192 42, 186 36, 192 31" stroke="#F7BC64" stroke-width="1.75" stroke-linecap="round" />
+        </svg>
+      </div>
+
+      <!-- Card Content -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs uppercase tracking-wider text-lilac font-medium">Sample recipe</span>
+        </div>
+
+        <div>
+          <h2 class="font-serif text-[26px] font-medium text-champagne leading-tight">Citrus Study</h2>
+          <p class="text-[16px] text-champagne-muted mt-1 leading-relaxed">
+            An invented recipe for this design preview.
+          </p>
+        </div>
+
+        <!-- Ingredient Chips: 1 Visibly Selected with Check, 2 Unselected -->
+        <div class="pt-1 pb-1">
+          <span class="text-xs uppercase tracking-wider text-lilac block mb-2 font-medium">Ingredients</span>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Ingredient chips">
+            <!-- Selected Chip: Citrus -->
+            <button class="h-10 px-3.5 rounded-full bg-amber text-plum-dark font-medium text-sm inline-flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-amber/50" aria-pressed="true">
+              <svg class="w-4 h-4 text-plum-dark shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+              </svg>
+              <span>Citrus</span>
+            </button>
+
+            <!-- Unselected Chip: Herbs -->
+            <button class="h-10 px-4 rounded-full bg-canvas text-champagne border border-lilac/30 font-medium text-sm inline-flex items-center gap-1.5 hover:border-lilac/60 focus:outline-none focus:ring-2 focus:ring-lilac/40" aria-pressed="false">
+              <span>Herbs</span>
+            </button>
+
+            <!-- Unselected Chip: Sparkling -->
+            <button class="h-10 px-4 rounded-full bg-canvas text-champagne border border-lilac/30 font-medium text-sm inline-flex items-center gap-1.5 hover:border-lilac/60 focus:outline-none focus:ring-2 focus:ring-lilac/40" aria-pressed="false">
+              <span>Sparkling</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recipe Action Buttons (Comfortable >=48px height) -->
+        <div class="pt-2 space-y-2.5">
+          <!-- Primary: Save recipe (Amber with dark plum lettering) -->
+          <button class="w-full h-12 rounded-xl bg-amber hover:bg-amber-hover active:scale-[0.99] text-plum-dark font-sans font-semibold text-[16px] px-5 flex items-center justify-center gap-2 border border-transparent transition-colors">
+            <svg class="w-5 h-5 text-plum-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            <span>Save recipe</span>
+          </button>
+
+          <!-- Secondary: View ingredients (Surface background, champagne text, lilac border) -->
+          <button class="w-full h-12 rounded-xl bg-canvas hover:bg-surface-light active:scale-[0.99] text-champagne font-sans font-medium text-[16px] px-5 flex items-center justify-center gap-2 border border-lilac/35 transition-colors">
+            <svg class="w-5 h-5 text-lilac" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span>View ingredients</span>
+          </button>
+
+          <!-- Disabled: Saved button (distinct non-interactive treatment) -->
+          <button disabled class="w-full h-12 rounded-xl bg-canvas/60 text-champagne/40 font-sans font-medium text-[16px] px-5 flex items-center justify-center gap-2 border border-lilac/10 cursor-not-allowed">
+            <svg class="w-5 h-5 text-champagne/40" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+            <span>Saved</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Specimen 2: State Section — "Nothing saved yet" (Empty State) -->
+  <section class="space-y-2">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Empty State Specimen</span>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-lilac/20 p-5 text-center flex flex-col items-center">
+      <!-- Original Small Empty-Glass Illustration -->
+      <div class="w-16 h-16 rounded-full bg-canvas border border-lilac/25 flex items-center justify-center mb-3">
+        <svg viewBox="0 0 48 48" class="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Fine-line empty coupe glass -->
+          <path d="M12 16 C12 27, 36 27, 36 16 Z" stroke="#CEB7E6" stroke-width="1.75" stroke-linecap="round" fill="none" />
+          <line x1="24" y1="27" x2="24" y2="37" stroke="#CEB7E6" stroke-width="1.75" stroke-linecap="round" />
+          <line x1="16" y1="37" x2="32" y2="37" stroke="#CEB7E6" stroke-width="1.75" stroke-linecap="round" />
+          <!-- Gentle vapor dot -->
+          <circle cx="24" cy="11" r="1.5" fill="#F7BC64" opacity="0.8" />
+        </svg>
+      </div>
+
+      <h3 class="font-serif text-[20px] font-medium text-champagne leading-snug">Nothing saved yet</h3>
+      <p class="text-[16px] text-champagne-muted mt-1 max-w-[260px] leading-normal">
+        Save a recipe to find it here.
+      </p>
+
+      <!-- Action Button (Comfortable >=48px height) -->
+      <button class="mt-4 h-12 px-6 rounded-xl bg-amber hover:bg-amber-hover text-plum-dark font-sans font-semibold text-[16px] inline-flex items-center justify-center gap-2 transition-colors">
+        <svg class="w-4 h-4 text-plum-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <span>Explore recipes</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Specimen 3: Separate Loading Component -->
+  <section class="space-y-2">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Loading Specimen</span>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-lilac/20 p-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Small restrained static indicator (coupe-dot motif) -->
+        <div class="w-10 h-10 rounded-xl bg-canvas border border-lilac/25 flex items-center justify-center shrink-0" aria-hidden="true">
+          <svg viewBox="0 0 28 28" class="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="10" stroke="#CEB7E6" stroke-width="1.5" stroke-dasharray="4 3" stroke-linecap="round" />
+            <circle cx="14" cy="9" r="2.2" fill="#F7BC64" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-[16px] font-medium text-champagne leading-snug">Finding recipes...</p>
+        </div>
+      </div>
+
+      <span class="text-xs font-mono text-lilac/70 px-2 py-1 rounded bg-canvas border border-lilac/15">Static</span>
+    </div>
+  </section>
+
+  <!-- Specimen 4: Separate Error Component (Icon AND Text) -->
+  <section class="space-y-2">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Error Specimen</span>
+      <span class="text-xs text-rose font-medium">Muted rose accent</span>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-rose/40 p-4 space-y-3" role="alert">
+      <div class="flex items-start gap-3">
+        <!-- Prominent error indicator icon (not relying solely on color) -->
+        <div class="w-10 h-10 rounded-xl bg-rose-bg border border-rose/50 flex items-center justify-center shrink-0 mt-0.5" aria-hidden="true">
+          <svg class="w-5 h-5 text-rose" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <h4 class="text-[17px] font-serif font-medium text-champagne leading-snug">Recipes couldn't load</h4>
+            <span class="text-[11px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-bg text-rose font-mono font-medium">Error</span>
+          </div>
+          <p class="text-[16px] text-champagne-muted mt-1 leading-normal">
+            Check your connection and try again.
+          </p>
+        </div>
+      </div>
+
+      <!-- Action Button (Comfortable >=48px height) -->
+      <button class="w-full h-12 rounded-xl bg-rose-bg hover:bg-rose-bg/80 text-champagne font-sans font-medium text-[16px] px-4 flex items-center justify-center gap-2 border border-rose/40 transition-colors">
+        <svg class="w-4 h-4 text-rose" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>Try again</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Specimen 5: Bottom-Sheet Specimen (Placed in Normal Flow, Unclipped) -->
+  <section class="space-y-2 pt-1">
+    <div class="flex items-center justify-between px-1">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Bottom sheet</span>
+      <span class="text-xs text-lilac/70">Normal document flow</span>
+    </div>
+
+    <!-- Sheet Container -->
+    <div class="bg-surface rounded-t-3xl rounded-b-2xl border-2 border-lilac/30 p-5 space-y-4 shadow-none">
+      <!-- Drag Handle -->
+      <div class="w-10 h-1.5 rounded-full bg-lilac/40 mx-auto" aria-hidden="true"></div>
+
+      <!-- Sheet Header & Close Control -->
+      <div class="flex items-center justify-between pb-1 border-b border-lilac/15">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-lilac font-medium block">Sheet actions</span>
+          <h4 class="font-serif text-[20px] font-medium text-champagne leading-snug">Recipe options</h4>
+        </div>
+
+        <!-- Close Control (Accessible tap target) -->
+        <button class="w-9 h-9 rounded-full bg-canvas border border-lilac/25 flex items-center justify-center text-champagne hover:text-amber focus:outline-none focus:ring-2 focus:ring-lilac/40" aria-label="Close sheet">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Sheet Row Options -->
+      <div class="space-y-2">
+        <!-- Row 1: Save recipe (>=48px touch target) -->
+        <button class="w-full h-12 px-3.5 rounded-xl bg-canvas hover:bg-surface-light text-champagne flex items-center justify-between border border-lilac/20 transition-colors">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-amber" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            <span class="text-[16px] font-medium">Save recipe</span>
+          </div>
+          <svg class="w-4 h-4 text-lilac" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
+        <!-- Row 2: View ingredients (>=48px touch target) -->
+        <button class="w-full h-12 px-3.5 rounded-xl bg-canvas hover:bg-surface-light text-champagne flex items-center justify-between border border-lilac/20 transition-colors">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-lilac" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span class="text-[16px] font-medium">View ingredients</span>
+          </div>
+          <svg class="w-4 h-4 text-lilac" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Design System Palette & Typography Appendix -->
+  <footer class="pt-2 pb-4 space-y-3 border-t border-lilac/15">
+    <div class="flex items-center justify-between">
+      <span class="text-xs uppercase tracking-wider text-lilac font-medium">Art Direction B Foundation</span>
+      <span class="text-xs text-lilac/70">Fraunces + DM Sans</span>
+    </div>
+
+    <!-- Swatches -->
+    <div class="grid grid-cols-5 gap-2">
+      <div class="space-y-1 text-center">
+        <div class="h-9 rounded-lg bg-canvas border border-lilac/30"></div>
+        <span class="text-[10px] block text-champagne/80 font-mono">#241A2C</span>
+        <span class="text-[9px] block text-lilac">Canvas</span>
+      </div>
+      <div class="space-y-1 text-center">
+        <div class="h-9 rounded-lg bg-surface border border-lilac/30"></div>
+        <span class="text-[10px] block text-champagne/80 font-mono">#35273F</span>
+        <span class="text-[9px] block text-lilac">Surface</span>
+      </div>
+      <div class="space-y-1 text-center">
+        <div class="h-9 rounded-lg bg-champagne border border-lilac/20"></div>
+        <span class="text-[10px] block text-champagne/80 font-mono">#FFF0CD</span>
+        <span class="text-[9px] block text-lilac">Champagne</span>
+      </div>
+      <div class="space-y-1 text-center">
+        <div class="h-9 rounded-lg bg-amber"></div>
+        <span class="text-[10px] block text-champagne/80 font-mono">#F7BC64</span>
+        <span class="text-[9px] block text-lilac">Amber</span>
+      </div>
+      <div class="space-y-1 text-center">
+        <div class="h-9 rounded-lg bg-lilac"></div>
+        <span class="text-[10px] block text-champagne/80 font-mono">#CEB7E6</span>
+        <span class="text-[9px] block text-lilac">Lilac</span>
+      </div>
+    </div>
+
+    <div class="p-3 rounded-xl bg-surface/70 border border-lilac/15 text-xs text-champagne-muted flex items-center justify-between">
+      <span>Medium Fraunces display &amp; DM Sans body</span>
+      <span class="text-amber font-medium">Design study</span>
+    </div>
+  </footer>
+
+</body>
+</html>
