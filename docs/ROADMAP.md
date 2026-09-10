@@ -5,7 +5,7 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 ## M0 — Baseline and platform wrappers — DONE (2026-09-10)
 
 - Source foundation authored and independently reviewed; platform wrappers generated on the development PC; the app was built and run there successfully (Adam confirmed the run, 2026-09-10).
-- Carry-over items, to be closed at the start of M1 if not already done: baseline Git commit (ask Adam for approval — do not commit without it), `flutter analyze` + `flutter test` confirmed green on the development PC, GitHub repository creation if wanted.
+- Carry-over items verified closed at the start of M1 (2026-09-10): baseline commits exist, a GitHub origin is configured, `flutter analyze` is clean, and `flutter test` passes the starter widget test on the development PC. See `docs/VERIFICATION.md`.
 
 ## M1 — Design system foundation
 

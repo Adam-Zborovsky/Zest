@@ -1,6 +1,19 @@
 # Verification record
 
-## Host constraint
+## Development-PC baseline — 2026-09-10
+
+At the start of M1, the development checkout was on `Development` at `018a473` with a clean worktree. Baseline commits and a GitHub origin were present; Android and web wrappers, `frontend/.metadata`, and `frontend/pubspec.lock` were tracked.
+
+Executed from `frontend/` on the development PC:
+
+- `flutter analyze` — no issues found.
+- `flutter test` — all tests passed (1 starter-screen widget test).
+
+The roadmap separately records Adam's successful starter-app build and run on 2026-09-10. The checks above verify analysis and the widget test; they are not a new device run or a claim that M1 is implemented.
+
+The following sections preserve the original scaffold verification history from the production host. Their host constraints do not describe the current development PC.
+
+## Original production-host constraint
 
 This production host intentionally has no Flutter or Dart executable available. No SDK was installed or downloaded, and no `pub get`, `flutter analyze`, `flutter test`, build, or application run was attempted.
 

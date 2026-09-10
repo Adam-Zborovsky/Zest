@@ -2,9 +2,9 @@
 
 ## Status
 
-Zest is a Flutter cocktail companion planned for personal use and eventual open-source app code. This repository currently contains only a minimal source foundation. It does **not** yet implement login, onboarding, recipe retrieval, TheCocktailDB integration, ingredient matching, the Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, authentication, native wrappers, or a deployed/runnable application.
+Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. This repository contains a minimal Flutter foundation with generated Android and web wrappers. The starter app has been built and run on the development PC (Adam confirmed the run on 2026-09-10). It does **not** yet implement login, onboarding, recipe retrieval, TheCocktailDB integration, ingredient matching, the Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, or authentication.
 
-Development and execution happen on a separate development PC, not on this production host.
+Development and execution happen on the development PC, where the Flutter SDK is installed. Run all Flutter commands from `frontend/`.
 
 ## Confirmed product direction
 
