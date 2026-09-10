@@ -1,0 +1,37 @@
+# Dart and Flutter tooling
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Native tool outputs and local settings
+android/.gradle/
+android/local.properties
+android/key.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Local secrets and personal media
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+photos/
+media/
+*.heic
+*.HEIC
