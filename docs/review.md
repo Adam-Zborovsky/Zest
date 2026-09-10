@@ -1,3 +1,5 @@
+> **Note (2026-09-10):** after these reviews, the repository was reorganized into a monorepo — the Flutter app moved to `frontend/`, PRODUCT.md and VERIFICATION.md moved to `docs/`. Paths below are as they were at review time and are preserved unchanged as a historical record.
+
 # Review: Zest source scaffold and dev-PC setup (t_3969d1a0)
 
 Reviewer profile: reviewer (claude-fable-5-1, anthropic). Author: orchestrator-lane worker for t_b754f86c.

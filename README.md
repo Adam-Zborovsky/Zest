@@ -1,16 +1,23 @@
 # Zest
 
-A source-only Flutter foundation for an expressive cocktail companion. The current screen is deliberately small: it proves the authored app root and test shape only. Product capabilities described in [PRODUCT.md](PRODUCT.md) are planned requirements, not implemented features.
+A personal, playful cocktail companion: a Flutter app (TheCocktailDB as recipe source) with an expressive, app-wide visual language. This repository is a monorepo.
+
+## Repository layout
+
+- `frontend/` — the Flutter application (run everything from here).
+- `backend/` — intentionally empty placeholder. See `backend/README.md` for why: TheCocktailDB is called directly from the app with its documented public test key; a backend becomes relevant only if/when accounts, cross-device sync, or premium API terms require it (decision point: M7).
+- `docs/` — product brief, roadmap, review records, and the development-agent prompt.
+- `AGENTS.md` — operating instructions for development agents working in this repository.
 
 ## This host does not run Zest
 
-This repository was authored on a production host where Flutter and Dart are intentionally absent. Do not install or run SDK tooling here. Use a separate development PC with a current stable Flutter SDK. iOS development requires macOS with Xcode.
+This repository is also present on a production server where Flutter and Dart are intentionally absent. Do not install or run SDK tooling there. Development happens on the development PC with a current stable Flutter SDK.
 
 ## First setup on the development PC
 
-Start from the repository root. The commands below are shell-neutral Flutter CLI commands; use PowerShell, Terminal, or another shell as appropriate.
+All Flutter commands run from the repository's `frontend/` directory. Start from the repository root, then:
 
-1. Preserve an untouched copy of this source checkout before generating platform wrappers. The authored files are initially untracked, so `git diff` alone cannot show whether they changed; it only becomes useful after a tracked baseline exists. Do not create a Git commit solely for this setup.
+1. Preserve an untouched copy of this source checkout before generating anything. The authored files may be untracked in a fresh clone; `git diff` alone cannot show whether they changed until a tracked baseline exists.
 
    Use `git status --short` to understand the checkout state:
 
@@ -18,17 +25,16 @@ Start from the repository root. The commands below are shell-neutral Flutter CLI
    git status --short
    ```
 
-2. Generate only the required native/web wrappers for this existing source project:
+2. If any platform wrapper directory (`android/`, `web/`) is missing, regenerate it from `frontend/`:
 
    ```text
-   flutter create --project-name=zest --platforms=android,ios,web --no-pub .
+   cd frontend
+   flutter create --project-name=zest --platforms=android,web --no-pub .
    ```
 
-   Flutter documents `flutter create . --platforms web` for adding web support to an existing project and the same `--platforms` pattern for desktop support. This command generates `android/`, `ios/`, and `web/` (plus Flutter tool metadata as needed) but does not resolve dependencies because of `--no-pub`.
+   Do not add `--overwrite`. Flutter's `Template.render` skips an existing destination when overwrite is false, and `CreateCommand` passes the `--overwrite` flag (false by default) to that rendering path. Therefore the authored source files are preserved; keep the untouched copy as the independent recovery point. Source: [Template.render](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/template.dart) and [CreateCommand](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/commands/create.dart).
 
-   Do not add `--overwrite`. Flutter's `Template.render` skips an existing destination when overwrite is false, and `CreateCommand` passes the `--overwrite` flag (false by default) to that rendering path. Therefore the authored source files are preserved by the no-overwrite behavior; keep the untouched copy as the independent recovery point. Source: [Template.render](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/template.dart) and [CreateCommand](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/commands/create.dart).
-
-   `.metadata` and the application `pubspec.lock` are generated on the development PC. Review them and normally include them in a later user-approved commit; this source-only handoff does not create that commit.
+   `.metadata` and the application `pubspec.lock` are generated on the development PC. Review them and normally include them in a later user-approved commit.
 
 3. Resolve dependencies and validate the source:
 
@@ -49,19 +55,16 @@ Start from the repository root. The commands below are shell-neutral Flutter CLI
 
 ## Project files
 
-- `lib/main.dart` — minimal `ZestApp` starter screen.
-- `test/widget_test.dart` — matching starter-screen widget test.
-- `PRODUCT.md` — canonical agreed product requirements and explicit implementation boundary.
-- `VERIFICATION.md` — host-side static verification and its limits.
-- `analysis_options.yaml` — self-contained analyzer configuration with no package include.
+- `frontend/lib/main.dart` — minimal `ZestApp` starter screen.
+- `frontend/test/widget_test.dart` — matching starter-screen widget test.
+- `docs/PRODUCT.md` — canonical agreed product requirements and explicit implementation boundary.
+- `docs/ROADMAP.md` — milestone order and acceptance criteria.
+- `docs/AGENT_PROMPT.md` — kick-off prompt for the development-PC agent.
+- `docs/review.md` — review records for the foundation and handoff.
+- `docs/VERIFICATION.md` — host-side static verification and its limits.
+- `AGENTS.md` — agent operating instructions and default stack.
 - `.gitignore` — ignores tool outputs, local native settings, secrets, and local personal-media paths.
 
 ## Source boundary
 
-The future app will use TheCocktailDB as its recipe source, but no provider data, images, API key, network integration, or content-license grant is included here. Personal photos are a planned private archive feature and must not be tracked in the public repository. See [PRODUCT.md](PRODUCT.md) for the full boundary and unresolved decisions.
-
-## References
-
-- [Flutter: create a new app](https://docs.flutter.dev/reference/create-new-app)
-- [Flutter: add web support to an existing app](https://docs.flutter.dev/platform-integration/web/building)
-- [Flutter: add desktop support to an existing app](https://docs.flutter.dev/platform-integration/desktop)
+The app uses TheCocktailDB as its recipe source, but no provider data, images, API key, network integration, or content-license grant is included in this repository. Personal photos are a planned private archive feature and must not be tracked in the public repository. See `docs/PRODUCT.md` for the full boundary and unresolved decisions.

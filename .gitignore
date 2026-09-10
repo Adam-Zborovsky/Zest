@@ -5,17 +5,17 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 
-# Native tool outputs and local settings
-android/.gradle/
-android/local.properties
-android/key.properties
-ios/Flutter/Generated.xcconfig
-ios/Flutter/flutter_export_environment.sh
-ios/Pods/
-ios/.symlinks/
-macos/Flutter/ephemeral/
-linux/flutter/ephemeral/
-windows/flutter/ephemeral/
+# Native tool outputs and local settings (Flutter app lives in frontend/)
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/key.properties
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/macos/Flutter/ephemeral/
+frontend/linux/flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
 
 # IDE and operating-system files
 .idea/
