@@ -2,7 +2,7 @@
 
 ## Status
 
-Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. This repository contains a minimal Flutter foundation with generated Android and web wrappers. The starter app has been built and run on the development PC (Adam confirmed the run on 2026-09-10). It does **not** yet implement login, onboarding, recipe retrieval, TheCocktailDB integration, ingredient matching, the Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, or authentication.
+Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. This repository contains a Flutter design-system foundation with generated Android and web wrappers. The starter app has been built and run on the development PC (Adam confirmed the run on 2026-09-10). The selected Botanical Play theme, tokens, shared primitives, and temporary debug gallery are implemented; milestone verification is recorded separately in `docs/VERIFICATION.md`. It does **not** yet implement login, onboarding, recipe retrieval, TheCocktailDB integration, ingredient matching, the Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, or authentication. Gallery interactions are temporary specimens, not product features.
 
 Development and execution happen on the development PC, where the Flutter SDK is installed. Run all Flutter commands from `frontend/`.
 
@@ -10,7 +10,7 @@ Development and execution happen on the development PC, where the Flutter SDK is
 
 - **Name and source:** The product is Zest; its Dart package name is `zest`. TheCocktailDB is the chosen future recipe source.
 - **Purpose:** Combine discovery, ingredient matching, guided making, saved recipes, and personal variations. Home-bar, shopping, and hosting features are later possibilities, not current implementation scope.
-- **Visual direction:** Expressive visual flair is a first-class, app-wide requirement. It must carry through discovery, recipes, making, collections, secondary, and empty states—not be isolated to a single showcase. Exact palette, typography, and illustration treatment remain open.
+- **Visual direction:** Adam selected **C — Botanical Play**: leafy greens, soft shapes, and cut-paper garnish. Fraunces headings, DM Sans body text, and the palette and component rules in `docs/DESIGN.md` establish the foundation. Expressive visual flair is a first-class, app-wide requirement. It must carry through discovery, recipes, making, collections, secondary, and empty states—not be isolated to a single showcase.
 - **Accessibility:** Preserve readable content, direct access to core tasks, reduced-motion equivalents, and a logical screen-reader experience. Constant motion is not a requirement.
 
 ## Ingredient Constellation
@@ -48,7 +48,7 @@ TheCocktailDB remains the chosen dependency, but a development/education test ke
 
 ## Open decisions
 
-- Final visual art direction and constellation relationship to the label system.
+- Constellation placement and relationship to the label system. The roadmap's home-screen placement still needs reconciliation with this product brief before M5; the M1 gallery does not decide it.
 - Recipe coverage, ingestion method, and applicable API terms.
 - Initial mobile targets and eventual distribution method.
 - Authentication, guest access, storage, and synchronization.

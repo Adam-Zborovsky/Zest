@@ -1,14 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zest/main.dart';
+import 'package:zest/app/zest_app.dart';
 
 void main() {
-  testWidgets('shows the Zest starter screen', (tester) async {
-    await tester.pumpWidget(const ZestApp());
+  testWidgets('gallery-disabled shell keeps the Zest foundation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ZestApp(showGallery: false));
 
     expect(find.text('Zest'), findsOneWidget);
-    expect(
-      find.text('A cocktail companion, beginning with a bright foundation.'),
-      findsOneWidget,
-    );
+    expect(find.text('A cocktail companion.'), findsOneWidget);
   });
 }

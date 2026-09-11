@@ -7,13 +7,14 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - Source foundation authored and independently reviewed; platform wrappers generated on the development PC; the app was built and run there successfully (Adam confirmed the run, 2026-09-10).
 - Carry-over items verified closed at the start of M1 (2026-09-10): baseline commits exist, a GitHub origin is configured, `flutter analyze` is clean, and `flutter test` passes the starter widget test on the development PC. See `docs/VERIFICATION.md`.
 
-## M1 — Design system foundation
+## M1 — Design system foundation — DONE (2026-09-11)
 
 - Design tokens: color palette, typography scale, spacing, radii, elevation, motion durations and easing — including a reduced-motion policy.
 - Theme wired into the app shell; shared primitives: buttons, cards, chips, bottom sheet, empty/loading/error states.
 - A temporary gallery screen demonstrating every primitive (removed or hidden before any release).
 - `docs/DESIGN.md` documenting the visual language and naming the art direction.
 - **Acceptance:** two or three art directions are presented to Adam with sample screens before committing to one; the chosen direction is implemented as tokens and theme; the gallery renders all primitives; the reduced-motion path is defined; widget tests cover theme/token basics.
+- **Result:** Adam chose C — Botanical Play after the three sample galleries. Tokens, bundled fonts, Material 3 theme, shared primitives and a debug-only interactive gallery are implemented. Analysis is clean, all 23 tests pass, and a release web build succeeds. See `docs/DESIGN.md`, `docs/VERIFICATION.md`, and `docs/reviews/M1.md` for the demo and independent review.
 
 ## M2 — Data layer: TheCocktailDB
 
@@ -61,6 +62,6 @@ Publication and licensing review, distribution, and the home-bar/shopping/hostin
 
 ## Open decisions that gate work
 
-- **Art direction** — resolved within M1; Adam picks from presented options.
+- **Art direction** — resolved in M1: Adam selected C — Botanical Play.
 - **Auth provider and guest/local-only mode** — Adam decides before M7 starts; this is the decision that determines whether `backend/` gets content.
 - **Publication target** (repository visibility, distribution) — after M7.
