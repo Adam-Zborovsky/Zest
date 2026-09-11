@@ -1,5 +1,42 @@
 # Verification record
 
+## M2 — TheCocktailDB data layer — 2026-09-11
+
+Verified on the development PC with Flutter 3.44.4 stable and Dart 3.12.2. Every Flutter command ran from `frontend/`:
+
+- `flutter analyze` — no issues found.
+- `flutter test --reporter expanded` — all **50 tests** passed: 23 existing foundation tests, 10 domain tests and 17 client tests.
+- `flutter build web --no-pub` — release build succeeded; Wasm dry run succeeded. The existing M1 warning mentioning `packages/cupertino_icons/CupertinoIcons` reappeared. No icon code changed, no dependency was added to mask it, and no warning was suppressed.
+- `dart run tool/m2_demo.dart` — synthetic parsing/normalization/cache checks passed with zero network calls.
+- `dart run tool/m2_demo.dart --live` — one live public-key lookup decoded successfully; the repeated lookup came from cache. Provider content/images were not saved or printed.
+
+The ordinary test suite never calls the service. Synthetic coverage includes all four endpoint/query contracts, source/attribution and named-pair round trips, blank/gapped/null slots, measure fallback and malformed-punctuation regression, each lexical alias and distinct brands/types, no-match responses, invalid input and schema, HTTP/rate-limit metadata, URI/key redaction, response-size limits, stream failure and timeout after headers, cooperative and non-cooperative abort/close, late-result rejection, immutable collections, TTL including zero, LRU eviction, in-flight deduplication and retry after malformed responses. M1 accessibility and rendered golden tests remain green and unchanged.
+
+This is data-layer verification, not M3 navigation/UI or a new Android/device run. The main Android manifest's Internet permission was inspected but no Android release APK was built. The web shell build is not a browser-network/CORS runtime test because discovery is not wired into the app yet. No server, watcher or interactive app session was launched.
+
+### Demo
+
+Run `dart run tool/m2_demo.dart` from `frontend/`:
+
+```text
+Synthetic lookup: full recipe decoded.
+Two lookups; 1 HTTP request; second served from cache.
+Synthetic ingredient slots: 1, 3, 4, 15.
+Original: "  Mint Leaves  "; normalized: mint leaf.
+Measure: 1.5 tsp; source text retained.
+No provider content or images written to disk.
+```
+
+The synthetic HTTP request is intercepted locally. The explicitly opted-in live demo produced:
+
+```text
+Live lookup: full recipe decoded.
+Two lookups; 1 HTTP request; second served from cache.
+No provider content or images written to disk.
+```
+
+The Terra subagent implemented the client/cache and its tests; independent model and final integration reviews accepted the result after fixes and test hardening. See [M2 review](reviews/M2.md) and [data contract](DATA.md). No backend code, private key, source photo or provider record was added. M3 has not started.
+
 ## M1 — Botanical Play — 2026-09-11
 
 Verified on the development PC using Flutter 3.44.4 stable and Dart 3.12.2, with all Flutter commands run from `frontend/`:
@@ -26,7 +63,7 @@ To explore manually, run `flutter run -d chrome` from `frontend/`. Select ingred
 
 The initial web build reported an expected-font mismatch mentioning `packages/cupertino_icons/CupertinoIcons`; all authored icons use Material Icons and their rendered glyphs were checked. The final incremental web build completed without repeating that warning. No dependency was added and no build warnings were suppressed.
 
-Independent review accepted the final implementation after the chip regression and keyboard tests were added; see [M1 review](reviews/M1.md). M2 has not started.
+Independent review accepted the final implementation after the chip regression and keyboard tests were added; see [M1 review](reviews/M1.md). At this checkpoint, M2 had not started.
 
 ## Development-PC baseline — 2026-09-10
 

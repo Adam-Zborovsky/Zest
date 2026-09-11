@@ -16,12 +16,13 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Acceptance:** two or three art directions are presented to Adam with sample screens before committing to one; the chosen direction is implemented as tokens and theme; the gallery renders all primitives; the reduced-motion path is defined; widget tests cover theme/token basics.
 - **Result:** Adam chose C — Botanical Play after the three sample galleries. Tokens, bundled fonts, Material 3 theme, shared primitives and a debug-only interactive gallery are implemented. Analysis is clean, all 23 tests pass, and a release web build succeeds. See `docs/DESIGN.md`, `docs/VERIFICATION.md`, and `docs/reviews/M1.md` for the demo and independent review.
 
-## M2 — Data layer: TheCocktailDB
+## M2 — Data layer: TheCocktailDB — DONE (2026-09-11)
 
 - HTTP client with the documented public test key as default and a `--dart-define` override; typed models (Recipe, Ingredient, measure parsing); error types; response caching.
 - Ingredient name normalization (aliases, e.g. "Dark Rum" vs brand names) via a reviewed mapping table.
 - Tests against synthetic fixtures — no network in tests, no provider data copied into the repository.
 - **Acceptance:** client unit-tested with fixtures; models round-trip; rate-limit-friendly caching documented; no key material in the repo.
+- **Result:** typed full recipes and filter summaries, source-preserving ingredient/measure models, reviewed lexical aliases, four discovery endpoints, safe error types and bounded TTL/LRU caching are implemented. Only the explicitly allowed public test key is in code. Analysis is clean, all 50 tests pass, and the one-shot live demo confirms two lookups use one HTTP request without saving provider content. Discovery UI remains M3. See `docs/DATA.md`, `docs/VERIFICATION.md`, and `docs/reviews/M2.md`.
 
 ## M3 — Discovery and recipe detail
 

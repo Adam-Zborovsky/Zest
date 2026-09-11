@@ -55,10 +55,13 @@ All Flutter commands run from the repository's `frontend/` directory. Start from
 
 ## Project files
 
-- `frontend/lib/main.dart` — minimal `ZestApp` starter screen.
-- `frontend/test/widget_test.dart` — matching starter-screen widget test.
+- `frontend/lib/main.dart` — Botanical Play app shell and debug-only design gallery.
+- `frontend/lib/features/discovery/` — M2 recipe models and cached TheCocktailDB client; not yet wired into UI.
+- `frontend/tool/m2_demo.dart` — one-shot synthetic data/cache demo; optional `--live` smoke check.
+- `frontend/test/` — design/accessibility regressions and synthetic data-layer tests.
 - `docs/PRODUCT.md` — canonical agreed product requirements and explicit implementation boundary.
 - `docs/ROADMAP.md` — milestone order and acceptance criteria.
+- `docs/DATA.md` — M2 API, source preservation, ingredient aliases, cache policy and demo commands.
 - `docs/AGENT_PROMPT.md` — kick-off prompt for the development-PC agent.
 - `docs/review.md` — review records for the foundation and handoff.
 - `docs/VERIFICATION.md` — host-side static verification and its limits.
@@ -67,4 +70,4 @@ All Flutter commands run from the repository's `frontend/` directory. Start from
 
 ## Source boundary
 
-The app uses TheCocktailDB as its recipe source, but no provider data, images, API key, network integration, or content-license grant is included in this repository. Personal photos are a planned private archive feature and must not be tracked in the public repository. See `docs/PRODUCT.md` for the full boundary and unresolved decisions.
+The app's data layer calls TheCocktailDB using the documented public development key `1` by default, with an optional `--dart-define` override. No provider records, images, private API keys, or content-license grant are included in this repository. Tests and the default data demo use invented fixtures; provider responses are cached in memory only. Personal photos are a planned private archive feature and must not be tracked in the repository. See `docs/PRODUCT.md` for the full boundary and unresolved decisions.

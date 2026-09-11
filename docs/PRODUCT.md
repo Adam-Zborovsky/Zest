@@ -2,13 +2,13 @@
 
 ## Status
 
-Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. This repository contains a Flutter design-system foundation with generated Android and web wrappers. The starter app has been built and run on the development PC (Adam confirmed the run on 2026-09-10). The selected Botanical Play theme, tokens, shared primitives, and temporary debug gallery are implemented; milestone verification is recorded separately in `docs/VERIFICATION.md`. It does **not** yet implement login, onboarding, recipe retrieval, TheCocktailDB integration, ingredient matching, the Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, or authentication. Gallery interactions are temporary specimens, not product features.
+Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. This repository contains a Flutter design-system foundation and a tested TheCocktailDB data layer with generated Android and web wrappers. The starter app has been built and run on the development PC (Adam confirmed the run on 2026-09-10). The selected Botanical Play theme, tokens, shared primitives, and temporary debug gallery are implemented. M2 adds recipe search/browse/lookup clients, typed source-preserving models, conservative ingredient identities and memory-only response caching; it is not yet wired into the interface. Milestone verification is recorded separately in `docs/VERIFICATION.md`. There is **no** discovery/detail UI, login, onboarding, ingredient matching, Ingredient Constellation, saved recipes, personal variations, photo handling, persistence, or authentication. Gallery interactions are temporary specimens, not product features.
 
 Development and execution happen on the development PC, where the Flutter SDK is installed. Run all Flutter commands from `frontend/`.
 
 ## Confirmed product direction
 
-- **Name and source:** The product is Zest; its Dart package name is `zest`. TheCocktailDB is the chosen future recipe source.
+- **Name and source:** The product is Zest; its Dart package name is `zest`. TheCocktailDB is the recipe source; the M2 integration contract is documented in `docs/DATA.md`.
 - **Purpose:** Combine discovery, ingredient matching, guided making, saved recipes, and personal variations. Home-bar, shopping, and hosting features are later possibilities, not current implementation scope.
 - **Visual direction:** Adam selected **C — Botanical Play**: leafy greens, soft shapes, and cut-paper garnish. Fraunces headings, DM Sans body text, and the palette and component rules in `docs/DESIGN.md` establish the foundation. Expressive visual flair is a first-class, app-wide requirement. It must carry through discovery, recipes, making, collections, secondary, and empty states—not be isolated to a single showcase.
 - **Accessibility:** Preserve readable content, direct access to core tasks, reduced-motion equivalents, and a logical screen-reader experience. Constant motion is not a requirement.
@@ -44,7 +44,7 @@ Authentication provider, guest access, account requirements, storage, and sync b
 
 ## Source and publication boundary
 
-TheCocktailDB remains the chosen dependency, but a development/education test key and a future public-app release do not grant rights to redistribute provider data or photos. No API key, database dump, source image, public binary distribution, or content license grant belongs in this repository. Confirm provider terms and distribution rights when a publication method is chosen. Future app-code licensing remains separate from upstream content rights.
+TheCocktailDB remains the chosen dependency, but a development/education test key and a future public-app release do not grant rights to redistribute provider data or photos. Only the explicitly allowed public test key `1` is included in code; no private API key, database dump, source image, public binary distribution, or content license grant belongs in this repository. Confirm provider terms and distribution rights when a publication method is chosen. Future app-code licensing remains separate from upstream content rights.
 
 ## Open decisions
 
