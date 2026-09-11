@@ -1,0 +1,27 @@
+{
+  "drinks": [
+    {
+      "idDrink": "900001",
+      "strDrink": "Paper Garden — synthetic fixture",
+      "strDrinkThumb": "https://example.invalid/synthetic-drink.png",
+      "strInstructions": "Combine the illustrative ingredients.\nServe in a test glass.",
+      "strCategory": "Synthetic category",
+      "strGlass": "Test glass",
+      "strAlcoholic": "Non alcoholic",
+      "strSource": "https://example.invalid/synthetic-source",
+      "strImageSource": "Synthetic test artwork (no image file)",
+      "strImageAttribution": "Invented attribution for parsing tests",
+      "strCreativeCommonsConfirmed": "No",
+      "strIngredient1": "  Mint Leaves  ",
+      "strMeasure1": " 1 1/2 tsp ",
+      "strIngredient2": " ",
+      "strMeasure2": null,
+      "strIngredient3": "Invented Botanical Syrup",
+      "strMeasure3": "½ oz",
+      "strIngredient4": "Test garnish",
+      "strMeasure4": "to taste",
+      "strIngredient15": "Test water",
+      "strMeasure15": null
+    }
+  ]
+}
