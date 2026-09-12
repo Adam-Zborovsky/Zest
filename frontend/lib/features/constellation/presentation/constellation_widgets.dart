@@ -121,7 +121,9 @@ class ConstellationLegend extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IngredientGlyph(kind: kind, size: 24),
+                    // Large enough that the mark draws, so the key shows
+                    // the same icon the canvas uses, not just a color.
+                    IngredientGlyph(kind: kind, size: 32),
                     const SizedBox(width: ZestSpace.sm),
                     Flexible(
                       child: Text(kind.label, style: textTheme.labelMedium),

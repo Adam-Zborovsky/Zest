@@ -6,10 +6,11 @@ import '../../../core/design/zest_tokens.dart';
 import '../domain/ingredient_kind.dart';
 
 /// Cut-paper ingredient glyphs: a colored disc per [IngredientKind] with a
-/// small inked mark (bottle, dropper, citrus wheel, sugar cubes, leaf, or a
-/// quiet ring). Paths live in a unit space and Paint objects are cached per
-/// (kind, dimmed, surface), so painting a glyph never allocates — the
-/// constellation's per-frame contract holds.
+/// small inked mark — a tall spirit bottle, a round liqueur flask, a citrus
+/// wheel, an isometric sugar cube, a mint sprig, or a tumbler with bubbles
+/// for everything else. Paths live in a unit space and Paint objects are
+/// cached per (kind, dimmed, surface), so painting a glyph never allocates —
+/// the constellation's per-frame contract holds.
 void paintIngredientGlyph(
   Canvas canvas,
   Offset center,
@@ -31,22 +32,25 @@ void paintIngredientGlyph(
       canvas.drawPath(_GlyphPaths.bottle, paints.markFill);
       canvas.drawRect(_GlyphPaths.bottleLabel, paints.accentFill);
     case IngredientKind.liqueur:
-      canvas.drawCircle(const Offset(0, -0.58), 0.3, paints.markFill);
-      canvas.drawPath(_GlyphPaths.dropper, paints.markFill);
-      canvas.drawCircle(const Offset(0, 0.2), 0.1, paints.accentFill);
+      canvas.drawPath(_GlyphPaths.flask, paints.markFill);
+      canvas.drawRect(_GlyphPaths.flaskCork, paints.accentFill);
+      canvas.drawRect(_GlyphPaths.flaskLabel, paints.accentFill);
     case IngredientKind.citrus:
       canvas.drawCircle(Offset.zero, 0.8, paints.accentFill);
       canvas.drawCircle(Offset.zero, 0.8, paints.markStroke);
       canvas.drawPath(_GlyphPaths.spokes, paints.markStroke);
     case IngredientKind.sweet:
-      canvas.drawRRect(_GlyphPaths.cubeBack, paints.accentFill);
-      canvas.drawRRect(_GlyphPaths.cubeBack, paints.markStroke);
-      canvas.drawRRect(_GlyphPaths.cubeFront, paints.markStroke);
+      canvas.drawPath(_GlyphPaths.cubeLeft, paints.accentFill);
+      canvas.drawPath(_GlyphPaths.cubeRight, paints.softFill);
+      canvas.drawPath(_GlyphPaths.cubeOutline, paints.markStroke);
     case IngredientKind.herbal:
-      canvas.drawPath(_GlyphPaths.leaf, paints.markFill);
-      canvas.drawPath(_GlyphPaths.midrib, paints.accentStroke);
+      canvas.drawPath(_GlyphPaths.sprigStem, paints.markStroke);
+      canvas.drawPath(_GlyphPaths.sprigLeaves, paints.markFill);
     case IngredientKind.other:
-      canvas.drawCircle(Offset.zero, 0.3, paints.markStroke);
+      canvas.drawPath(_GlyphPaths.tumblerLiquid, paints.softFill);
+      canvas.drawPath(_GlyphPaths.tumbler, paints.markStroke);
+      canvas.drawCircle(const Offset(-0.14, 0.42), 0.1, paints.accentFill);
+      canvas.drawCircle(const Offset(0.16, 0.12), 0.08, paints.accentFill);
   }
   canvas.restore();
 }
@@ -64,6 +68,7 @@ Color _fillOf(IngredientKind kind) => switch (kind) {
 };
 
 abstract final class _GlyphPaths {
+  /// Spirits: a tall, square-shouldered bottle with a label.
   static final bottle = Path()
     ..addRRect(
       RRect.fromLTRBR(-0.42, -0.3, 0.42, 0.95, const Radius.circular(0.16)),
@@ -72,14 +77,14 @@ abstract final class _GlyphPaths {
 
   static const bottleLabel = Rect.fromLTRB(-0.28, 0.12, 0.28, 0.5);
 
-  static final dropper = Path()
-    ..addRRect(
-      RRect.fromLTRBR(-0.13, -0.36, 0.13, 0.6, const Radius.circular(0.06)),
-    )
-    ..moveTo(-0.13, 0.58)
-    ..lineTo(0, 0.95)
-    ..lineTo(0.13, 0.58)
-    ..close();
+  /// Liqueurs and bitters: a round-bodied flask with a long neck, cork, and
+  /// label — distinct from the spirit bottle's tall silhouette.
+  static final flask = Path()
+    ..addOval(Rect.fromCircle(center: const Offset(0, 0.32), radius: 0.6))
+    ..addRect(const Rect.fromLTRB(-0.16, -0.78, 0.16, -0.2));
+
+  static const flaskCork = Rect.fromLTRB(-0.23, -0.98, 0.23, -0.78);
+  static const flaskLabel = Rect.fromLTRB(-0.36, 0.18, 0.36, 0.5);
 
   static final spokes = () {
     final path = Path();
@@ -95,31 +100,76 @@ abstract final class _GlyphPaths {
     return path;
   }();
 
-  static final cubeBack = RRect.fromLTRBR(
-    -0.76,
-    -0.66,
-    0.08,
-    0.16,
-    const Radius.circular(0.1),
-  );
+  /// Sweeteners: an isometric sugar cube with two shaded faces.
+  static const _cubeTop = Offset(0, -0.8);
+  static const _cubeRight = Offset(0.72, -0.4);
+  static const _cubeCenter = Offset(0, 0);
+  static const _cubeLeft = Offset(-0.72, -0.4);
+  static const _cubeBottom = Offset(0, 0.82);
+  static const _cubeBottomLeft = Offset(-0.72, 0.42);
+  static const _cubeBottomRight = Offset(0.72, 0.42);
 
-  static final cubeFront = RRect.fromLTRBR(
-    -0.14,
-    -0.1,
-    0.72,
-    0.7,
-    const Radius.circular(0.1),
-  );
-
-  static final leaf = Path()
-    ..moveTo(-0.72, 0.7)
-    ..cubicTo(-0.78, -0.35, 0.05, -0.88, 0.78, -0.74)
-    ..cubicTo(0.74, 0.05, 0.12, 0.76, -0.72, 0.7)
+  static final cubeLeft = Path()
+    ..moveTo(_cubeLeft.dx, _cubeLeft.dy)
+    ..lineTo(_cubeCenter.dx, _cubeCenter.dy)
+    ..lineTo(_cubeBottom.dx, _cubeBottom.dy)
+    ..lineTo(_cubeBottomLeft.dx, _cubeBottomLeft.dy)
     ..close();
 
-  static final midrib = Path()
-    ..moveTo(-0.5, 0.5)
-    ..quadraticBezierTo(0.05, 0.02, 0.55, -0.52);
+  static final cubeRight = Path()
+    ..moveTo(_cubeRight.dx, _cubeRight.dy)
+    ..lineTo(_cubeCenter.dx, _cubeCenter.dy)
+    ..lineTo(_cubeBottom.dx, _cubeBottom.dy)
+    ..lineTo(_cubeBottomRight.dx, _cubeBottomRight.dy)
+    ..close();
+
+  static final cubeOutline = Path()
+    ..moveTo(_cubeTop.dx, _cubeTop.dy)
+    ..lineTo(_cubeRight.dx, _cubeRight.dy)
+    ..lineTo(_cubeBottomRight.dx, _cubeBottomRight.dy)
+    ..lineTo(_cubeBottom.dx, _cubeBottom.dy)
+    ..lineTo(_cubeBottomLeft.dx, _cubeBottomLeft.dy)
+    ..lineTo(_cubeLeft.dx, _cubeLeft.dy)
+    ..close()
+    ..moveTo(_cubeLeft.dx, _cubeLeft.dy)
+    ..lineTo(_cubeCenter.dx, _cubeCenter.dy)
+    ..lineTo(_cubeRight.dx, _cubeRight.dy)
+    ..moveTo(_cubeCenter.dx, _cubeCenter.dy)
+    ..lineTo(_cubeBottom.dx, _cubeBottom.dy);
+
+  /// Herbs and spice: a mint sprig — a stem with a top leaf and two
+  /// alternating side leaves.
+  static final sprigStem = Path()
+    ..moveTo(0.02, 0.95)
+    ..quadraticBezierTo(0.08, 0.2, 0, -0.5);
+
+  static final sprigLeaves = Path()
+    ..moveTo(0, -0.98)
+    ..cubicTo(0.34, -0.78, 0.32, -0.34, 0, -0.26)
+    ..cubicTo(-0.32, -0.34, -0.34, -0.78, 0, -0.98)
+    ..close()
+    ..moveTo(0.02, 0.02)
+    ..cubicTo(-0.18, -0.36, -0.72, -0.34, -0.82, -0.08)
+    ..cubicTo(-0.66, 0.24, -0.24, 0.3, 0.02, 0.02)
+    ..close()
+    ..moveTo(0.05, 0.44)
+    ..cubicTo(0.24, 0.06, 0.76, 0.1, 0.84, 0.36)
+    ..cubicTo(0.68, 0.66, 0.28, 0.72, 0.05, 0.44)
+    ..close();
+
+  /// Everything else (ice, soda, milk, egg white…): a tumbler with bubbles.
+  static final tumbler = Path()
+    ..moveTo(-0.56, -0.78)
+    ..lineTo(-0.42, 0.86)
+    ..lineTo(0.42, 0.86)
+    ..lineTo(0.56, -0.78);
+
+  static final tumblerLiquid = Path()
+    ..moveTo(-0.5, -0.12)
+    ..lineTo(-0.42, 0.86)
+    ..lineTo(0.42, 0.86)
+    ..lineTo(0.5, -0.12)
+    ..close();
 }
 
 final class _GlyphPaints {
@@ -130,45 +180,52 @@ final class _GlyphPaints {
   }) {
     Color tone(Color color, [double alpha = 1]) =>
         color.withValues(alpha: dimmed ? alpha * 0.2 : alpha);
-    final (rimColor, markColor, accentColor) = switch (kind) {
+    final (rimColor, markColor, accentColor, softColor) = switch (kind) {
       IngredientKind.spirit => (
         ZestPalette.celery,
         ZestPalette.peach,
         ZestPalette.grapefruit,
+        ZestPalette.peach,
       ),
       IngredientKind.liqueur => (
         ZestPalette.peach,
         ZestPalette.peach,
         ZestPalette.celery,
+        ZestPalette.peach,
       ),
       IngredientKind.citrus => (
         ZestPalette.peach,
         ZestPalette.leaf,
+        ZestPalette.peach,
         ZestPalette.peach,
       ),
       IngredientKind.sweet => (
         ZestPalette.celery,
         ZestPalette.leaf,
         ZestPalette.grapefruit,
+        ZestPalette.celery,
       ),
       IngredientKind.herbal => (
         ZestPalette.peach,
         ZestPalette.leaf,
+        ZestPalette.grapefruit,
         ZestPalette.celery,
       ),
       IngredientKind.other => (
         ZestPalette.celery,
         ZestPalette.celery,
+        ZestPalette.peach,
         ZestPalette.celery,
       ),
     };
+    final quiet = kind == IngredientKind.other;
     fill = Paint()..color = tone(_fillOf(kind));
     rim = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..color = onLight
           ? tone(ZestPalette.leaf)
-          : tone(rimColor, kind == IngredientKind.other ? 0.7 : 1);
+          : tone(rimColor, quiet ? 0.7 : 1);
     markFill = Paint()..color = tone(markColor);
     markStroke = Paint()
       ..style = PaintingStyle.stroke
@@ -177,11 +234,7 @@ final class _GlyphPaints {
       ..strokeJoin = StrokeJoin.round
       ..color = tone(markColor);
     accentFill = Paint()..color = tone(accentColor);
-    accentStroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.12
-      ..strokeCap = StrokeCap.round
-      ..color = tone(accentColor);
+    softFill = Paint()..color = tone(softColor, quiet ? 0.35 : 1);
   }
 
   late final Paint fill;
@@ -189,7 +242,7 @@ final class _GlyphPaints {
   late final Paint markFill;
   late final Paint markStroke;
   late final Paint accentFill;
-  late final Paint accentStroke;
+  late final Paint softFill;
 
   static final _cache = <(IngredientKind, bool, bool), _GlyphPaints>{};
 

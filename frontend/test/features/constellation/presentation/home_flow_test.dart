@@ -432,6 +432,50 @@ void main() {
     expect(find.text('Testbench Tonic'), findsOneWidget);
   });
 
+  testWidgets('home opens with nothing selected, including after leaving '
+      'and returning', (tester) async {
+    await openHome(
+      tester,
+      seed: {
+        'a': catalogLetterRecipes('a'),
+        'b': catalogLetterRecipes('b'),
+        'c': catalogLetterRecipes('c'),
+      },
+    );
+
+    void expectNothingSelected() {
+      final canvas = tester.widget<ConstellationCanvas>(
+        keyed('constellation-canvas'),
+      );
+      expect(canvas.selectedNodeId, isNull);
+      expect(canvas.selectedEdge, isNull);
+      expect(keyed('constellation-clear'), findsNothing);
+      expect(
+        find.textContaining('Tap an ingredient to see where it leads'),
+        findsOneWidget,
+      );
+    }
+
+    expectNothingSelected();
+
+    // Select something, leave home, and come back: the selection does not
+    // follow the reader back.
+    await tester.ensureVisible(keyed('constellation-canvas'));
+    await tester.pumpAndSettle();
+    final (box, _, layout) = canvasGeometry(tester, threeLetterRecipes());
+    await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+    await tester.pumpAndSettle();
+    expect(keyed('constellation-clear'), findsOneWidget);
+
+    await activate(tester, keyed('home-discover'));
+    expect(router(tester).state.uri.path, '/discover');
+    router(tester).go('/');
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expectNothingSelected();
+  });
+
   testWidgets('the graph canvas answers node and edge selection', (
     tester,
   ) async {

@@ -64,6 +64,25 @@ void main() {
         expect(spanY, greaterThanOrEqualTo(inner.height * 0.7));
       });
 
+      test('nodes are not pinned in rows along the canvas walls', () {
+        final bounds = Rect.fromLTWH(
+          GraphLayout.inset,
+          GraphLayout.inset,
+          inner.width,
+          inner.height,
+        );
+        final onWall = layout.positions.values.where(
+          (p) =>
+              (p.dx - bounds.left).abs() < 1 ||
+              (p.dx - bounds.right).abs() < 1 ||
+              (p.dy - bounds.top).abs() < 1 ||
+              (p.dy - bounds.bottom).abs() < 1,
+        );
+        // Filling the canvas puts the extreme nodes on the walls; anything
+        // beyond a handful means the outer ring is pressed flat.
+        expect(onWall.length, lessThanOrEqualTo(8));
+      });
+
       test('node discs never overlap', () {
         final nodes = graph.nodes;
         for (var i = 0; i < nodes.length; i++) {
