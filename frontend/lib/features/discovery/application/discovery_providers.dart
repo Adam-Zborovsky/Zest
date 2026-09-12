@@ -16,14 +16,17 @@ final cocktailDbClientProvider = Provider<CocktailDbClient>((ref) {
 /// Injectable clock for deterministic cooldown behavior.
 final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
-final _discoveryRequestGatewayProvider = Provider<_DiscoveryRequestGateway>((
-  ref,
-) {
-  return _DiscoveryRequestGateway(
+final _discoveryRequestGatewayProvider = Provider<CocktailRequestGateway>((ref) {
+  return CocktailRequestGateway(
     client: ref.watch(cocktailDbClientProvider),
     now: ref.watch(nowProvider),
   );
 });
+
+/// The application-scoped request gateway shared by discovery and bar
+/// matching. Public so M4 bar matching reuses the same conservative
+/// 429 cooldown; the client remains the authority for response caching.
+final cocktailRequestGatewayProvider = _discoveryRequestGatewayProvider;
 
 /// Source searches and letter browsing return full records, while ingredient
 /// filtering returns summaries. The UI has one uniform summary result shape.
@@ -46,8 +49,8 @@ final recipeDetailProvider = FutureProvider.autoDispose.family<Recipe?, String>(
 
 /// Coordinates the provider layer's single conservative 429 cooldown. The
 /// client remains the authority for response caching and never gets closed here.
-final class _DiscoveryRequestGateway {
-  _DiscoveryRequestGateway({required this.client, required this.now});
+final class CocktailRequestGateway {
+  CocktailRequestGateway({required this.client, required this.now});
 
   static const _fallbackCooldown = Duration(seconds: 30);
 
@@ -76,6 +79,9 @@ final class _DiscoveryRequestGateway {
 
   Future<Recipe?> detail(String id) =>
       _throughCooldown(() => client.lookupRecipe(id));
+
+  Future<List<String>> ingredientNames() =>
+      _throughCooldown(client.listIngredientNames);
 
   Future<T> _throughCooldown<T>(Future<T> Function() request) async {
     final until = _cooldownUntil;
