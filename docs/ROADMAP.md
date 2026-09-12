@@ -38,7 +38,17 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Acceptance:** matching unit tests including edge cases (unselected does not mean available; optional garnish; duplicates after normalization); the results UI distinguishes the three cases.
 - **Result:** matching runs client-side within the chosen discovery results (multi-ingredient filtering is provider-premium), with a searchable ingredient picker over the provider's list endpoint, batch-of-ten lookups through the shared cache and cooldown, pause/resume, and a three-bucket results UI with reviewed garnish/substitution tables documented in `docs/DATA.md`. Analysis is clean, all 124 tests pass, and the release web build succeeds. An independent review blocked on a result-duplication defect and the uncommitted contract; both were fixed and re-verified. See `docs/BAR.md`, `docs/VERIFICATION.md`, and `docs/reviews/M4.md`. M5 has not started.
 
+## M5 prerequisite — local recipe gateway — DONE (2026-09-12)
+
+- Approved after Adam purchased premium access: Node/TypeScript/Fastify in `backend/`, local `npm run dev`, paid key in backend environment only.
+- Preserve current discovery/bar operations through a configurable Flutter gateway address; strict routes, explicit localhost CORS, bounded memory caching, request deadlines and shared provider cooldown.
+- Acceptance: synthetic backend tests, typecheck/build, Flutter analyze/tests, cross-language synthetic contract demo and independent review. No Docker, Compose, Nginx, deployment, accounts or backend database.
+- Contract and local setup: [GATEWAY.md](GATEWAY.md). This prerequisite does not complete M5.
+- Result: allowlisted local gateway and key-free Flutter transport implemented; 23 backend tests and 126 Flutter tests pass, analysis/typecheck/builds clean, synthetic cross-language demo passes. Independent review: [GATEWAY review](reviews/GATEWAY.md). Live paid-key/browser behavior is not yet verified.
+
 ## M5 — Ingredient Constellation (flagship)
+
+- Adam approved source-preserving on-device catalog storage with drift brought forward from M6, and resumable 26-letter sync with visible coverage/progress. The gateway supplies provider access; graph/matching remain client-side. Do not equate completed A–Z sync with proven full-catalog completeness.
 
 - Co-occurrence graph over the loaded recipe collection: nodes are normalized ingredients (size = distinct-recipe count), edges are shared recipes (weight = shared count).
 - Bounded initial view (top-N frequent ingredients); filter and focus interactions; selecting an ingredient highlights its neighborhood; selecting an edge shows shared recipes.
@@ -66,5 +76,5 @@ Publication and licensing review, distribution, and the home-bar/shopping/hostin
 ## Open decisions that gate work
 
 - **Art direction** — resolved in M1: Adam selected C — Botanical Play.
-- **Auth provider and guest/local-only mode** — Adam decides before M7 starts; this is the decision that determines whether `backend/` gets content.
+- **Auth provider and guest/local-only mode** — Adam decides before M7 starts. The recipe gateway is separately authorized before M5; it does not settle auth or cloud storage.
 - **Publication target** (repository visibility, distribution) — after M7.

@@ -10,15 +10,15 @@ Read, in order:
 
 ## Working agreements
 
-- **Definition of done (every change):** `flutter analyze` is clean and `flutter test` is green. New behavior or logic gets a test; bug fixes get a regression test first.
+- **Definition of done (every change):** `flutter analyze` is clean and `flutter test` is green. Backend changes also require `npm run typecheck`, `npm test`, and `npm run build` from `backend/`. New behavior or logic gets a test; bug fixes get a regression test first.
 - **Milestone loop:** start each milestone by proposing a short plan to Adam; implement in small, conventional commits; demo the result at the end. Do not run ahead into later milestones.
 - **Design is a feature, not a garnish.** Every screen — including loading, empty, and error states — gets the same expressive treatment defined by the design system. Accessibility (reduced motion, contrast, text scaling, logical focus order) is part of done.
 - **Dependencies:** start from the default stack below. Any addition needs a stated reason in the commit or PR. Keep the dependency list small.
 - **Secrets and personal data:** no API keys in the repository, no personal photos in the repository, no provider data dumps. Tests use synthetic fixtures that imitate API shapes, not copied provider records.
-- **TheCocktailDB terms:** the app uses the documented public test key by default (personal/educational use). Respect rate limits; cache responses client-side. Redistributing provider data or images outside the running app is not permitted. If publication beyond personal use is planned, licensing must be reviewed with Adam first.
+- **TheCocktailDB terms:** Adam purchased premium access and reports confirming the provider terms. The local gateway defaults to the documented public test key; a private key belongs only in backend runtime configuration. Respect rate limits and retain attribution. Do not commit provider records/images or infer permission for additional distribution. Publication remains a separate decision.
 - **Memory photos** are stored in app-private storage — never in the repo, never in any cloud without an explicit decision.
 - **Author/reviewer discipline:** substantive changes get a second look — a fresh agent instance or an Adam-routed review — before being considered final.
-- **Monorepo discipline:** the Flutter app lives in `frontend/`; run every Flutter command from there. `backend/` is intentionally empty until the M7 auth decision (see `backend/README.md`) — do not scaffold a server and do not proxy TheCocktailDB calls behind one.
+- **Monorepo discipline:** run Flutter commands from `frontend/` and npm commands from `backend/`. Adam explicitly authorized a local Node/TypeScript/Fastify recipe gateway before M5, superseding the old empty-until-M7 rule. No Docker, Compose, Nginx, deployment, accounts or backend database in this increment. Adam runs `npm run dev`; agents use finite tests/builds, not servers/watchers.
 
 ## Default stack (propose changes, don't silently deviate)
 
@@ -28,12 +28,13 @@ Read, in order:
 | State | `flutter_riverpod` | Providers per feature; keep widgets dumb |
 | Navigation | `go_router` | Official routing; needed for the onboarding/login redirect flow |
 | HTTP | `http` | Thin client around TheCocktailDB; `dio` only if interceptors earn it |
+| Recipe gateway | Node >=24, TypeScript, Fastify + `@fastify/cors` | Local development; backend holds provider key. `tsx` runs development/test TypeScript. |
 | Persistence | `shared_preferences` (flags), `drift` (from M6) | Local-first; no cloud sync without a decision |
 | Photos | `image_picker` + `path_provider` | Store under the app documents directory; DB keeps relative paths |
 | Constellation | custom `CustomPainter` + simple force layout | Full aesthetic control; add graph packages only with justification |
 | Models | hand-written `fromJson`/`toJson` | Add codegen only when the boilerplate hurts |
 
-API key handling: default in code to the documented public test key; allow override with `--dart-define=COCKTAIL_DB_API_KEY=...`. A premium key, if ever obtained, never enters the repo — dart-define or an untracked local file only.
+API key handling: backend `COCKTAIL_DB_API_KEY` environment variable, default public test key `1`. An ignored `backend/.env` is supported. Flutter accepts only `--dart-define=ZEST_API_BASE_URL=...`, not a provider key. Never put private keys in source, frontend builds, logs, or chat.
 
 ## Project layout (target)
 
@@ -51,7 +52,7 @@ frontend/            # the Flutter application — run commands from here
   test/
     fixtures/        # synthetic API-shaped JSON
     features/        # mirrors lib structure
-backend/             # intentionally empty until the M7 auth decision (see backend/README.md)
+backend/             # local recipe gateway; accounts/auth remain gated on M7
 docs/                # PRODUCT.md, ROADMAP.md, DESIGN.md (created in M1), review records
 ```
 

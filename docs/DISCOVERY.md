@@ -51,9 +51,9 @@ From `frontend/`, `flutter test test/features/discovery/presentation` runs the s
 - [Search results](../frontend/test/features/discovery/presentation/goldens/discovery-results.png)
 - [Recipe detail](../frontend/test/features/discovery/presentation/goldens/recipe-detail.png)
 
-For manual exploration on the development PC, run `flutter run -d chrome` from `frontend/`. Search, open all results when offered, open a recipe, use Back, browse a letter and follow source attribution. This contacts the provider with the documented public test key unless overridden. This command is for Adam to run; the agent did not launch a server/watcher.
+For manual exploration on the development PC, follow [gateway setup](../backend/README.md), run `npm run dev` from `backend/`, then `flutter run -d chrome --web-port=5173` from `frontend/`. Search, open all results when offered, open a recipe, use Back, browse a letter and follow source attribution. Recipe calls go through the local gateway, which holds the provider key; source images/links remain direct. These commands are for Adam to run; the agent did not launch a server/watcher.
 
-The M1 gallery now requires explicit debug opt-in: `flutter run -d chrome --dart-define=ZEST_DESIGN_GALLERY=true`. Release builds ignore that gallery request. Authentication and the future constellation home placement remain undecided; discovery's M3 launch placement does not resolve either.
+The M1 gallery now requires explicit debug opt-in: `flutter run -d chrome --dart-define=ZEST_DESIGN_GALLERY=true`. Release builds ignore that gallery request. Authentication remains undecided; Adam subsequently approved graph-first home for M5, which is not implemented by this gateway increment.
 
 ## Official references consulted
 

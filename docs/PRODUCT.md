@@ -8,6 +8,9 @@ Development and execution happen on the development PC, where the Flutter SDK is
 
 ## Confirmed product direction
 
+- **Recipe gateway decision (2026-09-12):** Adam purchased premium access and reports confirming the provider terms. A local Node/TypeScript/Fastify gateway is authorized before M5 to hold the paid key, forward allowlisted recipe requests and share bounded memory caching/cooldowns. Flutter keeps its local matching and future drift/graph work. No deployment configuration, backend database, authentication or accounts are included; M7 still gates auth. See [GATEWAY.md](GATEWAY.md).
+- **M5 direction confirmed:** the constellation will lead home, over an on-device source-preserving recipe collection; drift is authorized early from M6. Catalog sync, graph and performance verification are separate work after the gateway prerequisite, not implemented by it. A paid key does not itself verify a particular full-catalog retrieval contract.
+
 - **Name and source:** The product is Zest; its Dart package name is `zest`. TheCocktailDB is the recipe source; the M2 integration contract is documented in `docs/DATA.md`.
 - **Purpose:** Combine discovery, ingredient matching, guided making, saved recipes, and personal variations. Home-bar, shopping, and hosting features are later possibilities, not current implementation scope.
 - **Visual direction:** Adam selected **C — Botanical Play**: leafy greens, soft shapes, and cut-paper garnish. Fraunces headings, DM Sans body text, and the palette and component rules in `docs/DESIGN.md` establish the foundation. Expressive visual flair is a first-class, app-wide requirement. It must carry through discovery, recipes, making, collections, secondary, and empty states—not be isolated to a single showcase.
@@ -48,8 +51,8 @@ TheCocktailDB remains the chosen dependency, but a development/education test ke
 
 ## Open decisions
 
-- Constellation placement and relationship to the label system. The roadmap's home-screen placement still needs reconciliation with this product brief before M5; the M1 gallery does not decide it.
-- Recipe coverage was resolved for M4 as client-side matching within the chosen discovery results (the provider reserves multi-ingredient filtering for premium keys); catalog-wide matching, any ingestion method, and applicable API terms for publication remain open.
+- Constellation placement is resolved as home-first for M5. Its relationship to the label system remains open.
+- M4 remains client-side matching within chosen discovery results. M5 is approved for an on-device collection and resumable letter sync; exact catalog completeness must be verified, not inferred from premium access. Publication/distribution remains separate from Adam's reported confirmation of provider terms for this development.
 - Initial mobile targets and eventual distribution method.
 - Authentication, guest access, storage, and synchronization.
 - Media storage, backup/export, and permissions.

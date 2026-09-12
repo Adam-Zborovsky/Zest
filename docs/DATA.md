@@ -1,6 +1,6 @@
 # M2 data contract
 
-The M2 data layer is consumed by the M3 discovery/detail interface and the M4 bar-matching interface; it is not connected to the temporary gallery. No backend, bulk ingestion, persistence, provider content bundle, or graph coverage decision is introduced here. M3's provider ownership and shared cooldown are documented in [DISCOVERY.md](DISCOVERY.md); M4's matching flow is documented in [BAR.md](BAR.md).
+The M2 data layer is consumed by the M3 discovery/detail and M4 bar-matching interfaces, not the temporary gallery. Its transport now uses the [local gateway](GATEWAY.md), approved as an M5 prerequisite; models remain source-preserving. Bulk ingestion, persistence and graph implementation are not part of this transport change. M3's provider ownership and shared cooldown are documented in [DISCOVERY.md](DISCOVERY.md); M4's matching flow is documented in [BAR.md](BAR.md).
 
 ## Client
 
@@ -16,7 +16,7 @@ The M2 data layer is consumed by the M3 discovery/detail interface and the M4 ba
 
 Queries are URL encoded and trimmed. First-letter browse accepts one ASCII letter; lookup accepts a numeric ID. Empty search/filter queries are rejected without a request. Filter summaries must be looked up before displaying a complete recipe. Nothing claims to represent the entire provider catalog. `listIngredientNames` returns the provider's ingredient filter names — names only, no property or availability claim — trimmed, deduplicated case-insensitively (first spelling wins), and sorted case-insensitively for a stable selection UI. Malformed list records are errors, not silent skips.
 
-The default host is HTTPS TheCocktailDB V1. The documented public development key `1` is the default. A build can override it with `--dart-define=COCKTAIL_DB_API_KEY=…`; never commit a private key, generated key file, or build artifact containing one. A client-side define is configuration, **not secret storage**: values can be extracted from a distributed app. Future distribution still requires Adam's licensing/key decision. The constructor also supports injected HTTP clients and keys for isolated tests.
+The current client talks to the local recipe gateway, default `http://127.0.0.1:3000/api/cocktails/`, with `--dart-define=ZEST_API_BASE_URL=…` for an alternate absolute base ending in `/`. Only HTTPS or loopback HTTP is accepted; credentials, query and fragment are rejected. Provider-key defines and constructor arguments were removed from Flutter. The gateway alone calls HTTPS TheCocktailDB V1, with its `COCKTAIL_DB_API_KEY` environment variable (public test key `1` default). The original M2 direct-provider transport is superseded by [GATEWAY.md](GATEWAY.md); models, operation parameters and local cache behavior remain unchanged. Tests inject a transport and gateway base URL.
 
 `http` 1.6.0 is the only new direct dependency and belongs to the agreed stack. The client owns and closes only a transport it creates itself. Call `close()` when disposing the data layer; callers remain responsible for closing injected transports. Android's main manifest now includes Internet permission for release as well as debug networking.
 
@@ -99,7 +99,7 @@ flutter analyze
 flutter test
 ```
 
-The default demo reads an authored synthetic fixture and makes **zero network calls**. It demonstrates parsing, normalization, gapped ingredient slots and a cache hit. `--live` opts into one public-key lookup repeated through the cache; it prints only decoding/cache status, never provider recipe content or request URLs, and writes no files. Ordinary tests never call the live service; their URLs use `example.invalid` and their recipes are invented.
+The default demo reads an authored synthetic fixture and makes **zero network calls**. It demonstrates parsing, normalization, gapped ingredient slots and a cache hit. `--live` now requires the user-started gateway and opts into a lookup repeated through the client cache; it prints only decoding/cache status, never provider recipe content or request URLs, and writes no files. Ordinary tests never call the live service. `dart run tool/gateway_demo.dart` exercises all five real gateway routes with an invented upstream, without listening servers or external requests (requires `npm ci` in `backend/`).
 
 ## Official references checked 2026-09-11
 

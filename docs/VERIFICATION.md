@@ -1,5 +1,18 @@
 # Verification record
 
+## Local recipe gateway — M5 prerequisite — 2026-09-12
+
+Development PC: Node 26.3.0, npm 11.18.0, Flutter 3.44.4/Dart 3.12.2. Commands ran in the owning `backend/` or `frontend/` directory.
+
+- Backend: `npm test` — **23 passed**; `npm run typecheck` and `npm run build` — clean. Initial install audit reported zero vulnerabilities. npm reported an unapproved esbuild postinstall hook; no approval/bypass was applied, and typecheck/build/tsx demos all worked with the installed platform package.
+- `npm run demo` — real Fastify injection, synthetic upstream, two identical searches use one upstream call; health passes.
+- Flutter: `flutter analyze` — no issues; `flutter test --reporter expanded` — **126 passed**, retaining all M4 regressions and unchanged visual baselines.
+- `flutter build web --no-pub` — succeeds; Wasm dry run succeeds. Existing missing Cupertino icon-font warning remains, with ordinary MaterialIcons tree shaking. No suppression.
+- `dart run tool/gateway_demo.dart` — Flutter client through real Fastify routes and invented upstream; all five operations pass, original measure retained, repeated lookup client-cached. Uses one-shot Node processes, not a listening server.
+- `dart run tool/m2_demo.dart` — original synthetic model/cache demo still passes.
+
+A separate Luna reviewer independently passed all 23 backend tests/typecheck/build after checking the origin/preflight regression fix. See [review](reviews/GATEWAY.md). No Docker/Compose/Nginx files, real provider calls, private key access, dev servers, physical-device runs or live browser interaction. Manual local setup is documented in [backend README](../backend/README.md). This closes the gateway prerequisite, not M5's catalog/graph work.
+
 ## M4 — "What can I make" (bar matching) — 2026-09-12
 
 Executed on the development PC with Flutter 3.44.4 stable and Dart 3.12.2; all Flutter commands ran from `frontend/`:

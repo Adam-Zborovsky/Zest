@@ -4,8 +4,8 @@ A personal, playful cocktail companion: a Flutter app (TheCocktailDB as recipe s
 
 ## Repository layout
 
-- `frontend/` — the Flutter application (run everything from here).
-- `backend/` — intentionally empty placeholder. See `backend/README.md` for why: TheCocktailDB is called directly from the app with its documented public test key; a backend becomes relevant only if/when accounts, cross-device sync, or premium API terms require it (decision point: M7).
+- `frontend/` — the Flutter application (run Flutter commands here).
+- `backend/` — local Node/TypeScript/Fastify recipe gateway. Run npm commands here. It holds the provider key; accounts and authentication remain M7 decisions. See [local setup](backend/README.md).
 - `docs/` — product brief, roadmap, review records, and the development-agent prompt.
 - `AGENTS.md` — operating instructions for development agents working in this repository.
 
@@ -14,6 +14,8 @@ A personal, playful cocktail companion: a Flutter app (TheCocktailDB as recipe s
 This repository is also present on a production server where Flutter and Dart are intentionally absent. Do not install or run SDK tooling there. Development happens on the development PC with a current stable Flutter SDK.
 
 ## First setup on the development PC
+
+For live recipe discovery, first follow [backend setup](backend/README.md). Start Flutter web with `flutter run -d chrome --web-port=5173` so its origin matches the gateway allowlist. No Docker or deployment setup is required. The default recipe API address is `http://127.0.0.1:3000/api/cocktails/`.
 
 All Flutter commands run from the repository's `frontend/` directory. Start from the repository root, then:
 
@@ -71,4 +73,4 @@ All Flutter commands run from the repository's `frontend/` directory. Start from
 
 ## Source boundary
 
-The app's data layer calls TheCocktailDB using the documented public development key `1` by default, with an optional `--dart-define` override. No provider records, images, private API keys, or content-license grant are included in this repository. Tests and the default data demo use invented fixtures; provider responses are cached in memory only. Personal photos are a planned private archive feature and must not be tracked in the repository. See `docs/PRODUCT.md` for the full boundary and unresolved decisions.
+Flutter calls the local recipe gateway; the provider key exists only in the backend process environment or ignored `backend/.env`. The gateway defaults to documented public test key `1`. No provider records, images, private API keys, or content-license grant are included in this repository. Tests and synthetic demos use invented fixtures; provider responses are cached in memory only. Personal photos remain a planned private archive feature. See [gateway contract](docs/GATEWAY.md) and `docs/PRODUCT.md` for boundaries and unresolved decisions.

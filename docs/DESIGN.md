@@ -66,7 +66,7 @@ Buttons use native Material interaction semantics and visible keyboard focus bor
 
 The temporary `DesignGallery` demonstrates these primitives with invented content. Chip selection, save/unsave, retry feedback, sheet actions, and reset operate only on local specimen state and are discarded on restart. They do not implement recipe discovery, storage, matching, or networking.
 
-From M3, the app launches discovery in all build modes. The gallery requires the explicit `ZEST_DESIGN_GALLERY=true` define in a debug build; profile/release ignore that gallery request. The constellation's placement and relationship to the label system remain open product decisions; the M3 discovery launch does not settle them.
+From M3, the app launches discovery in all build modes. The gallery requires the explicit `ZEST_DESIGN_GALLERY=true` define in a debug build; profile/release ignore that gallery request. Adam subsequently approved graph-first home for M5; its relationship to the label system remains open. The gateway increment changes no visual components or golden baselines.
 
 ## M3 feature application
 
