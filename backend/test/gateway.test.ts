@@ -143,7 +143,7 @@ test('upstream failures are safe and retry-after is exposed', async () => {
 });
 
 test('malformed, oversized, and schema-invalid upstream responses are rejected', async () => {
-  for (const response of [new Response('{', { status: 200 }), jsonResponse({ nope: [] }), jsonResponse({ drinks: [{ idDrink: 'x', strDrink: 'bad' }] })]) {
+  for (const response of [new Response('{', { status: 200 }), jsonResponse({ nope: [] }), jsonResponse({ drinks: [{ idDrink: 'x', strDrink: 'bad' }] }), jsonResponse({ drinks: 'some other string' })]) {
     await withApp(async () => response.clone(), async (app) => {
       const result = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
       assert.equal(result.statusCode, 502); assert.deepEqual(result.json().error.code, 'invalid_response');
@@ -153,6 +153,16 @@ test('malformed, oversized, and schema-invalid upstream responses are rejected',
   await withApp(async () => new Response(huge), async (app) => {
     assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 502);
   }, { maxResponseBytes: 8 });
+});
+
+test('provider "no data" string shapes for drinks normalize to the valid empty result', async () => {
+  for (const noData of ['None Found', 'no data found', 'NONE FOUND', '  None Found  ']) {
+    await withApp(fetcherFor({ drinks: noData }), async (app) => {
+      const response = await app.inject({ method: 'GET', url: '/api/cocktails/filter.php?i=Coca' });
+      assert.equal(response.statusCode, 200);
+      assert.deepEqual(response.json(), { drinks: null });
+    });
+  }
 });
 
 test('timeout aborts the fetcher and returns a safe 504', async () => {

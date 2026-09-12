@@ -8,6 +8,8 @@ Flutter sends recipe requests to the gateway. The gateway alone attaches the pro
 
 The gateway intentionally keeps the current provider-shaped `drinks` envelope and source fields. Only parameter validation, boundary/schema validation, caching and error handling happen here. Null or empty results remain valid; malformed envelopes and records are errors, never fabricated empty success. No arbitrary upstream URL, endpoint, version or API key may be supplied by clients.
 
+**No-match string shape (observed 2026-09-13, public test key only):** `filter.php` for an ingredient with no matches answers `200 OK` with `{"drinks":"None Found"}` — a string, not the `null`/array shapes the contract otherwise validates against. Confirmed live against `v2/1/filter.php` for a partial-name miss (`i=Coca`), a working ingredient (`i=Gin`, ordinary array), and a nonsense ingredient (same `"None Found"` string); not verified against the paid key, which may differ. The gateway normalizes this exact string (case-insensitively, trimmed; `"None Found"` or `"no data found"`) to `drinks: null` before validation, so it returns the same `200 { "drinks": null }` empty result as a genuine null — any other non-null, non-array `drinks` value is still rejected as `invalid_response`.
+
 ## API
 
 | Local GET route | Accepted query | Purpose |

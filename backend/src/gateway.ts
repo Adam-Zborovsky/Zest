@@ -140,6 +140,7 @@ export class RecipeGateway {
         chunks.push(value);
       }
       const decoded: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
+      normalizeNoResults(decoded);
       validateEnvelope(decoded, operation);
       return JSON.stringify(decoded);
     } catch (error) {
@@ -170,6 +171,20 @@ function retrySeconds(value: string | null, now: number): number {
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// V2 answers some no-match ingredient/name lookups with a "no data" string in
+// place of the usual null/array `drinks` value (observed live 2026-09-13 with
+// the public test key: `{"drinks":"None Found"}` for filter.php). This is
+// provider-shaped noise, not a malformed envelope: normalize it to the same
+// `drinks: null` shape already treated as a valid empty result, before
+// validation runs. Any other string is left alone and still rejected below.
+const NO_RESULTS_STRINGS = new Set(['none found', 'no data found']);
+
+function normalizeNoResults(value: unknown): void {
+  if (record(value) && typeof value.drinks === 'string' && NO_RESULTS_STRINGS.has(value.drinks.trim().toLowerCase())) {
+    value.drinks = null;
+  }
 }
 
 function validateEnvelope(value: unknown, operation: Operation): void {
