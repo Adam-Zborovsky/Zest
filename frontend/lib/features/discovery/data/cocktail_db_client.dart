@@ -8,13 +8,13 @@ import 'package:http/http.dart' as http;
 import '../../../core/network/cocktail_api_exception.dart';
 import '../domain/recipe.dart';
 
-/// A small, cache-backed client for the four discovery endpoints used by Zest.
+/// Cache-backed recipe client. Provider credentials exist only in the gateway.
 final class CocktailDbClient {
   CocktailDbClient({
     http.Client? client,
-    String apiKey = const String.fromEnvironment(
-      'COCKTAIL_DB_API_KEY',
-      defaultValue: '1',
+    String baseUrl = const String.fromEnvironment(
+      'ZEST_API_BASE_URL',
+      defaultValue: 'http://127.0.0.1:3000/api/cocktails/',
     ),
     this.cacheTtl = const Duration(minutes: 10),
     this.maxCacheEntries = 64,
@@ -23,11 +23,8 @@ final class CocktailDbClient {
     DateTime Function()? now,
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null,
-       _apiKey = apiKey,
+       _baseUrl = _gatewayBase(baseUrl),
        _now = now ?? DateTime.now {
-    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(apiKey)) {
-      throw ArgumentError('apiKey must be a non-empty safe path segment.');
-    }
     if (cacheTtl.isNegative) throw ArgumentError.value(cacheTtl, 'cacheTtl');
     if (maxCacheEntries <= 0) {
       throw ArgumentError.value(maxCacheEntries, 'maxCacheEntries');
@@ -42,7 +39,7 @@ final class CocktailDbClient {
 
   final http.Client _client;
   final bool _ownsClient;
-  final String _apiKey;
+  final Uri _baseUrl;
   final DateTime Function() _now;
   final Duration cacheTtl;
   final int maxCacheEntries;
@@ -149,11 +146,7 @@ final class CocktailDbClient {
     String endpoint,
     Map<String, String> parameters,
   ) async {
-    final uri = Uri.https(
-      'www.thecocktaildb.com',
-      'api/json/v1/$_apiKey/$endpoint',
-      parameters,
-    );
+    final uri = _baseUrl.resolve(endpoint).replace(queryParameters: parameters);
     final aborter = Completer<void>();
     _aborters.add(aborter);
     Timer? timer;
@@ -186,6 +179,9 @@ final class CocktailDbClient {
           statusCode: 429,
           retryAfter: _retryAfter(response.headers['retry-after']),
         );
+      }
+      if (response.statusCode == 504) {
+        throw const CocktailApiException(CocktailApiErrorKind.timeout);
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw CocktailApiException(
@@ -298,6 +294,26 @@ final class CocktailDbClient {
     }
     if (_ownsClient) _client.close();
   }
+}
+
+Uri _gatewayBase(String value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      !uri.path.endsWith('/') ||
+      (uri.scheme != 'https' &&
+          !(uri.scheme == 'http' &&
+              const ['localhost', '127.0.0.1', '::1'].contains(uri.host)))) {
+    // Configuration can be sensitive; never include the supplied URI in errors.
+    throw ArgumentError(
+      'ZEST_API_BASE_URL must be an absolute HTTPS URL '
+      '(or loopback HTTP), without credentials/query/fragment, ending in /.',
+    );
+  }
+  return uri;
 }
 
 final class _CacheEntry<T> {

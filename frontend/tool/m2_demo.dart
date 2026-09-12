@@ -6,7 +6,7 @@ import 'package:http/testing.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
-/// One-shot data-layer demo. Offline by default; --live makes one public lookup.
+/// One-shot data-layer demo. Offline by default; --live uses the local gateway.
 /// Neither mode writes files. Live mode prints no recipe content or request URL.
 Future<void> main(List<String> args) async {
   if (args.isNotEmpty && (args.length != 1 || args.single != '--live')) {

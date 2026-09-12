@@ -10,11 +10,11 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 void main() {
   group('CocktailDbClient', () {
     test(
-      'builds each endpoint with encoded query values and injected key',
+      'builds each gateway endpoint with encoded query values and no key',
       () async {
         final urls = <Uri>[];
         final client = CocktailDbClient(
-          apiKey: 'test-key',
+          baseUrl: 'https://gateway.example.invalid/api/cocktails/',
           client: MockClient((request) async {
             urls.add(request.url);
             return _jsonResponse({
@@ -36,12 +36,16 @@ void main() {
         await client.listIngredientNames();
 
         expect(urls.map((url) => url.path), [
-          '/api/json/v1/test-key/search.php',
-          '/api/json/v1/test-key/search.php',
-          '/api/json/v1/test-key/filter.php',
-          '/api/json/v1/test-key/lookup.php',
-          '/api/json/v1/test-key/list.php',
+          '/api/cocktails/search.php',
+          '/api/cocktails/search.php',
+          '/api/cocktails/filter.php',
+          '/api/cocktails/lookup.php',
+          '/api/cocktails/list.php',
         ]);
+        expect(
+          urls.every((url) => url.host == 'gateway.example.invalid'),
+          isTrue,
+        );
         expect(urls.map((url) => url.queryParameters), [
           {'s': 'lime fizz'},
           {'f': 'q'},
@@ -52,7 +56,7 @@ void main() {
       },
     );
 
-    test('uses documented default key', () async {
+    test('uses the local gateway by default, never a provider key', () async {
       late Uri url;
       final client = CocktailDbClient(
         client: MockClient((request) async {
@@ -63,7 +67,10 @@ void main() {
         }),
       );
       await client.searchByName('mint');
-      expect(url.path, '/api/json/v1/1/search.php');
+      expect(
+        url.toString(),
+        'http://127.0.0.1:3000/api/cocktails/search.php?s=mint',
+      );
     });
 
     test('lists ingredient names sorted, deduplicated, and cached', () async {
@@ -137,21 +144,18 @@ void main() {
       expect(calls, 0);
     });
 
-    test(
-      'rejects unsafe API keys without including the supplied key in the error',
-      () {
-        expect(
-          () => CocktailDbClient(apiKey: 'secret/key'),
-          throwsA(
-            isA<ArgumentError>().having(
-              (error) => error.toString(),
-              'safe error',
-              isNot(contains('secret/key')),
-            ),
+    test('rejects unsafe gateway configuration without echoing it', () {
+      expect(
+        () => CocktailDbClient(baseUrl: 'https://secret:key@example.invalid/'),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.toString(),
+            'safe error',
+            isNot(contains('secret:key')),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test(
       'maps malformed payloads and schema failures to invalidResponse',
@@ -233,7 +237,6 @@ void main() {
 
     test('redacts URI-bearing transport failures', () async {
       final network = CocktailDbClient(
-        apiKey: 'secret-key',
         client: MockClient(
           (_) => throw http.ClientException(
             'syntheticsecret',
