@@ -21,7 +21,9 @@ Finder keyed(String value) => find.byKey(ValueKey(value));
 Future<void> openDiscovery(
   WidgetTester tester, {
   required Future<http.Response> Function(http.Request) respond,
-  String? location,
+  // Since M5, `/` is the home screen; these tests exercise discovery, and
+  // previously reached it through the old `/` → `/discover` redirect.
+  String location = '/discover',
   Size size = const Size(900, 1200),
   Future<bool> Function(Uri)? launchSource,
   DateTime Function()? now,

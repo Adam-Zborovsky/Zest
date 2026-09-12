@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/design/zest_tokens.dart';
 import '../features/bar/presentation/bar_screen.dart';
+import '../features/constellation/presentation/home_screen.dart';
 import '../features/discovery/domain/discovery_query.dart';
 import '../features/discovery/presentation/discovery_screen.dart';
 import '../features/discovery/presentation/recipe_detail_screen.dart';
@@ -13,7 +14,11 @@ GoRouter createZestRouter({String? initialLocation}) {
   return GoRouter(
     initialLocation: initialLocation,
     routes: [
-      GoRoute(path: '/', redirect: (_, _) => '/discover'),
+      GoRoute(
+        path: '/',
+        pageBuilder: (context, state) =>
+            _page(context, state, const HomeScreen()),
+      ),
       GoRoute(
         path: '/bar',
         pageBuilder: (context, state) =>

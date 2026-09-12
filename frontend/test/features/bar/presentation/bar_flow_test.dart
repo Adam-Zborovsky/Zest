@@ -77,7 +77,9 @@ Future<http.Response> _respond(
 Future<void> openApp(
   WidgetTester tester, {
   required Future<http.Response> Function(http.Request) respond,
-  String? location,
+  // Since M5, `/` is the home screen; tests that used to ride the old
+  // `/` → `/discover` redirect now start on discovery explicitly.
+  String location = '/discover',
   Size size = const Size(900, 1200),
   DateTime Function()? now,
 }) async {

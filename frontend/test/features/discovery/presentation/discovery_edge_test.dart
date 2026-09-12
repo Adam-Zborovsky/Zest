@@ -333,7 +333,13 @@ void main() {
       addTearDown(
         tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
-      await _pumpApp(tester, respond: (_) async => discoveryResponse(null));
+      // Router-transition test: pin discovery explicitly rather than ride
+      // the old `/` redirect (since M5, `/` is home).
+      await _pumpApp(
+        tester,
+        location: '/discover',
+        respond: (_) async => discoveryResponse(null),
+      );
       final page = ModalRoute.of(
         tester.element(find.byType(Scaffold).last),
       )!.settings;
