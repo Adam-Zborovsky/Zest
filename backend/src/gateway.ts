@@ -104,7 +104,11 @@ export class RecipeGateway {
 
   private async fetchBody(operation: Operation, signal: AbortSignal): Promise<string> {
     // The remote authority, version and endpoint set are never supplied by a caller.
-    const url = new URL(`https://www.thecocktaildb.com/api/json/v1/${this.options.apiKey}/${operation.endpoint}`);
+    // V2, not V1: paid keys are issued as V2 keys, and V1 letter browse returns
+    // an empty 200 body for them (verified live 2026-09-12). V2 keeps the same
+    // endpoint names, parameters, envelope and null no-data shape, and the
+    // public test key also works there with smaller result sets.
+    const url = new URL(`https://www.thecocktaildb.com/api/json/v2/${this.options.apiKey}/${operation.endpoint}`);
     url.searchParams.set(operation.parameter, operation.value);
     const response = await this.options.fetcher(url.toString(), { method: 'GET', redirect: 'error', signal });
     if (signal.aborted) {

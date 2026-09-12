@@ -44,7 +44,7 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - Preserve current discovery/bar operations through a configurable Flutter gateway address; strict routes, explicit localhost CORS, bounded memory caching, request deadlines and shared provider cooldown.
 - Acceptance: synthetic backend tests, typecheck/build, Flutter analyze/tests, cross-language synthetic contract demo and independent review. No Docker, Compose, Nginx, deployment, accounts or backend database.
 - Contract and local setup: [GATEWAY.md](GATEWAY.md). This prerequisite does not complete M5.
-- Result: allowlisted local gateway and key-free Flutter transport implemented; 23 backend tests and 126 Flutter tests pass, analysis/typecheck/builds clean, synthetic cross-language demo passes. Independent review: [GATEWAY review](reviews/GATEWAY.md). Live paid-key/browser behavior is not yet verified.
+- Result: allowlisted local gateway and key-free Flutter transport implemented; 23 backend tests and 126 Flutter tests pass, analysis/typecheck/builds clean, synthetic cross-language demo passes. Independent review: [GATEWAY review](reviews/GATEWAY.md). Live paid-key behavior was verified 2026-09-12 after moving the upstream to the V2 API (purchased keys are V2 keys; V1 letter browse returns empty bodies for them) — all five allowlisted operations and the null no-data shape confirmed with the paid key. Browser/WASM runtime behavior remains unverified.
 
 ## M5 — Ingredient Constellation (flagship)
 

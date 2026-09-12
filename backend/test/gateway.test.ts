@@ -57,7 +57,7 @@ test('provider URL is fixed to the allowlisted authority, endpoint, parameter, a
     assert.equal(response.statusCode, 200);
   });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0], 'https://www.thecocktaildb.com/api/json/v1/synthetic-key/search.php?f=m');
+  assert.equal(calls[0], 'https://www.thecocktaildb.com/api/json/v2/synthetic-key/search.php?f=m');
 });
 
 test('unknown paths, parameters, duplicates, and unsafe values are rejected', async () => {

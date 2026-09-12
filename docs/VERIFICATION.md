@@ -1,5 +1,17 @@
 # Verification record
 
+## Gateway upstream moved to the V2 API — 2026-09-12
+
+Adam's catalog sync surfaced the resumable error state ("recipe source is unavailable"). Live diagnosis (direct provider probes with the paid key, value never read into any record): V1 letter browse returns empty 0-byte `text/html` 200 bodies for the purchased key — which the gateway correctly rejects as a malformed envelope (502) and the app correctly pauses on. The purchase email confirms the key is a **V2 API key**; all five allowlisted operations, the full-record letter browse (109 records for `f=a`), and the `{"drinks":null}` no-data shape were verified live on the V2 base with the paid key, and the public test key also works on V2 with smaller result sets.
+
+Fix: the gateway's fixed upstream moves from `v1` to `v2` (one URL constant); local routes, envelopes, parameters, Flutter client and letter-based sync are unchanged. Development PC, commands run in the owning directories:
+
+- Backend: `npm run typecheck` and `npm run build` — clean; `npm test` — **23 passed** (the synthetic-upstream URL assertion now pins the V2 base).
+- `dart run tool/gateway_demo.dart` — Flutter client through real Fastify routes with the synthetic upstream: all five operations pass, source measures retained, no socket or key use.
+- Flutter: `flutter analyze` — no issues; `flutter test` — **186 passed**.
+
+An independent reviewer passed the change after checking scope, key handling, the allowlist pin, and doc accuracy, catching two stale V1 references in DATA.md that were folded in. The on-device restart-and-resume run is Adam's step. Browser/WASM runtime behavior remains unverified.
+
 ## M5 — Ingredient Constellation — 2026-09-12
 
 Development PC: Flutter 3.44.4/Dart 3.12.2; all Flutter commands ran from `frontend/`. Windows host tests require a 64-bit `sqlite3.dll` on PATH (drift's documented requirement for host-run tests; `sqlite3_flutter_libs` covers built apps).
