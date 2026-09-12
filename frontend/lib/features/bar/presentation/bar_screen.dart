@@ -16,6 +16,9 @@ class BarScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scope = ref.watch(recipeScopeProvider);
     final selection = ref.watch(barSelectionProvider);
+    final running = ref.watch(
+      barMatchProvider.select((run) => run.status == BarMatchStatus.running),
+    );
     return DiscoveryFrame(
       back: true,
       child: Column(
@@ -48,13 +51,15 @@ class BarScreen extends ConsumerWidget {
               key: const ValueKey('bar-find-matches'),
               label: 'Find matches',
               icon: Icons.local_bar_rounded,
-              onPressed: selection.isEmpty
+              onPressed: selection.isEmpty || running
                   ? null
                   : () => ref.read(barMatchProvider.notifier).start(),
             ),
             const SizedBox(height: ZestSpace.sm),
             Text(
-              selection.isEmpty
+              running
+                  ? 'Checking recipes now — matches appear below as they land.'
+                  : selection.isEmpty
                   ? 'Select at least one ingredient to start matching.'
                   : 'Matching covers the ${scope.recipes.length} '
                         '${scope.recipes.length == 1 ? 'recipe' : 'recipes'} '

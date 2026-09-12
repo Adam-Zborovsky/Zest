@@ -57,8 +57,9 @@ final class BarMatch {
   /// Reviewed substitution suggestions covering missing essentials.
   final List<BarSubstitution> substitutions;
 
-  /// The recipe's display names for optional garnishes present in the
-  /// recipe but excluded from the missing count.
+  /// The recipe's display names for garnish-form ingredients it lists that
+  /// the selection does not cover; these are excluded from the missing
+  /// count. Selected garnishes are simply covered and never reported.
   final List<String> optionalGarnishes;
 }
 

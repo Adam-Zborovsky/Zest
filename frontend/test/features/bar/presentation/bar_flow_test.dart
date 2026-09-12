@@ -224,12 +224,25 @@ void main() {
       );
 
       expect(
-        find.text('Checked 3 of 3 recipes. 1 ready, 1 with a substitution, 1 missing essentials.'),
+        find.text('Finished checking 3 of 3 recipes. 1 ready, 1 with a substitution, 1 missing essentials.'),
         findsOneWidget,
       );
       expect(
         find.text(
           'Checked 3 of 3 recipes in this collection — not the full cocktail catalog.',
+        ),
+        findsOneWidget,
+      );
+      expectReadable(tester);
+
+      // Re-running matching replaces the previous results without duplicating.
+      await activate(tester, keyed('bar-find-matches'));
+      expect(find.text('Garden Sour'), findsOneWidget);
+      expect(find.text('Garden Gimlet'), findsOneWidget);
+      expect(find.text('Garden Bitter'), findsOneWidget);
+      expect(
+        find.text(
+          'Finished checking 3 of 3 recipes. 1 ready, 1 with a substitution, 1 missing essentials.',
         ),
         findsOneWidget,
       );
@@ -262,6 +275,14 @@ void main() {
       tester.widget<ZestButton>(keyed('bar-find-matches')).onPressed,
       isNull,
     );
+    expectReadable(tester);
+
+    // Escape still closes the sheet without a pointer.
+    await activate(tester, keyed('bar-add-ingredients'));
+    expect(find.text('Choose your ingredients'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose your ingredients'), findsNothing);
     expectReadable(tester);
   });
 
@@ -306,7 +327,7 @@ void main() {
     // With only gin selected, all three recipes miss an essential.
     expect(
       find.text(
-        'Checked 3 of 3 recipes. 0 ready, 0 with a substitution, 3 missing essentials.',
+        'Finished checking 3 of 3 recipes. 0 ready, 0 with a substitution, 3 missing essentials.',
       ),
       findsOneWidget,
     );
@@ -333,44 +354,64 @@ void main() {
     expect(find.text('Garden Sour'), findsOneWidget);
     expect(
       find.text(
-        'Checked 3 of 3 recipes. 0 ready, 0 with a substitution, 3 missing essentials.',
+        'Finished checking 3 of 3 recipes. 0 ready, 0 with a substitution, 3 missing essentials.',
       ),
       findsOneWidget,
     );
   });
 
-  testWidgets('keyboard reaches and opens the ingredient picker', (
+  testWidgets('keyboard completes an entire selection and match', (
     tester,
   ) async {
     await openApp(tester, respond: _respond);
     await search(tester, 'Paper Garden');
     await activate(tester, keyed('bar-from-preview'));
-    var reachedAdd = false;
-    for (var tab = 0; tab < 30; tab++) {
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      final focused = FocusManager.instance.primaryFocus?.context;
-      if (focused == null) continue;
-      var found = false;
-      focused.visitAncestorElements((element) {
-        if (element.widget.key == const ValueKey('bar-add-ingredients')) {
-          found = true;
-          return false;
-        }
-        return true;
-      });
-      if (found) {
-        reachedAdd = true;
-        break;
+
+    Future<bool> tabTo(String key) async {
+      for (var tab = 0; tab < 40; tab++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        final focused = FocusManager.instance.primaryFocus?.context;
+        if (focused == null) continue;
+        var found = false;
+        focused.visitAncestorElements((element) {
+          if (element.widget.key == ValueKey(key)) {
+            found = true;
+            return false;
+          }
+          return true;
+        });
+        if (found) return true;
       }
+      return false;
     }
-    expect(reachedAdd, isTrue);
+
+    expect(await tabTo('bar-add-ingredients'), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(find.text('Choose your ingredients'), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+    expect(await tabTo('ingredient-option-Imaginary gin'), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
-    expect(find.text('Choose your ingredients'), findsNothing);
+    expect(
+      tester
+          .widget<CheckboxListTile>(keyed('ingredient-option-Imaginary gin'))
+          .value,
+      isTrue,
+    );
+
+    expect(await tabTo('picker-done'), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(keyed('bar-remove-imaginary gin'), findsOneWidget);
+
+    expect(await tabTo('bar-find-matches'), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Missing essentials'), findsOneWidget);
+    expect(find.text('Garden Sour'), findsOneWidget);
+    expectReadable(tester);
   });
 
   for (final scale in [1.0, 2.0]) {

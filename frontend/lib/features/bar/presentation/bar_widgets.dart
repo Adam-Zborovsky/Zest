@@ -384,9 +384,10 @@ class BarMatchResults extends ConsumerWidget {
           if (run.unavailable > 0) ...[
             const SizedBox(height: ZestSpace.xs),
             Text(
-              '${run.unavailable} '
-              '${run.unavailable == 1 ? 'recipe' : 'recipes'} could not be '
-              'opened from the source and could not be checked.',
+              'The source could not open ${run.unavailable} '
+              '${run.unavailable == 1 ? 'recipe' : 'recipes'}, so '
+              '${run.unavailable == 1 ? 'it is' : 'they are'} not counted in '
+              'the groups above.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -410,7 +411,7 @@ class BarMatchResults extends ConsumerWidget {
     int count(BarMatchCategory category) => run.matches
         .where((match) => match.category == category)
         .length;
-    return 'Checked ${run.checked} of ${run.total} recipes. '
+    return 'Finished checking ${run.checked} of ${run.total} recipes. '
         '${count(BarMatchCategory.ready)} ready, '
         '${count(BarMatchCategory.substitution)} with a substitution, '
         '${count(BarMatchCategory.missingEssentials)} missing essentials.';

@@ -20,6 +20,10 @@ void main() {
             return _jsonResponse({
               'drinks': request.url.path.contains('filter')
                   ? [_summary()]
+                  : request.url.path.contains('list')
+                  ? [
+                      {'strIngredient1': 'Lime'},
+                    ]
                   : [_full()],
             });
           }),
@@ -29,18 +33,21 @@ void main() {
         await client.browseByFirstLetter(' Q ');
         await client.filterByIngredient('Brand Rum & Lime');
         await client.lookupRecipe('42');
+        await client.listIngredientNames();
 
         expect(urls.map((url) => url.path), [
           '/api/json/v1/test-key/search.php',
           '/api/json/v1/test-key/search.php',
           '/api/json/v1/test-key/filter.php',
           '/api/json/v1/test-key/lookup.php',
+          '/api/json/v1/test-key/list.php',
         ]);
         expect(urls.map((url) => url.queryParameters), [
           {'s': 'lime fizz'},
           {'f': 'q'},
           {'i': 'Brand Rum & Lime'},
           {'i': '42'},
+          {'i': 'list'},
         ]);
       },
     );

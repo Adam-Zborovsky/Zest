@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -224,6 +225,59 @@ void main() {
 
     scopeNotifier.setScope(scope(2));
     expect(test.container.read(barMatchProvider).status, BarMatchStatus.idle);
+  });
+
+  test('starting again after a done run replaces the results', () async {
+    final test = setup(respond: (request) async => lookupResponse(
+      request.url.queryParameters['i']!,
+    ));
+    test.container.read(recipeScopeProvider.notifier).setScope(scope(4));
+    test.container.read(barSelectionProvider.notifier).toggle('Imaginary gin');
+
+    final notifier = test.container.read(barMatchProvider.notifier);
+    await notifier.start();
+    var state = test.container.read(barMatchProvider);
+    expect(state.status, BarMatchStatus.done);
+    expect(state.matches, hasLength(4));
+
+    await notifier.start();
+    state = test.container.read(barMatchProvider);
+    expect(state.status, BarMatchStatus.done);
+    expect(state.checked, 4);
+    expect(state.matches, hasLength(4));
+    expect(
+      state.matches.map((match) => match.recipe.id).toSet(),
+      hasLength(4),
+      reason: 'A fresh start must not duplicate the previous run.',
+    );
+  });
+
+  test('starting while a run is in flight abandons the earlier loop', () async {
+    final gate = Completer<http.Response>();
+    final test = setup(
+      respond: (request) => gate.future.then(
+        (_) => lookupResponse(request.url.queryParameters['i']!),
+      ),
+    );
+    test.container.read(recipeScopeProvider.notifier).setScope(scope(4));
+    test.container.read(barSelectionProvider.notifier).toggle('Imaginary gin');
+
+    final notifier = test.container.read(barMatchProvider.notifier);
+    final first = notifier.start();
+    await Future<void>.delayed(Duration.zero);
+    final second = notifier.start();
+    gate.complete(lookupResponse('1'));
+    await Future.wait([first, second]);
+
+    final state = test.container.read(barMatchProvider);
+    expect(state.status, BarMatchStatus.done);
+    expect(state.checked, 4);
+    expect(state.matches, hasLength(4));
+    expect(
+      state.matches.map((match) => match.recipe.id).toSet(),
+      hasLength(4),
+      reason: 'The abandoned loop must not double the results.',
+    );
   });
 
   test('the ingredient options provider serves the provider list', () async {

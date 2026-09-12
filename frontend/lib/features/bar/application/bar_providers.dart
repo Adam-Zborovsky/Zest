@@ -90,35 +90,38 @@ final class BarMatchNotifier extends Notifier<BarMatchState> {
     // A finished or paused run is stale once the scope or selection changes,
     // and an in-flight run is abandoned: both rebuild this provider, and the
     // bumped token makes the abandoned loop drop out at its next check.
+    //
+    // The token relies on Riverpod keeping this notifier instance alive
+    // across dependency-driven rebuilds (verified against riverpod 3.4.3);
+    // if a future version recreates the instance, the fresh `_run` still
+    // never equals an older loop's captured token, so abandonment holds.
     ref.watch(recipeScopeProvider);
     ref.watch(barSelectionProvider);
     _run++;
     return const BarMatchState();
   }
 
-  /// Starts a new run from the beginning of the scope.
-  Future<void> start() => _runFrom(0);
+  /// Starts a fresh run over the whole scope. Previous results are
+  /// discarded — only [resume] keeps the partial matches of a paused run.
+  Future<void> start() => _runFrom(0, keepPartialResults: false);
 
   /// Resumes a paused run from the last checked recipe. The shared cooldown
   /// still applies; the UI surfaces its countdown before enabling this.
-  Future<void> resume() => _runFrom(state.checked);
+  Future<void> resume() => _runFrom(state.checked, keepPartialResults: true);
 
-  void reset() {
-    _run++;
-    state = const BarMatchState();
-  }
-
-  Future<void> _runFrom(int startAt) async {
+  Future<void> _runFrom(int startAt, {required bool keepPartialResults}) async {
     final scope = ref.read(recipeScopeProvider);
     if (scope == null) return;
     final selection = ref.read(barSelectionProvider);
     if (selection.isEmpty) return;
 
     final run = ++_run;
-    // Paused state's matches cover exactly the recipes before [startAt];
+    // A paused state's matches cover exactly the recipes before [startAt];
     // lookup misses are tracked separately as [BarMatchState.unavailable].
-    final matches = <BarMatch>[...state.matches];
-    var unavailable = state.unavailable;
+    final matches = keepPartialResults
+        ? <BarMatch>[...state.matches]
+        : <BarMatch>[];
+    var unavailable = keepPartialResults ? state.unavailable : 0;
 
     state = BarMatchState(
       status: BarMatchStatus.running,
