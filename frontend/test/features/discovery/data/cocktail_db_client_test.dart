@@ -59,6 +59,44 @@ void main() {
       expect(url.path, '/api/json/v1/1/search.php');
     });
 
+    test('lists ingredient names sorted, deduplicated, and cached', () async {
+      var requests = 0;
+      final client = CocktailDbClient(
+        client: MockClient((request) async {
+          requests++;
+          return _jsonResponse({
+            'drinks': [
+              {'strIngredient1': 'Zest Orange'},
+              {'strIngredient1': ' apple syrup '},
+              {'strIngredient1': 'Zest Orange'},
+              {'strIngredient1': 'Apple Syrup'},
+            ],
+          });
+        }),
+      );
+      final names = await client.listIngredientNames();
+      expect(names, ['apple syrup', 'Zest Orange']);
+      expect(requests, 1);
+      expect(await client.listIngredientNames(), same(names));
+      expect(requests, 1);
+    });
+
+    test('rejects malformed ingredient list records', () async {
+      final client = CocktailDbClient(
+        client: MockClient(
+          (request) async => _jsonResponse({
+            'drinks': [
+              {'strIngredient1': 7},
+            ],
+          }),
+        ),
+      );
+      await expectLater(
+        client.listIngredientNames(),
+        _throwsKind(CocktailApiErrorKind.invalidResponse),
+      );
+    });
+
     test(
       'handles empty matches and only returns detail models for detail endpoints',
       () async {

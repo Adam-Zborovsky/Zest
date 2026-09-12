@@ -96,6 +96,25 @@ final class CocktailDbClient {
     });
   }
 
+  /// The provider's ingredient filter names via `list.php?i=list`. Names
+  /// only — no availability or property claim. Sorted case-insensitively and
+  /// deduplicated for stable selection UI.
+  Future<List<String>> listIngredientNames() {
+    return _cached('ingredient-list', () async {
+      final drinks = await _drinks('list.php', {'i': 'list'});
+      final names = <String, String>{};
+      for (final record in drinks) {
+        final value = record['strIngredient1'];
+        if (value is! String || value.trim().isEmpty) _invalid();
+        final trimmed = value.trim();
+        names.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      }
+      final sorted = names.values.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return List.unmodifiable(sorted);
+    });
+  }
+
   Future<T> _cached<T>(String key, Future<T> Function() load) {
     if (_closed) return Future<T>.error(_closedError());
     final existing = _cache.remove(key);
