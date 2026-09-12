@@ -9,11 +9,19 @@ enum CocktailApiErrorKind {
 }
 
 final class CocktailApiException implements Exception {
-  const CocktailApiException(this.kind, {this.statusCode, this.retryAfter});
+  const CocktailApiException(
+    this.kind, {
+    this.statusCode,
+    this.retryAfter,
+    this.retryAt,
+  });
 
   final CocktailApiErrorKind kind;
   final int? statusCode;
   final Duration? retryAfter;
+
+  /// Application cooldown deadline, absent on raw transport failures.
+  final DateTime? retryAt;
 
   @override
   String toString() {
