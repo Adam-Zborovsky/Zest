@@ -16,7 +16,7 @@ Future<void> openGallery(
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(const ZestApp());
+  await tester.pumpWidget(const ZestApp(showGallery: true));
   await tester.pumpAndSettle();
 }
 

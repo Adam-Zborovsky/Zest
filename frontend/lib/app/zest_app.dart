@@ -1,16 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/design/zest_theme.dart';
-import '../core/design/zest_tokens.dart';
-import '../core/widgets/botanical_art.dart';
 import 'design_gallery.dart';
+import 'zest_router.dart';
 
 class ZestApp extends StatefulWidget {
-  const ZestApp({super.key, this.showGallery = kDebugMode});
+  const ZestApp({super.key, this.showGallery = false, this.initialLocation});
 
   /// The temporary M1 gallery is off by default in profile/release builds.
   final bool showGallery;
+  final String? initialLocation;
 
   @override
   State<ZestApp> createState() => _ZestAppState();
@@ -18,6 +19,15 @@ class ZestApp extends StatefulWidget {
 
 class _ZestAppState extends State<ZestApp> {
   bool _previewReducedMotion = false;
+  late final GoRouter _router = createZestRouter(
+    initialLocation: widget.initialLocation,
+  );
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => MediaQuery.fromView(
@@ -28,6 +38,19 @@ class _ZestAppState extends State<ZestApp> {
         final systemReduced =
             media.disableAnimations || media.accessibleNavigation;
         final reduced = systemReduced || _previewReducedMotion;
+        if (!widget.showGallery || !kDebugMode)
+          return MaterialApp.router(
+            title: 'Zest',
+            debugShowCheckedModeBanner: false,
+            routerConfig: _router,
+            theme: ZestTheme.build(reduceMotion: reduced),
+            themeMode: ThemeMode.light,
+            themeAnimationDuration: Duration.zero,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+              child: child!,
+            ),
+          );
         return MaterialApp(
           title: 'Zest',
           debugShowCheckedModeBanner: false,
@@ -38,41 +61,14 @@ class _ZestAppState extends State<ZestApp> {
             data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
             child: child!,
           ),
-          home: widget.showGallery
-              ? DesignGallery(
-                  reducedMotion: reduced,
-                  systemReducedMotion: systemReduced,
-                  onReducedMotionChanged: (value) =>
-                      setState(() => _previewReducedMotion = value),
-                )
-              : const _ZestFoundation(),
+          home: DesignGallery(
+            reducedMotion: reduced,
+            systemReducedMotion: systemReduced,
+            onReducedMotionChanged: (value) =>
+                setState(() => _previewReducedMotion = value),
+          ),
         );
       },
-    ),
-  );
-}
-
-class _ZestFoundation extends StatelessWidget {
-  const _ZestFoundation();
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(ZestSpace.xxl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const BotanicalArt(size: 112),
-              const SizedBox(height: ZestSpace.lg),
-              Text('Zest', style: Theme.of(context).textTheme.displayLarge),
-              const SizedBox(height: ZestSpace.sm),
-              const Text('A cocktail companion.', textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
     ),
   );
 }

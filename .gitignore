@@ -4,6 +4,8 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+# Flutter's generated golden-test comparison images (not reviewed baselines)
+/frontend/test/**/failures/
 
 # Native tool outputs and local settings (Flutter app lives in frontend/)
 frontend/android/.gradle/

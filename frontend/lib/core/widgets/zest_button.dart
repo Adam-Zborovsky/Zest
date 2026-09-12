@@ -12,6 +12,7 @@ class ZestButton extends StatelessWidget {
     this.icon,
     this.kind = ZestButtonKind.primary,
     this.expand = true,
+    this.semanticLabel,
   });
 
   final String label;
@@ -19,6 +20,7 @@ class ZestButton extends StatelessWidget {
   final IconData? icon;
   final ZestButtonKind kind;
   final bool expand;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +33,13 @@ class ZestButton extends StatelessWidget {
           Icon(icon, size: 20),
           const SizedBox(width: ZestSpace.sm),
         ],
-        Flexible(child: Text(label, textAlign: TextAlign.center)),
+        Flexible(
+          child: Text(
+            label,
+            semanticsLabel: semanticLabel,
+            textAlign: TextAlign.center,
+          ),
+        ),
       ],
     );
     final duration = ZestMotion.duration(context, ZestMotion.feedback);

@@ -11,12 +11,12 @@ void main() {
     'Botanical Play gallery and modal match reviewed mobile renders',
     (tester) async {
       tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(412, 2200);
+      tester.view.physicalSize = const Size(412, 2200);
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       const capture = ValueKey('gallery-capture');
       await tester.pumpWidget(
-        const RepaintBoundary(key: capture, child: ZestApp()),
+        const RepaintBoundary(key: capture, child: ZestApp(showGallery: true)),
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

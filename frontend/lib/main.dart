@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/zest_app.dart';
 
@@ -13,5 +14,11 @@ void main() {
       yield LicenseEntryWithLineBreaks([family], license);
     }
   });
-  runApp(const ZestApp());
+  runApp(
+    const ProviderScope(
+      child: ZestApp(
+        showGallery: kDebugMode && bool.fromEnvironment('ZEST_DESIGN_GALLERY'),
+      ),
+    ),
+  );
 }

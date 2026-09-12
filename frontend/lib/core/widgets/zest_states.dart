@@ -12,12 +12,14 @@ class ZestEmptyState extends StatelessWidget {
     required this.message,
     required this.actionLabel,
     required this.onAction,
+    this.announce = false,
   });
 
   final String title;
   final String message;
   final String actionLabel;
   final VoidCallback onAction;
+  final bool announce;
 
   @override
   Widget build(BuildContext context) => ZestCard(
@@ -27,6 +29,7 @@ class ZestEmptyState extends StatelessWidget {
         const SizedBox(height: ZestSpace.md),
         Semantics(
           header: true,
+          liveRegion: announce,
           child: Text(
             title,
             textAlign: TextAlign.center,
