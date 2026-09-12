@@ -7,6 +7,8 @@ import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_chip.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../bar/domain/recipe_scope.dart';
+import '../../bar/presentation/bar_widgets.dart';
 import '../application/discovery_providers.dart';
 import '../domain/discovery_query.dart';
 import '../domain/recipe.dart';
@@ -251,6 +253,22 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                                       .toString(),
                                 ),
                               ),
+                            const SizedBox(height: ZestSpace.md),
+                            ZestButton(
+                              key: const ValueKey('bar-from-preview'),
+                              label: 'What can I make from these results?',
+                              icon: Icons.local_bar_rounded,
+                              kind: ZestButtonKind.secondary,
+                              onPressed: () => openBarMatching(
+                                context,
+                                ref,
+                                RecipeScope(
+                                  label: resultTitle(query),
+                                  recipes: recipes,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: ZestSpace.md),
                             const Text(
                               'Results reflect this search, not the full recipe collection.',
                             ),
@@ -355,7 +373,24 @@ class ResultsScreen extends ConsumerWidget {
               onRetry: () => ref.invalidate(discoveryResultsProvider(query)),
             )
           else if (results.requireValue.isEmpty)
-            const _NoResults(),
+            const _NoResults()
+          else ...[
+            ZestButton(
+              key: const ValueKey('bar-from-results'),
+              label: 'What can I make from these results?',
+              icon: Icons.local_bar_rounded,
+              kind: ZestButtonKind.secondary,
+              onPressed: () => openBarMatching(
+                context,
+                ref,
+                RecipeScope(
+                  label: resultTitle(query),
+                  recipes: results.requireValue,
+                ),
+              ),
+            ),
+            const SizedBox(height: ZestSpace.lg),
+          ],
         ],
       ),
       slivers: [
