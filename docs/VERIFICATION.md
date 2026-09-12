@@ -1,5 +1,25 @@
 # Verification record
 
+## M5 — Ingredient Constellation — 2026-09-12
+
+Development PC: Flutter 3.44.4/Dart 3.12.2; all Flutter commands ran from `frontend/`. Windows host tests require a 64-bit `sqlite3.dll` on PATH (drift's documented requirement for host-run tests; `sqlite3_flutter_libs` covers built apps).
+
+- `flutter analyze` — no issues found.
+- `dart run build_runner build` — drift code generation succeeded; generated files are committed.
+- `flutter test` — all **186 tests** passed (126 gateway-era baseline + 60 M5: 20 catalog, 32 constellation, 8 review hardening). All prior milestone regressions retained; visual baselines unchanged.
+- `flutter build web --release` — succeeds with the documented tree-shaken-icons notice only; the drift WASM assets ship in `build/web/`.
+
+M5 coverage includes: source round-trip fidelity (Recipe → store → Recipe), transactional per-letter upsert with re-sync replacement and no duplicates, alias normalization applied to usages, coverage counts; sync completion of a–z, live progress, pause-on-cooldown with resume, pause-on-error with resume, empty letters as valid completions, no automatic retries, preamble store failures landing in resumable paused state, and restart resumability (a genuinely new repository over the same database file re-requests only pending letters); graph building (normalization merging, per-recipe identity dedupe, top-40 bounding with deterministic tie-breaks, wider-than-bound count disclosure, neighborhood and shared-recipe queries, empty/single-recipe cases); layout determinism (identical positions for identical graphs); home flows (constellation lead, empty state before sync, sync card states, edge-sheet navigation to detail, textual list parity, deep links to `/discover` and `/bar` unchanged); reduced motion under **both** flags with zero transient callbacks; 320-pixel readability at 1× and 2× text under reduced motion; and graph-rebuild coalescing during active sync.
+
+### Demo
+
+Run `flutter test test/features/constellation test/features/catalog` from `frontend/` for the feature suites; [CONSTELLATION.md](CONSTELLATION.md) describes the storage and graph contracts. Tests use invented records only.
+
+An independent reviewer initially returned **BLOCK**: the home copy overclaimed graph coverage without disclosing the top-40 bound, and a "Check for updates" button was a permanent no-op after completion. Both were fixed along with the remaining findings (paint-data disposal, per-frame Paint allocations, sub-48px list rows, unhandled preamble errors, per-letter catalog re-decode, ticking fallback, stale comments, missing flag/readability tests) in one commit; the main agent then re-ran the clean analysis, all 186 tests, and the release web build. See [M5 review](reviews/M5.md).
+
+Limits: the on-device **60 fps profile run has not been performed** — the roadmap acceptance check (`flutter run --profile`, default top-40 view fully laid out, no jank warnings) remains Adam's step, with the full-catalog decode during sync already coalesced as the flagged code-level risk. No live gateway/paid-key traffic, no browser WASM runtime session, no physical screen-reader session, and no native device run were performed. `docs/DISCOVERY.md` carries an unrelated uncommitted formatting change from Adam that M5 did not touch.
+
+
 ## Local recipe gateway — M5 prerequisite — 2026-09-12
 
 Development PC: Node 26.3.0, npm 11.18.0, Flutter 3.44.4/Dart 3.12.2. Commands ran in the owning `backend/` or `frontend/` directory.
