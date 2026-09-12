@@ -66,4 +66,10 @@ Buttons use native Material interaction semantics and visible keyboard focus bor
 
 The temporary `DesignGallery` demonstrates these primitives with invented content. Chip selection, save/unsave, retry feedback, sheet actions, and reset operate only on local specimen state and are discarded on restart. They do not implement recipe discovery, storage, matching, or networking.
 
-The app enables the gallery by default only in debug builds. Profile/release launches show the small branded foundation screen; there is no gallery navigation in the release app. Do not enable the gallery in a distributed build. The constellation's placement and relationship to the label system remain open product decisions; M1 does not settle them.
+From M3, the app launches discovery in all build modes. The gallery requires the explicit `ZEST_DESIGN_GALLERY=true` define in a debug build; profile/release ignore that gallery request. The constellation's placement and relationship to the label system remain open product decisions; the M3 discovery launch does not settle them.
+
+## M3 feature application
+
+Discovery pairs a name/ingredient search form with an expandable A–Z index. Returned recipes use asymmetric cut-paper cards; detail puts source measures on a peach ingredient panel alongside plain, numbered source paragraphs. No new palette or fonts were added. Feature pages have an 800-pixel maximum width while retaining the M1 spacing/type roles; returned-results lists build lazily. Loading/empty/error and image fallback states retain botanical artwork and clear recovery text.
+
+Image captions grow outside the fixed image region. Missing/failed imagery is explicitly labelled and never credits Zest's placeholder artwork as provider photography. Native button text semantics include the destination recipe name. Empty/rate-limit outcomes announce separately from controls and countdowns; source-launch failures offer a selectable address. The 140-ms route fade becomes immediate under either reduced-motion flag. See [DISCOVERY.md](DISCOVERY.md) for flow decisions and synthetic renders, and [VERIFICATION.md](VERIFICATION.md) for tested limits.

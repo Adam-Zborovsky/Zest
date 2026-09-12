@@ -1,5 +1,28 @@
 # Verification record
 
+## M3 — Discovery and recipe detail — 2026-09-12
+
+Executed on the development PC with Flutter 3.44.4 stable and Dart 3.12.2; all Flutter commands ran from `frontend/`:
+
+- `flutter analyze` — no issues found.
+- `flutter test --reporter expanded` — all **90 tests** passed. This retains the 50 M2-era tests (the starter-shell assertion now verifies discovery launch) and adds 40 M3 tests.
+- `flutter build web --no-pub` — release web build succeeded; Wasm dry run succeeded. The previously documented warning mentioning `packages/cupertino_icons/CupertinoIcons` remains. No warning or lint was suppressed.
+- `flutter test test/features/discovery/presentation/discovery_visual_test.dart --update-goldens --reporter expanded` — generated the three M3 renders. They were visually inspected, and the ordinary full suite then passed against them. M1 gallery baselines were not changed.
+
+M3 coverage includes query validation/equality and malformed deep links, three search endpoints, filter-summary lookup, zero-request idle/empty submission, preview/all/detail/Back query preservation, typed-draft preservation across modes and submissions, keyboard-only activation, out-of-order responses, explicit retry, shared and overlapping 429 cooldowns, absolute-deadline expiry/remount, original instruction paragraphs, missing recipes, source-launch fallback, image loading/success/failure via in-memory synthetic providers, unsafe image-URL rejection, named buttons/live outcomes, and zero-duration reduced-motion routes. Bundled-font 320-pixel layouts pass at 1×, 2× and 3× text. The rendered demo screens pass Flutter's labelled-target, Android tap-target and text-contrast guidelines.
+
+### Demo
+
+- [Discovery screen](../frontend/test/features/discovery/presentation/goldens/discovery-mobile.png)
+- [Synthetic search results](../frontend/test/features/discovery/presentation/goldens/discovery-results.png)
+- [Synthetic recipe detail](../frontend/test/features/discovery/presentation/goldens/recipe-detail.png)
+
+These are actual Flutter test renders of invented content, not provider records or photographs. The flow tests exercise name/ingredient/letter → results → full recipe → Back. For a one-shot repeatable demo, run `flutter test test/features/discovery/presentation` from `frontend/`; see [DISCOVERY.md](DISCOVERY.md) for manual exploration commands and the explicit gallery opt-in.
+
+Terra implemented state and closeout edge tests. A separate reviewer independently ran 22 provider/cooldown/flow tests and inspected the rendered screens, approving the implementation after review findings were addressed. The main agent ran final analysis, all 90 tests and the web build. See [M3 review](reviews/M3.md).
+
+Limits: M3 tests make no real recipe/image requests or external-browser launches. The M2 live client smoke remains recorded below, but it is not a live M3 UI test. No Android APK, native device run, real browser history/CORS or deployment rewrite test, or physical TalkBack/VoiceOver session was performed. No server or watcher was launched. Generated golden-comparison diagnostics remain local and are ignored; only reviewed baseline PNGs are tracked. No backend code, private key, personal photo or provider asset was added. M4 has not started.
+
 ## M2 — TheCocktailDB data layer — 2026-09-11
 
 Verified on the development PC with Flutter 3.44.4 stable and Dart 3.12.2. Every Flutter command ran from `frontend/`:
@@ -35,7 +58,7 @@ Two lookups; 1 HTTP request; second served from cache.
 No provider content or images written to disk.
 ```
 
-The Terra subagent implemented the client/cache and its tests; independent model and final integration reviews accepted the result after fixes and test hardening. See [M2 review](reviews/M2.md) and [data contract](DATA.md). No backend code, private key, source photo or provider record was added. M3 has not started.
+The Terra subagent implemented the client/cache and its tests; independent model and final integration reviews accepted the result after fixes and test hardening. See [M2 review](reviews/M2.md) and [data contract](DATA.md). No backend code, private key, source photo or provider record was added. At this checkpoint, M3 had not started.
 
 ## M1 — Botanical Play — 2026-09-11
 

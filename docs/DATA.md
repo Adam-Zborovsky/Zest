@@ -1,6 +1,6 @@
 # M2 data contract
 
-The data layer is ready for M3 to consume; it is not connected to the gallery or a discovery screen. No backend, bulk ingestion, persistence, provider content bundle, substitutions, or graph coverage decision is introduced here.
+The M2 data layer is consumed by the M3 discovery/detail interface; it is not connected to the temporary gallery. No backend, bulk ingestion, persistence, provider content bundle, substitutions, or graph coverage decision is introduced here. M3's provider ownership and shared cooldown are documented in [DISCOVERY.md](DISCOVERY.md).
 
 ## Client
 

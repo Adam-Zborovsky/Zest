@@ -24,11 +24,12 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Acceptance:** client unit-tested with fixtures; models round-trip; rate-limit-friendly caching documented; no key material in the repo.
 - **Result:** typed full recipes and filter summaries, source-preserving ingredient/measure models, reviewed lexical aliases, four discovery endpoints, safe error types and bounded TTL/LRU caching are implemented. Only the explicitly allowed public test key is in code. Analysis is clean, all 50 tests pass, and the one-shot live demo confirms two lookups use one HTTP request without saving provider content. Discovery UI remains M3. See `docs/DATA.md`, `docs/VERIFICATION.md`, and `docs/reviews/M2.md`.
 
-## M3 — Discovery and recipe detail
+## M3 — Discovery and recipe detail — DONE (2026-09-12)
 
 - Search by name; browse by ingredient and by first letter; "see all" flows where the API supports them.
 - Recipe detail: source image with attribution, ingredients with readable measures, numbered instructions, glass/type metadata.
 - **Acceptance:** navigation wired with `go_router`; loading/empty/error states are designed, not default spinners; flows covered by widget tests.
+- **Result:** discovery now launches normally, with name/ingredient searches, A–Z browse, bounded previews and all-returned-results navigation. Recipe detail preserves source measures/instructions and attribution, with explicit image and missing-data fallbacks. Riverpod owns the client and shared rate-limit cooldown; routing supports query-preserving Back and direct links. Analysis is clean, all 90 tests pass, and the release web build succeeds. See `docs/DISCOVERY.md`, `docs/VERIFICATION.md`, and `docs/reviews/M3.md`. M4 has not started.
 
 ## M4 — "What can I make" (bar matching)
 

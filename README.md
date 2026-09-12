@@ -56,12 +56,13 @@ All Flutter commands run from the repository's `frontend/` directory. Start from
 ## Project files
 
 - `frontend/lib/main.dart` — Botanical Play app shell and debug-only design gallery.
-- `frontend/lib/features/discovery/` — M2 recipe models and cached TheCocktailDB client; not yet wired into UI.
+- `frontend/lib/features/discovery/` — discovery/detail UI, Riverpod state, recipe models and cached TheCocktailDB client.
 - `frontend/tool/m2_demo.dart` — one-shot synthetic data/cache demo; optional `--live` smoke check.
 - `frontend/test/` — design/accessibility regressions and synthetic data-layer tests.
 - `docs/PRODUCT.md` — canonical agreed product requirements and explicit implementation boundary.
 - `docs/ROADMAP.md` — milestone order and acceptance criteria.
 - `docs/DATA.md` — M2 API, source preservation, ingredient aliases, cache policy and demo commands.
+- `docs/DISCOVERY.md` — M3 routes, interface behavior, source attribution and rendered demos.
 - `docs/AGENT_PROMPT.md` — kick-off prompt for the development-PC agent.
 - `docs/review.md` — review records for the foundation and handoff.
 - `docs/VERIFICATION.md` — host-side static verification and its limits.
