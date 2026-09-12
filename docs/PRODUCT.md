@@ -2,7 +2,7 @@
 
 ## Status
 
-Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. It has a Botanical Play design system, tested TheCocktailDB data layer, and discovery/recipe-detail interface with generated Android and web wrappers. The starter app was built and run on the development PC (Adam confirmed the run on 2026-09-10). Discovery supports name and ingredient searches, first-letter browsing, returned-result lists, full recipe detail and source attribution. Source-preserving models, conservative ingredient identities and memory-only response caching underpin these flows. The temporary design gallery requires explicit debug opt-in. Milestone verification is recorded separately in `docs/VERIFICATION.md`. There is **no** login, onboarding, ingredient matching, Ingredient Constellation, saved recipes, personal variations, photo handling, persistent recipe storage, or authentication. Gallery interactions remain temporary specimens, not saved-product features.
+Zest is a Flutter cocktail companion planned for personal use; open-source publication remains an open decision. It has a Botanical Play design system, tested TheCocktailDB data layer, discovery/recipe-detail interface with generated Android and web wrappers, and "what can I make" bar matching over the chosen discovery results. The starter app was built and run on the development PC (Adam confirmed the run on 2026-09-10). Discovery supports name and ingredient searches, first-letter browsing, returned-result lists, full recipe detail and source attribution. Bar matching (M4) offers a session-only ingredient selection with no pantry setup, runs in explicit batches of ten lookups through the shared cache and cooldown, and sorts the chosen results into ready, substitution-possible, and missing-essentials groups using reviewed garnish and substitution tables; it never modifies source recipes. Source-preserving models, conservative ingredient identities and memory-only response caching underpin these flows. The temporary design gallery requires explicit debug opt-in. Milestone verification is recorded separately in `docs/VERIFICATION.md`. There is **no** login, onboarding, Ingredient Constellation, saved recipes, personal variations, photo handling, persistent recipe storage, pantry persistence, or authentication. Gallery interactions remain temporary specimens, not saved-product features.
 
 Development and execution happen on the development PC, where the Flutter SDK is installed. Run all Flutter commands from `frontend/`.
 
@@ -49,7 +49,8 @@ TheCocktailDB remains the chosen dependency, but a development/education test ke
 ## Open decisions
 
 - Constellation placement and relationship to the label system. The roadmap's home-screen placement still needs reconciliation with this product brief before M5; the M1 gallery does not decide it.
-- Recipe coverage, ingestion method, and applicable API terms.
+- Recipe coverage was resolved for M4 as client-side matching within the chosen discovery results (the provider reserves multi-ingredient filtering for premium keys); catalog-wide matching, any ingestion method, and applicable API terms for publication remain open.
 - Initial mobile targets and eventual distribution method.
 - Authentication, guest access, storage, and synchronization.
 - Media storage, backup/export, and permissions.
+- Pantry persistence: M4 selections are session-only by design; making them durable belongs to the M6 storage milestone's decisions.

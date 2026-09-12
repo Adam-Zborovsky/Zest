@@ -31,11 +31,12 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Acceptance:** navigation wired with `go_router`; loading/empty/error states are designed, not default spinners; flows covered by widget tests.
 - **Result:** discovery now launches normally, with name/ingredient searches, A–Z browse, bounded previews and all-returned-results navigation. Recipe detail preserves source measures/instructions and attribution, with explicit image and missing-data fallbacks. Riverpod owns the client and shared rate-limit cooldown; routing supports query-preserving Back and direct links. Analysis is clean, all 90 tests pass, and the release web build succeeds. See `docs/DISCOVERY.md`, `docs/VERIFICATION.md`, and `docs/reviews/M3.md`. M4 has not started.
 
-## M4 — "What can I make" (bar matching)
+## M4 — "What can I make" (bar matching) — DONE (2026-09-12)
 
 - Ingredient selection UI with no mandatory full pantry setup.
 - Matching logic: ready to make / missing N essentials / optional garnish not counted; explicit "reviewed substitution" suggestions, clearly labeled as such.
 - **Acceptance:** matching unit tests including edge cases (unselected does not mean available; optional garnish; duplicates after normalization); the results UI distinguishes the three cases.
+- **Result:** matching runs client-side within the chosen discovery results (multi-ingredient filtering is provider-premium), with a searchable ingredient picker over the provider's list endpoint, batch-of-ten lookups through the shared cache and cooldown, pause/resume, and a three-bucket results UI with reviewed garnish/substitution tables documented in `docs/DATA.md`. Analysis is clean, all 124 tests pass, and the release web build succeeds. An independent review blocked on a result-duplication defect and the uncommitted contract; both were fixed and re-verified. See `docs/BAR.md`, `docs/VERIFICATION.md`, and `docs/reviews/M4.md`. M5 has not started.
 
 ## M5 — Ingredient Constellation (flagship)
 

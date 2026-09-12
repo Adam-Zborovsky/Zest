@@ -1,5 +1,23 @@
 # Verification record
 
+## M4 — "What can I make" (bar matching) — 2026-09-12
+
+Executed on the development PC with Flutter 3.44.4 stable and Dart 3.12.2; all Flutter commands ran from `frontend/`:
+
+- `flutter analyze` — no issues found.
+- `flutter test --reporter compact` — all **124 tests** passed. This retains the 90 M3-era tests and adds 34 M4 tests (16 classifier/domain, 8 run-engine providers, 8 widget-flow, 2 client) plus the extended endpoint assertion; one M3 golden was regenerated after review.
+- `flutter build web --release` — release web build succeeded with the documented tree-shaken-icons notice only.
+
+M4 coverage includes: empty/partial selection and distinct-name strictness ("unselected is not available"), aliased selections, duplicate slots after normalization, every reviewed garnish form plus suffix scoping (`orange peel syrup` stays essential), substitution pairs in both directions and their deliberate limits, mixed missing-plus-substitution classification, zero-ingredient recipes; the `list.php` names contract (sorted, deduplicated, cached, malformed-rejected, URL shape); batch-of-ten runs with checked/total progress, pause on rate limit with partial-result retention, resume after the shared cooldown, lookup misses counted as unavailable, selection/scope resets, fresh re-runs replacing previous results, and abandonment of an in-flight run when starting again; UI coverage of the empty-scope state, picker search and toggling, the three result buckets with substitution and garnish copy, cooldown pause/resume, detail round trips, a fully keyboard-driven selection-and-match run with Escape sheet dismissal, and 320-pixel readability at 1× and 2× with reduced motion.
+
+### Demo
+
+Run `flutter test test/features/bar` from `frontend/` for the flow suite; [BAR.md](BAR.md) describes the matching contract and manual exploration. Tests use invented records only — no provider content, image, or key is a test asset or was saved.
+
+An independent reviewer initially returned BLOCK: re-running matching duplicated results, and the contract docs were uncommitted. Both were fixed (see [M4 review](reviews/M4.md)); the main agent then re-ran the clean analysis, the full 124-test suite, and the release web build.
+
+Limits: no live provider traffic, physical screen-reader session, or device run was performed; no server or watcher was launched. The regenerated `discovery-results` golden reflects the new "What can I make" entry point and was visually inspected. Selections and scopes are session-only by design; persistence is a later milestone decision. M5 has not started.
+
 ## M3 — Discovery and recipe detail — 2026-09-12
 
 Executed on the development PC with Flutter 3.44.4 stable and Dart 3.12.2; all Flutter commands ran from `frontend/`:

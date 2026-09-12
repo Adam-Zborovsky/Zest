@@ -1,6 +1,6 @@
 # M2 data contract
 
-The M2 data layer is consumed by the M3 discovery/detail interface; it is not connected to the temporary gallery. No backend, bulk ingestion, persistence, provider content bundle, substitutions, or graph coverage decision is introduced here. M3's provider ownership and shared cooldown are documented in [DISCOVERY.md](DISCOVERY.md).
+The M2 data layer is consumed by the M3 discovery/detail interface and the M4 bar-matching interface; it is not connected to the temporary gallery. No backend, bulk ingestion, persistence, provider content bundle, or graph coverage decision is introduced here. M3's provider ownership and shared cooldown are documented in [DISCOVERY.md](DISCOVERY.md); M4's matching flow is documented in [BAR.md](BAR.md).
 
 ## Client
 
@@ -12,8 +12,9 @@ The M2 data layer is consumed by the M3 discovery/detail interface; it is not co
 | `browseByFirstLetter(letter)` | `search.php?f=…` | Immutable `List<Recipe>` |
 | `filterByIngredient(name)` | `filter.php?i=…` | Immutable `List<RecipeSummary>` |
 | `lookupRecipe(id)` | `lookup.php?i=…` | `Recipe?`; null means no match |
+| `listIngredientNames()` | `list.php?i=list` | Immutable `List<String>` |
 
-Queries are URL encoded and trimmed. First-letter browse accepts one ASCII letter; lookup accepts a numeric ID. Empty search/filter queries are rejected without a request. Filter summaries must be looked up before displaying a complete recipe. Nothing claims to represent the entire provider catalog.
+Queries are URL encoded and trimmed. First-letter browse accepts one ASCII letter; lookup accepts a numeric ID. Empty search/filter queries are rejected without a request. Filter summaries must be looked up before displaying a complete recipe. Nothing claims to represent the entire provider catalog. `listIngredientNames` returns the provider's ingredient filter names — names only, no property or availability claim — trimmed, deduplicated case-insensitively (first spelling wins), and sorted case-insensitively for a stable selection UI. Malformed list records are errors, not silent skips.
 
 The default host is HTTPS TheCocktailDB V1. The documented public development key `1` is the default. A build can override it with `--dart-define=COCKTAIL_DB_API_KEY=…`; never commit a private key, generated key file, or build artifact containing one. A client-side define is configuration, **not secret storage**: values can be extracted from a distributed app. Future distribution still requires Adam's licensing/key decision. The constructor also supports injected HTTP clients and keys for isolated tests.
 
@@ -51,7 +52,41 @@ All names receive lowercase, trim and repeated-whitespace collapse. Only these a
 | mint leaves | mint leaf | Grammatical plural only; not merged with generic mint |
 | ice cubes | ice cube | Grammatical plural only; not merged with crushed ice |
 
-Brand names remain distinct, as do dark/light/white/spiced rum, fruit/juice/peel/cordial, and sugar/syrup. Underscores are not removed from source identities merely because the API permits them in filter queries. The roadmap's brand-name example does not authorize guessed equivalence: ingredient classification/substitution needs separate reviewed evidence in M4. This deliberately small table was independently reviewed in M2; tests guard every alias and distinct-name example.
+Brand names remain distinct, as do dark/light/white/spiced rum, fruit/juice/peel/cordial, and sugar/syrup. Underscores are not removed from source identities merely because the API permits them in filter queries. The roadmap's brand-name example does not authorize guessed equivalence. This deliberately small table was independently reviewed in M2; tests guard every alias and distinct-name example.
+
+## M4 reviewed garnish classification
+
+Bar matching excludes only these forms from a recipe's missing essentials; every other named ingredient the selection lacks counts as missing. The table lives in `frontend/lib/features/bar/domain/ingredient_classification.dart` and was reviewed with [M4](reviews/M4.md). Unselected is not available — being a garnish never means the user has it.
+
+| Form | Rationale | Accepted edge cases |
+| --- | --- | --- |
+| names ending in ` twist` | Aromatic citrus twist completes the serve; not a measured component | — |
+| names ending in ` peel` | Garnish presentation of the fruit | A Horse's Neck's defining peel is still excluded; the drink's other components carry the match |
+| names ending in ` wedge` | Citrus wedge squeezed or hung on the glass | — |
+| names ending in ` slice` | Fruit slice garnish | — |
+| names ending in ` sprig` | Herb sprig (mint, rosemary) as aromatics | — |
+| `nutmeg`, `ground nutmeg` | Spice grated over the finished drink | — |
+| `cherry`, `maraschino cherry` | Whole-item garnish dropped in | Cherry liqueurs/brandies and juices are distinct names and stay essential |
+
+Plain fruit and herb names (`lemon`, `mint`, `mint leaf`), ice in any form, and every unlisted name stay essential. Suffix matches apply to the whole normalized identity, so `orange peel syrup` or `twist of lemon` are not classified as garnishes. Word-order and plural variants that occur in provider data — `sprig of mint`, `brandied cherries`, `zest of lemon` — also stay essential by design: only the reviewed forms above are excluded, and unclassified names always fail toward "missing" rather than toward "ready". Adding a form to this table is a reviewed evidence decision, never a default.
+
+## M4 reviewed substitution suggestions
+
+Applied bidirectionally in table order during matching, and always presented as suggestions for the reader to review — never as identity merges; both names remain distinct ingredients for selection and counting. The table lives with the garnish table and was reviewed with [M4](reviews/M4.md).
+
+| Pair | Rationale |
+| --- | --- |
+| `fresh lime juice` ↔ `lime juice` | Freshness qualifier only; same juice identity |
+| `fresh lemon juice` ↔ `lemon juice` | Freshness qualifier only |
+| `fresh orange juice` ↔ `orange juice` | Freshness qualifier only |
+| `fresh grapefruit juice` ↔ `grapefruit juice` | Freshness qualifier only |
+| `fresh pineapple juice` ↔ `pineapple juice` | Freshness qualifier only |
+| `fresh cranberry juice` ↔ `cranberry juice` | Freshness qualifier only |
+| `granulated sugar` ↔ `sugar` | Granulated is the default table form |
+| `superfine sugar` ↔ `sugar` | Same cane sugar; dissolves more readily |
+| `soda water` ↔ `sparkling water` | Same product under regional names; deliberately a suggestion, not an alias |
+
+Deliberately absent: sugar↔simple syrup (different preparation), lime cordial↔lime juice (M2 distinct), ginger ale↔ginger beer (different flavor), rum-type swaps, and any brand equivalence. A recipe lands in the substitution bucket only when **every** missing essential has a pair partner the selection contains; otherwise it is reported under missing essentials with the available suggestions still shown.
 
 ## Demo and tests
 
@@ -68,7 +103,7 @@ The default demo reads an authored synthetic fixture and makes **zero network ca
 
 ## Official references checked 2026-09-11
 
-- [TheCocktailDB API](https://www.thecocktaildb.com/api.php) — development key and endpoint/access distinctions.
+- [TheCocktailDB API](https://www.thecocktaildb.com/api.php) — development key and endpoint/access distinctions. Re-checked 2026-09-12 for M4: `list.php?i=list` is available on the test key; multi-ingredient filtering is premium-only, which fixes bar matching to client-side scope matching.
 - [Provider integration guide](https://www.thecocktaildb.com/AGENTS.md) — summary versus detail workflow, numbered slots, attribution and original measures.
 - [Provider terms page](https://www.thecocktaildb.com/terms_of_use.php) — the page currently contains TheMealDB wording despite being linked by TheCocktailDB. This ambiguity does not broaden Zest's stricter no-redistribution policy; publication/licensing remains gated, not resolved by M2.
 - [Dart HTTP package](https://pub.dev/packages/http) — injected clients, platform transports and abortable requests.
