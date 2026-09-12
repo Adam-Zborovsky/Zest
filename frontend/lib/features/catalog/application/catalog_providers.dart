@@ -104,11 +104,46 @@ final class CatalogSyncNotifier extends Notifier<CatalogSyncState> {
     final gap = ref.read(catalogLetterGapProvider);
     final run = ++_run;
 
-    final pending = await repository.pendingLetters();
-    if (_run != run) return;
-    // Cumulative totals from the store, so a resumed run keeps the earlier
-    // letters' progress visible instead of restarting at zero.
-    final coverage = await repository.coverage();
+    // The preamble runs before the per-letter loop and can fail the same
+    // way (the store can be unreadable), so it shares the loop's error
+    // handling: failures pause the run resumably instead of escaping as
+    // unhandled async exceptions from fire-and-forget button handlers.
+    List<String> pending;
+    CoverageReport coverage;
+    try {
+      pending = await repository.pendingLetters();
+      if (_run != run) return;
+      // Cumulative totals from the store, so a resumed run keeps the
+      // earlier letters' progress visible instead of restarting at zero.
+      coverage = await repository.coverage();
+    } on CocktailApiException catch (error) {
+      if (_run != run) return;
+      state = error.kind == CocktailApiErrorKind.rateLimited
+          ? CatalogSyncState(
+              status: CatalogSyncStatus.pausedCooldown,
+              lettersDone: state.lettersDone,
+              recipesLoaded: state.recipesLoaded,
+              secondsRemaining:
+                  error.retryAfter?.inSeconds ?? _fallbackCooldownSeconds,
+              retryAt: error.retryAt,
+            )
+          : CatalogSyncState(
+              status: CatalogSyncStatus.pausedError,
+              lettersDone: state.lettersDone,
+              recipesLoaded: state.recipesLoaded,
+              error: error,
+            );
+      return;
+    } catch (error) {
+      if (_run != run) return;
+      state = CatalogSyncState(
+        status: CatalogSyncStatus.pausedError,
+        lettersDone: state.lettersDone,
+        recipesLoaded: state.recipesLoaded,
+        error: error,
+      );
+      return;
+    }
     if (_run != run) return;
     var lettersDone = coverage.lettersCompleted;
     var recipesLoaded = coverage.recipeCount;

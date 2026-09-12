@@ -9,9 +9,12 @@ import 'constellation_painter.dart';
 
 /// Hit-target bounds. A node of any size answers taps within a 48-logical-
 /// pixel diameter around its center ([maxHitRadius]); an edge answers within
-/// [edgeHitHalfWidth] of its curve. Edges also open from the selection info
-/// surface and the list view, so the corridor is a bonus affordance rather
-/// than the only route.
+/// [edgeHitHalfWidth] of its curve.
+///
+/// [edgeHitHalfWidth] is a recorded 32-pixel hit-target exception, deliberate
+/// because every edge has three non-canvas equivalents at full size: the
+/// info-surface button under the canvas, the list-view connection rows, and
+/// the shared-recipes sheet each open the same edge without a corridor.
 const maxHitRadius = 24.0;
 const edgeHitHalfWidth = 16.0;
 
@@ -56,8 +59,19 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
   AnimationController? _settle;
   CurvedAnimation? _curve;
   bool _everAnimated = false;
+  ConstellationPaintData? _paintData;
 
   bool get _reducedMotion => ZestMotion.reduced(context);
+
+  /// Disposes the settle controller together with its curved animation.
+  /// The curve must be disposed before its parent controller.
+  void _teardownSettle() {
+    _curve?.dispose();
+    _curve = null;
+    _settle?.dispose();
+    _settle = null;
+    _initialPositions = null;
+  }
 
   @override
   void didChangeDependencies() {
@@ -66,33 +80,27 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
     // ticking. Reduced motion never *starts* a controller (see
     // _ensureLayout); this only ends one that was already running.
     if (_reducedMotion && _settle != null) {
-      final settle = _settle!;
-      _settle = null;
-      _curve = null;
-      _initialPositions = null;
-      settle.dispose();
+      _teardownSettle();
     }
   }
 
   @override
   void dispose() {
-    _settle?.dispose();
+    _teardownSettle();
+    _paintData?.dispose();
     super.dispose();
   }
 
   /// Computes the layout when the graph or the canvas size changed, and —
-  /// in motion mode only, and only ever once per layout — plays the short
-  /// settle from the seeded scatter to the final positions. Selection and
-  /// filter changes never reach this.
+  /// in motion mode only, and only ever once per State lifetime (guarded by
+  /// [_everAnimated]) — plays the short settle from the seeded scatter to
+  /// the final positions. Selection and filter changes never reach this.
   void _ensureLayout(Size size) {
     if (identical(_laidOutGraph, widget.graph) && _laidOutSize == size) return;
     _laidOutGraph = widget.graph;
     _laidOutSize = size;
     _layout = GraphLayout.compute(widget.graph, size: size);
-    _curve = null;
-    _settle?.dispose();
-    _settle = null;
-    _initialPositions = null;
+    _teardownSettle();
     if (widget.graph.nodes.length < 2) return;
     if (_reducedMotion || _everAnimated) return;
     _everAnimated = true;
@@ -105,12 +113,7 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
     );
     controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        setState(() {
-          _curve = null;
-          _settle?.dispose();
-          _settle = null;
-          _initialPositions = null;
-        });
+        setState(_teardownSettle);
       }
     });
     _settle = controller;
@@ -201,6 +204,11 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
           colors: Theme.of(context).colorScheme,
           labelStyle: Theme.of(context).textTheme.bodySmall!,
         );
+        // Each prepared paint data owns laid-out TextPainters; dispose the
+        // previous set when a new one replaces it, or selection, search, and
+        // graph changes would leak up to a label set per rebuild.
+        _paintData?.dispose();
+        _paintData = paintData;
         final progress = _progress;
         final initial = progress < 1 ? _initialPositions : null;
         final painter = ConstellationPainter(

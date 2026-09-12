@@ -84,6 +84,7 @@ final class IngredientGraph {
     required this.nodes,
     required this.edges,
     required this.recipeCount,
+    required this.totalIdentityCount,
     required Map<String, Recipe> recipesById,
   }) : _recipesById = recipesById,
        _nodesByIdentity = {
@@ -107,6 +108,12 @@ final class IngredientGraph {
   /// ingredients — the "M" in "appears in N of the M recipes in the analyzed
   /// collection".
   final int recipeCount;
+
+  /// The number of distinct ingredient identities in the analyzed collection
+  /// before [maxNodes] bounding. When this exceeds [nodes.length] the view is
+  /// bounded, and presenters can disclose the bound honestly without a
+  /// second pass over the collection.
+  final int totalIdentityCount;
 
   /// The bounding rule actually applied by this graph.
   final int maxNodes;
@@ -178,6 +185,7 @@ final class IngredientGraph {
       nodes: List.unmodifiable(nodes),
       edges: List.unmodifiable(edges),
       recipeCount: recipes.length,
+      totalIdentityCount: prevalence.length,
       recipesById: {for (final recipe in recipes) recipe.id: recipe},
     );
   }

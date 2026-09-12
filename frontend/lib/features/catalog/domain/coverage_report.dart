@@ -39,8 +39,12 @@ final class CoverageReport {
   /// sync's own bookkeeping only — never catalog completeness.
   bool get isAtoZComplete => lettersCompleted == lettersTotal;
 
-  /// Agreed copy guidance for any screen displaying coverage (M5 roadmap:
-  /// "Do not equate completed A–Z sync with proven full-catalog completeness").
+  /// Agreed copy for the finished coverage surface — the sync card's
+  /// "Collection loaded" state, the only place that presents a completed
+  /// A–Z run (M5 roadmap: "Do not equate completed A–Z sync with proven
+  /// full-catalog completeness"). Idle and syncing cards show counts
+  /// through the coverage line and the identified-collection label without
+  /// this sentence.
   static const completenessGuidance =
       'Counts describe the recipes loaded on this device from the letters '
       'browsed so far — they are not a claim about the full provider '

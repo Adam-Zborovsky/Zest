@@ -248,6 +248,52 @@ void main() {
     expect(state.lettersDone, 26);
   });
 
+  test('a store failure in the run preamble pauses resumably instead of '
+      'escaping', () async {
+    final database = CatalogDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    final repository = CatalogRepository(database: database, now: () => stamp);
+    final source = _FakeLetterSource(letters: everyLetter());
+    final container = ProviderContainer(
+      overrides: [
+        catalogRepositoryProvider.overrideWithValue(repository),
+        catalogLetterSourceProvider.overrideWithValue(source.call),
+        catalogLetterGapProvider.overrideWithValue(Duration.zero),
+      ],
+    );
+    var closed = false;
+    Future<void> closeOnce() async {
+      if (closed) return;
+      closed = true;
+      await database.close();
+    }
+
+    addTearDown(container.dispose);
+    addTearDown(closeOnce);
+    final notifier = container.read(catalogSyncProvider.notifier);
+
+    // NativeDatabase opens lazily: run one read so the connection is live
+    // before the store is closed, otherwise close() is a no-op and the run
+    // would find a fresh empty store instead of a closed one.
+    expect(await repository.pendingLetters(), hasLength(26));
+
+    // A store that cannot answer the preamble's reads (pendingLetters and
+    // coverage) must land the run in a resumable paused state — not reject
+    // the fire-and-forget future from a button handler with an unhandled
+    // exception. `await` here would throw if it escaped.
+    await closeOnce();
+    await notifier.start();
+
+    final state = container.read(catalogSyncProvider);
+    expect(state.status, CatalogSyncStatus.pausedError);
+    expect(state.resumable, isTrue);
+    expect(state.error, isNot(isA<CocktailApiException>()));
+  });
+
   test('a fully synced catalog finishes immediately without new requests',
       () async {
     final test = setup(letters: everyLetter());

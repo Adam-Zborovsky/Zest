@@ -40,6 +40,7 @@ void main() {
     ]);
 
     expect(graph.recipeCount, 3);
+    expect(graph.totalIdentityCount, 3);
     expect(graph.nodes.first.identity, 'gin');
     expect(graph.nodes.first.prevalence, 3);
     expect(
@@ -150,6 +151,10 @@ void main() {
       ['top1', 'lowc', 'tiea'],
     );
     expect(graph.node('tieb'), isNull);
+    // The pre-bound identity count is exposed so presenters can disclose
+    // the bound: 5 distinct identities were analyzed, 3 are kept.
+    expect(graph.totalIdentityCount, 5);
+    expect(graph.nodes, hasLength(3));
     // Only edges among kept nodes exist: top1–lowc and top1–tiea survive;
     // anything touching tieb/lowd is gone.
     expect(
@@ -221,7 +226,30 @@ void main() {
     expect(graph.nodes, isEmpty);
     expect(graph.edges, isEmpty);
     expect(graph.recipeCount, 0);
+    expect(graph.totalIdentityCount, 0);
     expect(graph.node('gin'), isNull);
+  });
+
+  test('a collection wider than the default bound keeps the pre-bound '
+      'identity count', () {
+    // 41 distinct identities, all prevalence 1 plus one shared identity:
+    // the default bound keeps 40 nodes out of 42 analyzed identities.
+    final recipes = [
+      for (var i = 1; i <= 41; i++)
+        _recipe(
+          id: '9000$i'.padLeft(6, '0'),
+          name: 'Wide Garden $i',
+          ingredients: ['Wide Ingredient $i', 'Shared Tonic'],
+        ),
+    ];
+    final graph = IngredientGraph.build(recipes);
+
+    expect(graph.totalIdentityCount, 42);
+    expect(graph.nodes, hasLength(IngredientGraph.defaultMaxNodes));
+    expect(graph.nodes.length, lessThan(graph.totalIdentityCount));
+    expect(graph.node('shared tonic'), isNotNull);
+    // The alphabetically-last wide ingredients fall past the bound.
+    expect(graph.node('wide ingredient 9'), isNull);
   });
 
   test('a single recipe produces its identities and all pair edges', () {

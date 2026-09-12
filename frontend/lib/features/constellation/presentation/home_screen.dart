@@ -14,6 +14,26 @@ import '../domain/ingredient_graph.dart';
 import 'constellation_canvas.dart';
 import 'constellation_widgets.dart';
 
+/// The honest count line for the bounded graph: the denominator is always
+/// the collection's total distinct-ingredient count, and when the top-N
+/// bound is applied it is disclosed rather than hidden behind an
+/// already-bounded total.
+String constellationCountLine(
+  IngredientGraph graph, {
+  required bool filtering,
+  required int matches,
+}) {
+  final kept = graph.nodes.length;
+  final total = graph.totalIdentityCount;
+  if (total <= kept) {
+    return 'Showing $matches of $total ingredients.';
+  }
+  return filtering
+      ? 'Showing $matches ${matches == 1 ? 'match' : 'matches'} among the '
+          'top $kept of $total ingredients.'
+      : 'Showing the top $kept of $total ingredients by prevalence.';
+}
+
 /// Home: the constellation leads. The graph canvas is the playful, spatial
 /// exploration; the list view, the sync/coverage card, and the discovery and
 /// bar routes carry the same information and the core tasks without the
@@ -78,9 +98,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const DiscoveryHeading('The Ingredient Constellation', large: true),
           const SizedBox(height: ZestSpace.md),
           const Text(
-            'Every ingredient in the loaded collection gets a place. '
-            'Ingredients that appear together in recipes pull close — '
-            'follow the lines from one bottle to the next.',
+            'The most-used ingredients in the loaded collection get a '
+            'place. Ingredients that appear together in recipes pull '
+            'close — follow the lines from one bottle to the next.',
           ),
           const SizedBox(height: ZestSpace.section),
           Wrap(
@@ -180,6 +200,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final matches = query.isEmpty
         ? graph.nodes.length
         : graph.nodes.where((node) => node.identity.contains(query)).length;
+    final countLine = constellationCountLine(
+      graph,
+      filtering: query.isNotEmpty,
+      matches: matches,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -209,7 +234,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Semantics(
           liveRegion: true,
           child: Text(
-            'Showing $matches of ${graph.nodes.length} ingredients.',
+            countLine,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -267,6 +292,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(coverageLabel, style: Theme.of(context).textTheme.bodySmall),
+          if (graph.totalIdentityCount > graph.nodes.length) ...[
+            const SizedBox(height: ZestSpace.xs),
+            Text(
+              'Showing the top ${graph.nodes.length} of '
+              '${graph.totalIdentityCount} ingredients by prevalence.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: ZestSpace.xs),
           ConstellationListView(graph: graph),
         ],

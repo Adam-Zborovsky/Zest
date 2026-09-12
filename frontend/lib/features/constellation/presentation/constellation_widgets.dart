@@ -203,8 +203,10 @@ class _ConstellationListViewState extends State<ConstellationListView> {
                         graph: widget.graph,
                       ),
                       child: Padding(
+                        // Generous vertical padding keeps the tappable row
+                        // at the 48-pixel minimum with its text line.
                         padding: const EdgeInsets.symmetric(
-                          vertical: ZestSpace.lg - 4,
+                          vertical: ZestSpace.lg,
                         ),
                         child: Row(
                           children: [
@@ -261,6 +263,12 @@ class CatalogSyncCard extends ConsumerStatefulWidget {
 class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
   Timer? _ticker;
 
+  /// Absolute deadline synthesized for cooldowns that arrive without a
+  /// `retryAt` (no Retry-After from the source). Built once per pause from
+  /// the remaining-seconds snapshot so the countdown actually ticks between
+  /// rebuilds; cleared whenever the card leaves the cooldown state.
+  DateTime? _fallbackDeadline;
+
   @override
   void dispose() {
     _ticker?.cancel();
@@ -268,14 +276,24 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
   }
 
   /// The cooldown state is a snapshot; the UI owns the ticking. Remaining
-  /// seconds are recomputed from the absolute `retryAt` deadline on every
-  /// build, so rebuilds never drift — mirrors the discovery cooldown card.
+  /// seconds are recomputed from the absolute deadline on every build, so
+  /// rebuilds never drift — mirrors the discovery cooldown card. When the
+  /// state carries no deadline, one is synthesized from the remaining-
+  /// seconds snapshot so the fallback path still ticks.
   int _remainingSeconds(CatalogSyncState state) {
     if (state.status != CatalogSyncStatus.pausedCooldown) return 0;
-    final deadline = state.retryAt;
+    final deadline = state.retryAt ?? _synthesizedDeadline(state);
     if (deadline == null) return math.max(0, state.secondsRemaining ?? 0);
     final now = ref.read(nowProvider)();
     return math.max(0, deadline.difference(now).inSeconds);
+  }
+
+  DateTime? _synthesizedDeadline(CatalogSyncState state) {
+    final remaining = state.secondsRemaining;
+    if (remaining == null) return null;
+    return _fallbackDeadline ??= ref
+        .read(nowProvider)()
+        .add(Duration(seconds: remaining));
   }
 
   void _ensureTicker() {
@@ -295,6 +313,7 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
   void _cancelTicker() {
     _ticker?.cancel();
     _ticker = null;
+    _fallbackDeadline = null;
   }
 
   @override
@@ -302,6 +321,8 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
     final state = ref.watch(catalogSyncProvider);
     if (state.status == CatalogSyncStatus.pausedCooldown) {
       _ensureTicker();
+      // A deadline on the state supersedes any earlier synthesized one.
+      if (state.retryAt != null) _fallbackDeadline = null;
     } else {
       _cancelTicker();
     }
@@ -473,13 +494,6 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
             const Text(
               CoverageReport.completenessGuidance,
               style: TextStyle(color: ZestPalette.secondaryInk),
-            ),
-            const SizedBox(height: ZestSpace.lg),
-            ZestButton(
-              key: const ValueKey('sync-again'),
-              label: 'Check for updates',
-              kind: ZestButtonKind.quiet,
-              onPressed: () => ref.read(catalogSyncProvider.notifier).start(),
             ),
           ],
         ),

@@ -21,7 +21,9 @@ double constellationNodeRadius(int prevalence, int maxPrevalence) {
 /// the emphasis implied by the current selection and search filter, and the
 /// collision-filtered label set. Prepared once per state change — never per
 /// animation frame — so the settle animation repaints without reallocating
-/// geometry or re-laying out text.
+/// geometry, re-laying out text, or allocating Paint objects: every Paint
+/// (edge stroke, node fill and stroke, shared label backdrop) is built here
+/// with its color, alpha, and stroke width baked in.
 ///
 /// Label rule (documented contract):
 /// 1. When a search filter is active, every matching node is a candidate.
@@ -72,23 +74,32 @@ final class ConstellationPaintData {
 
     final maxWeight = graph.edges.fold(1, (w, e) => math.max(w, e.weight));
 
-    // Nodes.
+    // Nodes: both Paint objects (fill and stroke) are built here, with the
+    // dimmed variants baked in, so paint() never allocates.
     for (final node in graph.nodes) {
       final isSelected = selectedNode?.identity == node.identity;
       final isEmphasized = emphasized.contains(node.identity);
       final dimmed =
           (trimmedQuery.isNotEmpty && !matching.contains(node.identity)) ||
           ((selectedNode != null || selectedEdge != null) && !isEmphasized);
+      final fill = isSelected ? colors.tertiaryContainer : colors.secondaryContainer;
+      final stroke = isEmphasized ? colors.primary : colors.outline;
       nodePaints[node.identity] = _NodePaint(
         radius: constellationNodeRadius(node.prevalence, graph.maxPrevalence),
-        fill: isSelected ? colors.tertiaryContainer : colors.secondaryContainer,
-        stroke: isEmphasized ? colors.primary : colors.outline,
-        strokeWidth: isEmphasized ? 3 : 2,
-        dimmed: dimmed,
+        fillPaint: Paint()..color = dimmed
+            ? fill.withValues(alpha: 0.15)
+            : fill,
+        strokePaint: Paint()
+          ..color = dimmed
+              ? stroke.withValues(alpha: 0.15)
+              : stroke
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = isEmphasized ? 3 : 2,
       );
     }
 
-    // Edges.
+    // Edges: one stroke Paint per edge, weight-based opacity and width
+    // baked in.
     for (final edge in graph.edges) {
       final isSelected = identical(edge, emphasizedEdge);
       final inNeighborhood =
@@ -119,15 +130,23 @@ final class ConstellationPaintData {
       edgePaints.add(
         _EdgePaint(
           edge: edge,
-          color: dimmed
-              ? color.withValues(alpha: 0.06)
-              : color.withValues(alpha: opacity),
-          strokeWidth: isSelected
-              ? 1.0 + 2.5 * (edge.weight - 1) / math.max(1, maxWeight - 1) + 1.5
-              : 1.0 + 2.5 * (edge.weight - 1) / math.max(1, maxWeight - 1),
+          paint: Paint()
+            ..color = dimmed
+                ? color.withValues(alpha: 0.06)
+                : color.withValues(alpha: opacity)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = isSelected
+                ? 1.0 + 2.5 * (edge.weight - 1) / math.max(1, maxWeight - 1) + 1.5
+                : 1.0 + 2.5 * (edge.weight - 1) / math.max(1, maxWeight - 1)
+            ..strokeCap = StrokeCap.round,
         ),
       );
     }
+
+    // One shared label backdrop Paint: every label uses the same translucent
+    // surface color, so a single Paint serves the whole label set.
+    labelBackdropPaint = Paint()
+      ..color = colors.surface.withValues(alpha: 0.85);
 
     // Labels: candidates in priority order, then greedy collision filtering.
     final candidates = <String>[
@@ -169,14 +188,7 @@ final class ConstellationPaintData {
         continue;
       }
       acceptedRects.add(rect);
-      labels.add(
-        _LabelPaint(
-          identity: identity,
-          painter: painter,
-          backdrop: colors.surface.withValues(alpha: 0.85),
-          ink: colors.onSurface,
-        ),
-      );
+      labels.add(_LabelPaint(identity: identity, painter: painter));
     }
   }
 
@@ -189,6 +201,9 @@ final class ConstellationPaintData {
   final edgePaints = <_EdgePaint>[];
   final labels = <_LabelPaint>[];
 
+  /// Shared by every label backdrop — identical color across the label set.
+  late final Paint labelBackdropPaint;
+
   void dispose() {
     for (final label in labels) {
       label.painter.dispose();
@@ -200,43 +215,27 @@ final class ConstellationPaintData {
 final class _NodePaint {
   const _NodePaint({
     required this.radius,
-    required this.fill,
-    required this.stroke,
-    required this.strokeWidth,
-    required this.dimmed,
+    required this.fillPaint,
+    required this.strokePaint,
   });
 
   final double radius;
-  final Color fill;
-  final Color stroke;
-  final double strokeWidth;
-  final bool dimmed;
+  final Paint fillPaint;
+  final Paint strokePaint;
 }
 
 final class _EdgePaint {
-  const _EdgePaint({
-    required this.edge,
-    required this.color,
-    required this.strokeWidth,
-  });
+  const _EdgePaint({required this.edge, required this.paint});
 
   final IngredientEdge edge;
-  final Color color;
-  final double strokeWidth;
+  final Paint paint;
 }
 
 final class _LabelPaint {
-  const _LabelPaint({
-    required this.identity,
-    required this.painter,
-    required this.backdrop,
-    required this.ink,
-  });
+  const _LabelPaint({required this.identity, required this.painter});
 
   final String identity;
   final TextPainter painter;
-  final Color backdrop;
-  final Color ink;
 }
 
 /// Paints the constellation. Work per frame is O(nodes + edges) — at the
@@ -284,32 +283,15 @@ class ConstellationPainter extends CustomPainter {
         Path()
           ..moveTo(a.dx, a.dy)
           ..quadraticBezierTo(control.dx, control.dy, b.dx, b.dy),
-        Paint()
-          ..color = edgePaint.color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = edgePaint.strokeWidth
-          ..strokeCap = StrokeCap.round,
+        edgePaint.paint,
       );
     }
 
     for (final entry in data.nodePaints.entries) {
       final position = _positionOf(entry.key);
       final nodePaint = entry.value;
-      final fill = nodePaint.dimmed
-          ? nodePaint.fill.withValues(alpha: 0.15)
-          : nodePaint.fill;
-      final stroke = nodePaint.dimmed
-          ? nodePaint.stroke.withValues(alpha: 0.15)
-          : nodePaint.stroke;
-      canvas.drawCircle(position, nodePaint.radius, Paint()..color = fill);
-      canvas.drawCircle(
-        position,
-        nodePaint.radius,
-        Paint()
-          ..color = stroke
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = nodePaint.strokeWidth,
-      );
+      canvas.drawCircle(position, nodePaint.radius, nodePaint.fillPaint);
+      canvas.drawCircle(position, nodePaint.radius, nodePaint.strokePaint);
     }
 
     for (final label in data.labels) {
@@ -329,7 +311,7 @@ class ConstellationPainter extends CustomPainter {
           ),
           const Radius.circular(6),
         ),
-        Paint()..color = label.backdrop,
+        data.labelBackdropPaint,
       );
       label.painter.paint(canvas, anchor);
     }

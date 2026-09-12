@@ -27,6 +27,12 @@ class LetterSyncStatusConverter extends TypeConverter<LetterSyncStatus, String> 
 class Recipes extends Table {
   TextColumn get providerId => text()();
   TextColumn get name => text()();
+  /// The browse that last wrote this row — never a letter derived from the
+  /// recipe name. A recipe returned by two different letter browses is
+  /// last-writer-wins: [CatalogRepository.upsertLetter] replaces the row
+  /// (and its ingredient usages, which are primary-keyed on
+  /// (recipeId, identity) and so cannot duplicate) with the newest browse's
+  /// copy and stamps this column with that letter.
   TextColumn get firstLetter => text().withLength(min: 1, max: 1)();
   TextColumn get sourceJson => text()();
   DateTimeColumn get updatedAt => dateTime()();

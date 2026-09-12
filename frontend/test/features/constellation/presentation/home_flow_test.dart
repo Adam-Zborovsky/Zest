@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -163,6 +164,36 @@ List<Recipe> threeLetterRecipes() => [
   ...catalogLetterRecipes('c'),
 ];
 
+/// A synthetic collection wider than the graph's default bound: 41 recipes,
+/// each pairing one distinct identity with one shared identity — 42 distinct
+/// identities in total, of which only the top 40 are kept.
+List<Recipe> wideGardenRecipes() => [
+  for (var i = 1; i <= 41; i++)
+    Recipe.fromJson(
+      catalogRecipe(
+        id: '7001${i.toString().padLeft(3, '0')}',
+        name: 'Wide Garden $i',
+        ingredients: [
+          ('Wide Ingredient $i', '1 oz'),
+          ('Shared Tonic', '2 oz'),
+        ],
+      ),
+    ),
+];
+
+void expectReadable(WidgetTester tester) {
+  expect(tester.takeException(), isNull);
+  for (final paragraph in tester.renderObjectList<RenderParagraph>(
+    find.byType(RichText),
+  )) {
+    expect(
+      paragraph.didExceedMaxLines,
+      isFalse,
+      reason: 'Text must remain readable: ${paragraph.text.toPlainText()}',
+    );
+  }
+}
+
 void main() {
   setUpAll(loadZestFonts);
 
@@ -208,6 +239,10 @@ void main() {
       find.textContaining('not a claim about the full provider catalog'),
       findsOneWidget,
     );
+    // The finished card is informational only: a completed sync offers no
+    // re-run action, because starting again over a fully synced store
+    // fetches nothing and could only pretend to check for updates.
+    expect(find.text('Check for updates'), findsNothing);
   });
 
   testWidgets('syncing reports live progress; stopping keeps the partial '
@@ -315,6 +350,41 @@ void main() {
     expect(find.text('Collection loaded'), findsOneWidget);
   });
 
+  testWidgets('a cooldown without an absolute deadline still ticks down to '
+      'a resumable state', (tester) async {
+    var clock = DateTime.utc(2026, 9, 12);
+    await openHome(
+      tester,
+      letters: everyCatalogLetter(),
+      failures: {
+        // No Retry-After and no retryAt: the engine falls back to its
+        // 30-second cooldown with no absolute deadline on the state.
+        'a': const CocktailApiException(
+          CocktailApiErrorKind.rateLimited,
+          statusCode: 429,
+        ),
+      },
+      now: () => clock,
+    );
+
+    await tester.ensureVisible(keyed('sync-start'));
+    await tester.tap(keyed('sync-start'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final paused = tester.widget<ZestButton>(keyed('sync-resume'));
+    expect(paused.label, 'Resume in 30 s');
+    expect(paused.onPressed, isNull);
+
+    // The card synthesizes a deadline from the remaining-seconds snapshot,
+    // so the countdown reaches zero and resume unlocks.
+    clock = clock.add(const Duration(seconds: 31));
+    await tester.pump(const Duration(seconds: 1));
+    final ready = tester.widget<ZestButton>(keyed('sync-resume'));
+    expect(ready.label, 'Resume syncing');
+    expect(ready.onPressed, isNotNull);
+  });
+
   testWidgets('the list view states the same prevalence and connection '
       'information without the graph', (tester) async {
     await openHome(tester, seed: {
@@ -343,6 +413,12 @@ void main() {
       find.text('Invented botanical syrup — 3 shared recipes'),
       findsOneWidget,
     );
+    // Connection rows are tappable targets: the padded row meets the
+    // 48-pixel minimum with its text line.
+    final connectionRow = tester.getRect(
+      keyed('constellation-connection-invented botanical syrup'),
+    );
+    expect(connectionRow.height, greaterThanOrEqualTo(48));
 
     await activate(
       tester,
@@ -419,44 +495,90 @@ void main() {
     expect(find.text('Showing 0 of 3 ingredients.'), findsOneWidget);
   });
 
-  testWidgets('reduced motion renders the settled layout with no running '
-      'animation controllers', (tester) async {
-    tester.platformDispatcher.accessibilityFeaturesTestValue =
-        const FakeAccessibilityFeatures(disableAnimations: true);
-    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  testWidgets('a collection wider than the top-40 bound discloses the cut '
+      'honestly in both views', (tester) async {
+    await openHome(tester, seed: {'a': wideGardenRecipes()});
 
-    await openHome(
-      tester,
-      seed: {
-        'a': catalogLetterRecipes('a'),
-        'b': catalogLetterRecipes('b'),
-        'c': catalogLetterRecipes('c'),
-      },
-      settle: false,
+    // The intro no longer claims every ingredient gets a place, and the
+    // graph count line names the pre-bound total, not the bounded list.
+    expect(
+      find.textContaining('The most-used ingredients in the loaded '
+          'collection get a place'),
+      findsOneWidget,
     );
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
+    expect(
+      find.text('Showing the top 40 of 42 ingredients by prevalence.'),
+      findsOneWidget,
+    );
 
-    expect(keyed('constellation-canvas'), findsOneWidget);
-    // Nothing is animating: the settle controller is never created under
-    // reduced motion, so no ticker exists at all.
-    expect(tester.binding.transientCallbackCount, 0);
-
-    // The static canvas stays fully interactive.
-    await tester.ensureVisible(keyed('constellation-canvas'));
-    await tester.pump();
-    final (box, graph, layout) = canvasGeometry(tester, threeLetterRecipes());
-    await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+    // A filtered search keeps the disclosure with the match count.
+    await tester.enterText(keyed('constellation-search'), 'wide ingredient 3');
     await tester.pumpAndSettle();
-    expect(find.text('Mint leaf'), findsOneWidget);
+    // "wide ingredient 3" matches identities 3 and 30–39.
     expect(
       find.text(
-        'Appears in 3 of the 3 recipes in the analyzed collection.',
+        'Showing 11 matches among the top 40 of 42 ingredients.',
       ),
       findsOneWidget,
     );
-    expect(tester.binding.transientCallbackCount, 0);
+
+    // The list view shows only bounded nodes, so it carries the same
+    // disclosure alongside the coverage label.
+    await activate(tester, keyed('home-view-list'));
+    expect(
+      find.text('Showing the top 40 of 42 ingredients by prevalence.'),
+      findsOneWidget,
+    );
   });
+
+  // DESIGN.md defines reduced motion as either flag; both must render the
+  // settled layout with no running animation controllers.
+  for (final flags in [
+    (name: 'disableAnimations', disableAnimations: true, accessibleNavigation: false),
+    (name: 'accessibleNavigation', disableAnimations: false, accessibleNavigation: true),
+  ]) {
+    testWidgets('reduced motion via ${flags.name} renders the settled layout '
+        'with no running animation controllers', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(
+        disableAnimations: flags.disableAnimations,
+        accessibleNavigation: flags.accessibleNavigation,
+      );
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+
+      await openHome(
+        tester,
+        seed: {
+          'a': catalogLetterRecipes('a'),
+          'b': catalogLetterRecipes('b'),
+          'c': catalogLetterRecipes('c'),
+        },
+        settle: false,
+      );
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+
+      expect(keyed('constellation-canvas'), findsOneWidget);
+      // Nothing is animating: the settle controller is never created under
+      // reduced motion, so no ticker exists at all.
+      expect(tester.binding.transientCallbackCount, 0);
+
+      // The static canvas stays fully interactive.
+      await tester.ensureVisible(keyed('constellation-canvas'));
+      await tester.pump();
+      final (box, graph, layout) = canvasGeometry(tester, threeLetterRecipes());
+      await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+      await tester.pumpAndSettle();
+      expect(find.text('Mint leaf'), findsOneWidget);
+      expect(
+        find.text(
+          'Appears in 3 of the 3 recipes in the analyzed collection.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+  }
 
   testWidgets('navigation reaches the bar screen from home', (tester) async {
     await openHome(tester, seed: {'a': catalogLetterRecipes('a')});
@@ -465,7 +587,36 @@ void main() {
     expect(router(tester).state.uri.path, '/bar');
     expect(find.text('What can I make?'), findsOneWidget);
   });
-}
 
-// Keep the math import honest: the helper file uses it for clear midpoints.
-// ignore_for_file: unused_import
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('home remains readable at 320px and ${scale}x text', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await openHome(
+        tester,
+        seed: {
+          'a': catalogLetterRecipes('a'),
+          'b': catalogLetterRecipes('b'),
+          'c': catalogLetterRecipes('c'),
+        },
+        size: const Size(320, 720),
+      );
+      expectReadable(tester);
+      await activate(tester, keyed('home-view-list'));
+      expectReadable(tester);
+      // The sync card and its actions stay reachable at the bottom of the
+      // page's scroll.
+      await tester.ensureVisible(keyed('home-sync-card'));
+      await tester.pumpAndSettle();
+      expectReadable(tester);
+      expect(keyed('sync-start'), findsOneWidget);
+    });
+  }
+}

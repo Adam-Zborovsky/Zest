@@ -5,6 +5,7 @@ import 'package:zest/features/catalog/application/catalog_providers.dart';
 import 'package:zest/features/catalog/data/catalog_database.dart';
 import 'package:zest/features/catalog/domain/sync_state.dart';
 import 'package:zest/features/constellation/application/constellation_providers.dart';
+import 'package:zest/features/constellation/domain/ingredient_graph.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 
 import '../../../support/catalog_fixtures.dart';
@@ -96,8 +97,9 @@ void main() {
     await notifier.start();
     await settleReads();
 
-    // a–z applied: coverage was re-read as the store grew, and the graph
-    // followed — without invalidation both would stay at their first read.
+    // a–z applied: coverage was re-read as the store grew. The graph is
+    // coalesced (see catalogFreshnessProvider): skipped while the run syncs
+    // and rebuilt once when the run settles into finished.
     expect(
       container.read(catalogSyncProvider).status,
       CatalogSyncStatus.finished,
@@ -114,6 +116,56 @@ void main() {
     final graph = await container.read(constellationGraphProvider.future);
     expect(graph.recipeCount, 26);
     expect(graph.node('mint leaf')!.prevalence, 26);
+  });
+
+  test('the graph rebuild is coalesced: skipped per letter, run once when '
+      'the sync settles', () async {
+    final database = openInMemoryCatalog();
+    final source = FakeCatalogLetterSource(letters: everyCatalogLetter());
+    var graphBuilds = 0;
+    final container = ProviderContainer(
+      overrides: [
+        ...catalogTestOverrides(
+          database: database,
+          source: source,
+          now: () => stamp,
+        ),
+        constellationGraphProvider.overrideWith((ref) async {
+          graphBuilds++;
+          final recipes =
+              await ref.watch(catalogRepositoryProvider).allRecipes();
+          return IngredientGraph.build(recipes);
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(database.close);
+    // Arm the freshness wiring the way home does.
+    container.read(catalogFreshnessProvider);
+    // Home actively watches the graph; an active listener keeps the
+    // provider out of Riverpod's paused state, so invalidations schedule
+    // real rebuilds exactly as they do in the app.
+    container.listen(constellationGraphProvider, (_, __) {});
+
+    // First read materializes the graph over the empty store.
+    final initial = await container.read(constellationGraphProvider.future);
+    expect(initial.isEmpty, isTrue);
+    expect(graphBuilds, 1);
+
+    await container.read(catalogSyncProvider.notifier).start();
+    await settleReads();
+
+    expect(
+      container.read(catalogSyncProvider).status,
+      CatalogSyncStatus.finished,
+    );
+    // Per-letter progress emissions never rebuilt the graph (a full catalog
+    // decode plus layout each); the settle into finished did — one rebuild
+    // for the whole 26-letter run.
+    expect(graphBuilds, 2);
+    final settled = await container.read(constellationGraphProvider.future);
+    expect(settled.recipeCount, 26);
+    expect(settled.node('mint leaf')!.prevalence, 26);
   });
 
   test('a pause refreshes coverage even though no letter applied', () async {
