@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/network/cocktail_api_exception.dart';
 import '../../../core/widgets/botanical_art.dart';
+import '../../../core/widgets/botanical_paper.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_states.dart';
@@ -22,85 +24,211 @@ final sourceLauncherProvider = Provider<Future<bool> Function(Uri)>((ref) {
   return (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
 });
 
+/// The shared page shell. Every page opens on the Night Garden band — the
+/// wordmark, an optional eyebrow, heading, and intro, plus optional
+/// night-field content such as the home constellation — and continues on
+/// the fennel paper page. Both halves align to the 800-pixel page width
+/// while the band's color bleeds edge to edge.
 class DiscoveryFrame extends StatelessWidget {
   const DiscoveryFrame({
     super.key,
     required this.child,
     this.back = false,
     this.slivers = const [],
+    this.eyebrow,
+    this.title,
+    this.titleAccent,
+    this.intro,
+    this.band,
   });
+
   final Widget child;
   final bool back;
   final List<Widget> slivers;
+  final String? eyebrow;
+  final String? title;
+
+  /// Appended to [title] in grapefruit, as-is (include any leading space).
+  final String? titleAccent;
+  final String? intro;
+
+  /// Extra content on the night field below the heading.
+  final Widget? band;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: CustomScrollView(
-            key: const PageStorageKey('discovery-scroll'),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(ZestSpace.page),
-                sliver: SliverToBoxAdapter(
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final topInset = MediaQuery.paddingOf(context).top;
+    return Scaffold(
+      body: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final gutter = math.max(
+              0.0,
+              (constraints.maxWidth - ZestSpace.pageWidth) / 2,
+            );
+            return CustomScrollView(
+              key: const PageStorageKey('discovery-scroll'),
+              slivers: [
+                // Band and page body share one box so the body is always
+                // built, even when large text makes the band taller than the
+                // viewport's cache extent.
+                SliverToBoxAdapter(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          if (back) ...[
-                            IconButton(
-                              tooltip: 'Back to discovery',
-                              onPressed: () => context.canPop()
-                                  ? context.pop()
-                                  : context.go('/discover'),
-                              icon: const Icon(Icons.arrow_back_rounded),
-                            ),
-                            const SizedBox(width: ZestSpace.sm),
-                          ],
-                          const BotanicalArt(size: 36),
-                          const SizedBox(width: ZestSpace.sm),
-                          Expanded(
-                            child: Text(
-                              'Zest',
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
+                      NightBand(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            ZestSpace.page,
+                            ZestSpace.md + topInset,
+                            ZestSpace.page,
+                            ZestSpace.lg,
                           ),
-                        ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _FrameTopBar(back: back),
+                              if (eyebrow != null) ...[
+                                const SizedBox(height: ZestSpace.xl),
+                                Text(
+                                  eyebrow!,
+                                  style: textTheme.labelMedium!.copyWith(
+                                    color: ZestPalette.nightMuted,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                              ],
+                              if (title != null) ...[
+                                SizedBox(
+                                  height: eyebrow == null
+                                      ? ZestSpace.xl
+                                      : ZestSpace.xs,
+                                ),
+                                DiscoveryHeading(
+                                  title!,
+                                  accent: titleAccent,
+                                  large: true,
+                                ),
+                              ],
+                              if (intro != null) ...[
+                                const SizedBox(height: ZestSpace.md),
+                                Text(
+                                  intro!,
+                                  style: textTheme.bodyLarge!.copyWith(
+                                    color: ZestPalette.nightMuted,
+                                  ),
+                                ),
+                              ],
+                              if (band != null) ...[
+                                const SizedBox(height: ZestSpace.xl),
+                                band!,
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: ZestSpace.section),
-                      child,
-                      const SizedBox(height: ZestSpace.xxl),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          ZestSpace.page + gutter,
+                          ZestSpace.xl,
+                          ZestSpace.page + gutter,
+                          ZestSpace.xxl,
+                        ),
+                        child: child,
+                      ),
                     ],
                   ),
                 ),
-              ),
-              ...slivers,
-            ],
-          ),
+                for (final sliver in slivers)
+                  SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: gutter),
+                    sliver: sliver,
+                  ),
+              ],
+            );
+          },
         ),
       ),
-    ),
+    );
+  }
+}
+
+class _FrameTopBar extends StatelessWidget {
+  const _FrameTopBar({required this.back});
+
+  final bool back;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      if (back) ...[
+        IconButton(
+          tooltip: 'Back to discovery',
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/discover'),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: ZestSpace.xs),
+      ],
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          color: ZestPalette.peach,
+          shape: BoxShape.circle,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(5),
+          child: BotanicalArt(size: 34),
+        ),
+      ),
+      const SizedBox(width: ZestSpace.sm),
+      Expanded(
+        child: Text('Zest', style: Theme.of(context).textTheme.headlineSmall),
+      ),
+    ],
   );
 }
 
 class DiscoveryHeading extends StatelessWidget {
-  const DiscoveryHeading(this.text, {super.key, this.large = false});
+  const DiscoveryHeading(
+    this.text, {
+    super.key,
+    this.large = false,
+    this.accent,
+    this.accentColor = ZestPalette.grapefruit,
+  });
   final String text;
   final bool large;
 
+  /// Trailing text in [accentColor]. Used on the night field, where
+  /// grapefruit keeps text contrast.
+  final String? accent;
+  final Color accentColor;
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    header: true,
-    child: Text(
-      text,
-      style: large
-          ? Theme.of(context).textTheme.displayMedium
-          : Theme.of(context).textTheme.headlineSmall,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final style = large
+        ? Theme.of(context).textTheme.displayMedium
+        : Theme.of(context).textTheme.headlineSmall;
+    return Semantics(
+      header: true,
+      child: accent == null
+          ? Text(text, style: style)
+          : Text.rich(
+              TextSpan(
+                text: text,
+                children: [
+                  TextSpan(
+                    text: accent,
+                    style: TextStyle(color: accentColor),
+                  ),
+                ],
+              ),
+              style: style,
+            ),
+    );
+  }
 }
 
 class RecipeImage extends ConsumerWidget {

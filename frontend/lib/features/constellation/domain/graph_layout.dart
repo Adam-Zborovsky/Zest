@@ -29,6 +29,20 @@ final class GraphLayout {
 
   static const _minTemperature = 0.5;
 
+  /// Node radius mapping, shared by the layout (for collision clearance) and
+  /// the painter: the radius grows with the *square root* of prevalence, so
+  /// node area grows roughly linearly with the distinct-recipe count, bounded
+  /// to 10–26 logical pixels. Documented contract — changing these bounds
+  /// changes the constellation's visual grammar.
+  static double nodeRadius(int prevalence, int maxPrevalence) {
+    const minRadius = 10.0;
+    const maxRadius = 26.0;
+    final t = maxPrevalence <= 1
+        ? 0.55
+        : math.sqrt(prevalence / maxPrevalence);
+    return lerpDouble(minRadius, maxRadius, t.clamp(0.0, 1.0))!;
+  }
+
   final Map<String, Offset> _positions;
 
   /// Computes final positions for [graph] inside [size]. [seed] and

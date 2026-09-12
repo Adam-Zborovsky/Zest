@@ -14,6 +14,19 @@ abstract final class ZestPalette {
   static const errorSurface = Color(0xFFFFF0F3);
   static const disabledSurface = Color(0xFFE4E6D7);
   static const disabledInk = Color(0xFF707668);
+
+  /// Night Garden: the leaf-green field behind page headers and the
+  /// constellation.
+  static const night = leaf;
+
+  /// Raised surfaces and spirit glyphs on the night field.
+  static const moss = Color(0xFF2E5E4C);
+
+  /// Primary ink on the night field.
+  static const nightInk = peach;
+
+  /// Supporting ink on the night field.
+  static const nightMuted = celery;
 }
 
 abstract final class ZestSpace {
@@ -27,11 +40,13 @@ abstract final class ZestSpace {
   static const xxl = 32.0;
   static const touchTarget = 48.0;
   static const contentWidth = 480.0;
+  static const pageWidth = 800.0;
 }
 
 abstract final class ZestShape {
   static const control = BorderRadius.all(Radius.circular(16));
   static const card = BorderRadius.all(Radius.circular(24));
+  static const pill = BorderRadius.all(Radius.circular(999));
   static const recipe = BorderRadiusDirectional.only(
     topStart: Radius.circular(36),
     topEnd: Radius.circular(14),
@@ -46,10 +61,22 @@ abstract final class ZestElevation {
   static const sheet = 4.0;
 }
 
+/// Cut-paper depth: a crisp, unblurred offset shadow. Reserved for things
+/// that can be pressed (primary buttons, action tiles, recipe cards) so
+/// elevation keeps meaning something.
+abstract final class ZestShadow {
+  static List<BoxShadow> hard(Color color, {double offset = 3}) => [
+    BoxShadow(color: color, offset: Offset(offset, offset)),
+  ];
+}
+
 abstract final class ZestMotion {
   static const feedback = Duration(milliseconds: 140);
   static const enter = Duration(milliseconds: 260);
   static const exit = Duration(milliseconds: 180);
+
+  /// The selected-node pop in the constellation.
+  static const pop = Duration(milliseconds: 320);
   static const easeOut = Cubic(0.2, 0.0, 0.0, 1.0);
 
   static bool reduced(BuildContext context) =>

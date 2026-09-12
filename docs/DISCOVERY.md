@@ -12,14 +12,14 @@ Discovery is now the normal launch screen, using the approved Botanical Play des
 
 ## Routes and state
 
-| Route | Meaning |
-| --- | --- |
-| `/discover` | Idle discovery; no recipe request |
-| `/discover?mode=name&q=…` | Name results |
-| `/discover?mode=ingredient&q=…` | Ingredient-filter results |
-| `/discover?mode=letter&q=a` | First-letter results |
-| `/discover/results?mode=…&q=…` | All results returned for the current query |
-| `/discover/recipe/ID` | Direct recipe lookup |
+| Route                           | Meaning                                    |
+| ------------------------------- | ------------------------------------------ |
+| `/discover`                     | Idle discovery; no recipe request          |
+| `/discover?mode=name&q=…`       | Name results                               |
+| `/discover?mode=ingredient&q=…` | Ingredient-filter results                  |
+| `/discover?mode=letter&q=a`     | First-letter results                       |
+| `/discover/results?mode=…&q=…`  | All results returned for the current query |
+| `/discover/recipe/ID`           | Direct recipe lookup                       |
 
 Result/detail navigation preserves query parameters. In-app Back returns to the originating list and keeps the query; direct detail links have a discovery parent. Invalid IDs, malformed/duplicate query parameters and unknown pages receive branded recovery screens. `go_router` reflects pushed detail routes in the web URL; these URLs are independently reconstructible. Hosting still needs normal Flutter web configuration; real browser history and deployment rewrites are separate from widget navigation tests.
 

@@ -19,15 +19,17 @@ const maxHitRadius = 24.0;
 const edgeHitHalfWidth = 16.0;
 
 /// The interactive constellation canvas: the graph painted on a CustomPaint
-/// with tap selection of nodes and edges and a settle-in animation.
+/// with tap selection of nodes and edges, a settle-in animation, and a short
+/// pop on the newly selected node.
 ///
 /// Performance contract (the 60fps bar): the layout is computed once per
 /// graph or canvas-size change — never per frame, and never when only the
 /// selection or search filter changes. Paint data is prepared once per state
 /// change; per animation frame the painter only reads precomputed geometry,
-/// so the frame cost is O(nodes + edges) at the bounded 40-node view. The
-/// canvas is decorative and excluded from semantics; the textual route
-/// carries the accessible equivalent.
+/// so the frame cost is O(nodes + edges) at the bounded 40-node view. Neither
+/// animation loops: each plays once and stops. The canvas is decorative and
+/// excluded from semantics; the textual route carries the accessible
+/// equivalent.
 class ConstellationCanvas extends StatefulWidget {
   const ConstellationCanvas({
     super.key,
@@ -51,13 +53,14 @@ class ConstellationCanvas extends StatefulWidget {
 }
 
 class _ConstellationCanvasState extends State<ConstellationCanvas>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   GraphLayout? _layout;
   Map<String, Offset>? _initialPositions;
   Size? _laidOutSize;
   IngredientGraph? _laidOutGraph;
   AnimationController? _settle;
   CurvedAnimation? _curve;
+  AnimationController? _pop;
   bool _everAnimated = false;
   ConstellationPaintData? _paintData;
 
@@ -73,20 +76,42 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
     _initialPositions = null;
   }
 
+  void _teardownPop() {
+    _pop?.dispose();
+    _pop = null;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Reduced motion requested mid-settle: snap to the final layout and stop
-    // ticking. Reduced motion never *starts* a controller (see
-    // _ensureLayout); this only ends one that was already running.
-    if (_reducedMotion && _settle != null) {
-      _teardownSettle();
+    // Reduced motion requested mid-animation: snap to the final state and
+    // stop ticking. Reduced motion never *starts* a controller (see
+    // _ensureLayout and didUpdateWidget); this only ends running ones.
+    if (_reducedMotion) {
+      if (_settle != null) _teardownSettle();
+      _teardownPop();
+    }
+  }
+
+  @override
+  void didUpdateWidget(ConstellationCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = widget.selectedNodeId;
+    if (selected != null &&
+        selected != oldWidget.selectedNodeId &&
+        !_reducedMotion) {
+      final pop = _pop ??= AnimationController(
+        vsync: this,
+        duration: ZestMotion.pop,
+      );
+      pop.forward(from: 0);
     }
   }
 
   @override
   void dispose() {
     _teardownSettle();
+    _teardownPop();
     _paintData?.dispose();
     super.dispose();
   }
@@ -130,6 +155,15 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
     return curve.value;
   }
 
+  /// The selected node's radius multiplier: a single soft swell that returns
+  /// exactly to 1 when the pop completes.
+  double get _selectionScale {
+    final pop = _pop;
+    if (_reducedMotion || pop == null || !pop.isAnimating) return 1;
+    final t = Curves.easeOut.transform(pop.value);
+    return 1 + 0.22 * math.sin(math.pi * t);
+  }
+
   void _handleTapUp(TapUpDetails details) {
     final layout = _layout;
     if (layout == null) return;
@@ -144,8 +178,7 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
         node.prevalence,
         widget.graph.maxPrevalence,
       );
-      final distance =
-          (local - layout.positionOf(node.identity)).distance;
+      final distance = (local - layout.positionOf(node.identity)).distance;
       if (distance <= math.max(paintRadius, maxHitRadius) &&
           distance < bestDistance) {
         bestDistance = distance;
@@ -201,54 +234,55 @@ class _ConstellationCanvasState extends State<ConstellationCanvas>
               : widget.graph.node(widget.selectedNodeId!),
           selectedEdge: widget.selectedEdge,
           query: widget.query,
-          colors: Theme.of(context).colorScheme,
-          labelStyle: Theme.of(context).textTheme.bodySmall!,
+          labelStyle: Theme.of(
+            context,
+          ).textTheme.labelSmall!.copyWith(color: ZestPalette.leaf),
         );
         // Each prepared paint data owns laid-out TextPainters; dispose the
         // previous set when a new one replaces it, or selection, search, and
         // graph changes would leak up to a label set per rebuild.
         _paintData?.dispose();
         _paintData = paintData;
-        final progress = _progress;
-        final initial = progress < 1 ? _initialPositions : null;
-        final painter = ConstellationPainter(
-          data: paintData,
-          progress: progress,
-          initialPositions: initial,
-        );
-        Widget canvas = ExcludeSemantics(
-          // RepaintBoundary keeps the settle animation and any selection
-          // repaints inside this layer instead of the whole page.
-          child: RepaintBoundary(
-            child: CustomPaint(size: size, painter: painter),
-          ),
-        );
-        final settle = _settle;
-        if (settle != null) {
-          canvas = AnimatedBuilder(
-            animation: settle,
-            builder: (context, _) {
-              // Rebuild only the painter wrapper as the settle progresses;
-              // the paint data above is captured and shared across ticks.
-              return ExcludeSemantics(
+
+        ConstellationPainter painter() {
+          final progress = _progress;
+          return ConstellationPainter(
+            data: paintData,
+            progress: progress,
+            initialPositions: progress < 1 ? _initialPositions : null,
+            selectionScale: _selectionScale,
+          );
+        }
+
+        final animations = <Listenable>[
+          if (_settle != null) _settle!,
+          if (_pop != null) _pop!,
+        ];
+        // RepaintBoundary keeps the animations and selection repaints inside
+        // this layer instead of the whole page.
+        final Widget canvas = animations.isEmpty
+            ? ExcludeSemantics(
                 child: RepaintBoundary(
-                  child: CustomPaint(
-                    size: size,
-                    painter: ConstellationPainter(
-                      data: paintData,
-                      progress: _curve?.value ?? 1,
-                      initialPositions: _initialPositions,
-                    ),
+                  child: CustomPaint(size: size, painter: painter()),
+                ),
+              )
+            : AnimatedBuilder(
+                animation: Listenable.merge(animations),
+                builder: (context, _) => ExcludeSemantics(
+                  child: RepaintBoundary(
+                    child: CustomPaint(size: size, painter: painter()),
                   ),
                 ),
               );
-            },
-          );
-        }
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapUp: _handleTapUp,
-          child: canvas,
+        // The gesture layer is decorative too: without this, the detector
+        // would surface an unlabeled tap target to screen readers. The list
+        // view is the accessible route to every node and edge.
+        return ExcludeSemantics(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: _handleTapUp,
+            child: canvas,
+          ),
         );
       },
     );

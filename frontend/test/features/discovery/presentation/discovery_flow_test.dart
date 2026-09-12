@@ -156,8 +156,10 @@ void main() {
         find.text('Serve in a paper cup; garnish with a fictional leaf.'),
         findsOneWidget,
       );
-      expect(find.text('1.'), findsOneWidget);
-      expect(find.text('2.'), findsOneWidget);
+      // Unnumbered source paragraphs get numbered step seals.
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.bySemanticsLabel('Step 1'), findsOneWidget);
       expect(find.text('Glass: Paper cup'), findsOneWidget);
       expect(find.text('Type: Non alcoholic'), findsOneWidget);
       expect(find.text('Open source recipe'), findsOneWidget);

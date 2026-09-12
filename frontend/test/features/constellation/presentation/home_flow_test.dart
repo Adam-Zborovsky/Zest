@@ -125,9 +125,7 @@ GoRouter router(WidgetTester tester) =>
   WidgetTester tester,
   List<Recipe> recipes,
 ) {
-  final box = tester.renderObject<RenderBox>(
-    keyed('constellation-canvas'),
-  );
+  final box = tester.renderObject<RenderBox>(keyed('constellation-canvas'));
   final graph = IngredientGraph.build(recipes);
   final layout = GraphLayout.compute(graph, size: box.size);
   return (box, graph, layout);
@@ -173,10 +171,7 @@ List<Recipe> wideGardenRecipes() => [
       catalogRecipe(
         id: '7001${i.toString().padLeft(3, '0')}',
         name: 'Wide Garden $i',
-        ingredients: [
-          ('Wide Ingredient $i', '1 oz'),
-          ('Shared Tonic', '2 oz'),
-        ],
+        ingredients: [('Wide Ingredient $i', '1 oz'), ('Shared Tonic', '2 oz')],
       ),
     ),
 ];
@@ -204,8 +199,8 @@ void main() {
     expect(find.text('The Ingredient Constellation'), findsOneWidget);
     expect(keyed('constellation-canvas'), findsOneWidget);
     expect(find.text('Your recipe collection'), findsOneWidget);
-    expect(find.text('The graph is decorative — the list view carries the '
-        'same information.'), findsOneWidget);
+    expect(find.text('Follow the lines.'), findsOneWidget);
+    expect(keyed('home-bar'), findsOneWidget);
 
     await activate(tester, keyed('home-discover'));
     expect(router(tester).state.uri.path, '/discover');
@@ -235,6 +230,13 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The finished note states the collection once; the completeness
+    // guidance lives one tap away.
+    expect(
+      find.textContaining('not a claim about the full provider catalog'),
+      findsNothing,
+    );
+    await activate(tester, keyed('collection-details'));
     expect(
       find.textContaining('not a claim about the full provider catalog'),
       findsOneWidget,
@@ -257,10 +259,7 @@ void main() {
     await tester.runAsync(() => source.waitUntilRequested('b'));
     await tester.pump();
 
-    expect(
-      find.text('Syncing… 1 of 26 letters · 1 recipe'),
-      findsOneWidget,
-    );
+    expect(find.text('Syncing… 1 of 26 letters · 1 recipe'), findsOneWidget);
     expect(find.text('Browsing letter “B”.'), findsOneWidget);
 
     await activate(tester, keyed('sync-stop'));
@@ -327,6 +326,7 @@ void main() {
       ),
       findsOneWidget,
     );
+    await activate(tester, keyed('collection-details'));
     expect(find.text('Every A–Z browse has completed.'), findsOneWidget);
     expect(
       find.textContaining('does not prove the catalog is exhausted'),
@@ -338,9 +338,7 @@ void main() {
     await openHome(
       tester,
       letters: everyCatalogLetter(),
-      failures: {
-        'a': const CocktailApiException(CocktailApiErrorKind.network),
-      },
+      failures: {'a': const CocktailApiException(CocktailApiErrorKind.network)},
     );
 
     await activate(tester, keyed('sync-start'));
@@ -387,19 +385,20 @@ void main() {
 
   testWidgets('the list view states the same prevalence and connection '
       'information without the graph', (tester) async {
-    await openHome(tester, seed: {
-      'a': catalogLetterRecipes('a'),
-      'b': catalogLetterRecipes('b'),
-      'c': catalogLetterRecipes('c'),
-    });
+    await openHome(
+      tester,
+      seed: {
+        'a': catalogLetterRecipes('a'),
+        'b': catalogLetterRecipes('b'),
+        'c': catalogLetterRecipes('c'),
+      },
+    );
 
     await activate(tester, keyed('home-view-list'));
 
     expect(find.text('Mint leaf'), findsOneWidget);
     expect(
-      find.text(
-        'Appears in 3 of the 3 recipes in the analyzed collection.',
-      ),
+      find.text('Appears in 3 of the 3 recipes in the analyzed collection.'),
       findsWidgets,
     );
     // The identified collection line appears in both the list card and the
@@ -433,13 +432,17 @@ void main() {
     expect(find.text('Testbench Tonic'), findsOneWidget);
   });
 
-  testWidgets('the graph canvas answers node and edge selection',
-      (tester) async {
-    await openHome(tester, seed: {
-      'a': catalogLetterRecipes('a'),
-      'b': catalogLetterRecipes('b'),
-      'c': catalogLetterRecipes('c'),
-    });
+  testWidgets('the graph canvas answers node and edge selection', (
+    tester,
+  ) async {
+    await openHome(
+      tester,
+      seed: {
+        'a': catalogLetterRecipes('a'),
+        'b': catalogLetterRecipes('b'),
+        'c': catalogLetterRecipes('c'),
+      },
+    );
 
     await tester.ensureVisible(keyed('constellation-canvas'));
     await tester.pumpAndSettle();
@@ -450,9 +453,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Mint leaf'), findsOneWidget);
     expect(
-      find.text(
-        'Appears in 3 of the 3 recipes in the analyzed collection.',
-      ),
+      find.text('Appears in 3 of the 3 recipes in the analyzed collection.'),
       findsOneWidget,
     );
 
@@ -479,11 +480,14 @@ void main() {
   });
 
   testWidgets('the search filter narrows the constellation', (tester) async {
-    await openHome(tester, seed: {
-      'a': catalogLetterRecipes('a'),
-      'b': catalogLetterRecipes('b'),
-      'c': catalogLetterRecipes('c'),
-    });
+    await openHome(
+      tester,
+      seed: {
+        'a': catalogLetterRecipes('a'),
+        'b': catalogLetterRecipes('b'),
+        'c': catalogLetterRecipes('c'),
+      },
+    );
 
     await tester.ensureVisible(keyed('constellation-search'));
     await tester.enterText(keyed('constellation-search'), 'mint');
@@ -502,8 +506,10 @@ void main() {
     // The intro no longer claims every ingredient gets a place, and the
     // graph count line names the pre-bound total, not the bounded list.
     expect(
-      find.textContaining('The most-used ingredients in the loaded '
-          'collection get a place'),
+      find.textContaining(
+        'The most-used ingredients in the loaded '
+        'collection get a place',
+      ),
       findsOneWidget,
     );
     expect(
@@ -516,9 +522,7 @@ void main() {
     await tester.pumpAndSettle();
     // "wide ingredient 3" matches identities 3 and 30–39.
     expect(
-      find.text(
-        'Showing 11 matches among the top 40 of 42 ingredients.',
-      ),
+      find.text('Showing 11 matches among the top 40 of 42 ingredients.'),
       findsOneWidget,
     );
 
@@ -534,17 +538,27 @@ void main() {
   // DESIGN.md defines reduced motion as either flag; both must render the
   // settled layout with no running animation controllers.
   for (final flags in [
-    (name: 'disableAnimations', disableAnimations: true, accessibleNavigation: false),
-    (name: 'accessibleNavigation', disableAnimations: false, accessibleNavigation: true),
+    (
+      name: 'disableAnimations',
+      disableAnimations: true,
+      accessibleNavigation: false,
+    ),
+    (
+      name: 'accessibleNavigation',
+      disableAnimations: false,
+      accessibleNavigation: true,
+    ),
   ]) {
     testWidgets('reduced motion via ${flags.name} renders the settled layout '
         'with no running animation controllers', (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue =
           FakeAccessibilityFeatures(
-        disableAnimations: flags.disableAnimations,
-        accessibleNavigation: flags.accessibleNavigation,
+            disableAnimations: flags.disableAnimations,
+            accessibleNavigation: flags.accessibleNavigation,
+          );
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
-      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
 
       await openHome(
         tester,
@@ -571,9 +585,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Mint leaf'), findsOneWidget);
       expect(
-        find.text(
-          'Appears in 3 of the 3 recipes in the analyzed collection.',
-        ),
+        find.text('Appears in 3 of the 3 recipes in the analyzed collection.'),
         findsOneWidget,
       );
       expect(tester.binding.transientCallbackCount, 0);

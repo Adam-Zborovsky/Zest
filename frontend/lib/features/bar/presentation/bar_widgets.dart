@@ -15,12 +15,11 @@ import '../domain/ingredient_classification.dart';
 import '../domain/recipe_scope.dart';
 
 /// Opens the ingredient picker sheet.
-Future<void> showIngredientPicker(BuildContext context) =>
-    showZestSheet<void>(
-      context: context,
-      title: 'Choose your ingredients',
-      child: const IngredientPickerSheet(),
-    );
+Future<void> showIngredientPicker(BuildContext context) => showZestSheet<void>(
+  context: context,
+  title: 'Choose your ingredients',
+  child: const IngredientPickerSheet(),
+);
 
 /// Sets the match scope and opens the bar screen. The single entry point
 /// discovery screens use; keeps scope state ownership inside the bar feature.
@@ -93,9 +92,8 @@ class IngredientSelectionCard extends ConsumerWidget {
                     key: ValueKey('bar-remove-$name'),
                     label: _display(name),
                     selected: true,
-                    onSelected: (_) => ref
-                        .read(barSelectionProvider.notifier)
-                        .toggle(name),
+                    onSelected: (_) =>
+                        ref.read(barSelectionProvider.notifier).toggle(name),
                   ),
               ],
             ),
@@ -113,8 +111,7 @@ class IngredientSelectionCard extends ConsumerWidget {
               key: const ValueKey('bar-clear-selection'),
               label: 'Clear all',
               kind: ZestButtonKind.quiet,
-              onPressed: () =>
-                  ref.read(barSelectionProvider.notifier).clear(),
+              onPressed: () => ref.read(barSelectionProvider.notifier).clear(),
             ),
           ],
         ],
@@ -123,8 +120,9 @@ class IngredientSelectionCard extends ConsumerWidget {
   }
 }
 
-String _display(String identity) =>
-    identity.isEmpty ? identity : identity[0].toUpperCase() + identity.substring(1);
+String _display(String identity) => identity.isEmpty
+    ? identity
+    : identity[0].toUpperCase() + identity.substring(1);
 
 class IngredientPickerSheet extends ConsumerStatefulWidget {
   const IngredientPickerSheet({super.key});
@@ -163,19 +161,10 @@ class _IngredientPickerSheetState extends ConsumerState<IngredientPickerSheet> {
             controller: _search,
             textInputAction: TextInputAction.search,
             textCapitalization: TextCapitalization.none,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surface,
-              border: const OutlineInputBorder(
-                borderRadius: ZestShape.control,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: ZestShape.control,
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 2,
-                ),
-              ),
+            decoration: const InputDecoration(
+              hintText: 'Search ingredients',
+              hintMaxLines: 3,
+              prefixIcon: Icon(Icons.search_rounded),
             ),
           ),
         ),
@@ -204,9 +193,7 @@ class _IngredientPickerSheetState extends ConsumerState<IngredientPickerSheet> {
     final query = _search.text.trim().toLowerCase();
     final filtered = query.isEmpty
         ? names
-        : names
-              .where((name) => name.toLowerCase().contains(query))
-              .toList();
+        : names.where((name) => name.toLowerCase().contains(query)).toList();
     final selection = ref.watch(barSelectionProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -236,9 +223,7 @@ class _IngredientPickerSheetState extends ConsumerState<IngredientPickerSheet> {
                       final name = filtered[index];
                       return CheckboxListTile(
                         key: ValueKey('ingredient-option-$name'),
-                        value: selection.contains(
-                          normalizeSelection(name),
-                        ),
+                        value: selection.contains(normalizeSelection(name)),
                         controlAffinity: ListTileControlAffinity.leading,
                         title: Text(name),
                         onChanged: (_) => ref
@@ -278,9 +263,8 @@ class MatchResultCard extends StatelessWidget {
             label: 'View recipe',
             semanticLabel: 'View recipe: ${match.recipe.name}',
             kind: ZestButtonKind.secondary,
-            onPressed: () => context.push(
-              '/discover/recipe/${match.recipe.id}',
-            ),
+            onPressed: () =>
+                context.push('/discover/recipe/${match.recipe.id}'),
           ),
         ],
       ),
@@ -296,28 +280,47 @@ class MatchResultCard extends StatelessWidget {
       BarMatchCategory.substitution => (
         Icons.swap_horiz_rounded,
         'Possible with ${match.substitutions.length} '
-        '${match.substitutions.length == 1 ? 'substitution' : 'substitutions'} '
-        '— review the recipe before pouring.',
+            '${match.substitutions.length == 1 ? 'substitution' : 'substitutions'} '
+            '— review the recipe before pouring.',
       ),
       BarMatchCategory.missingEssentials => (
         Icons.shopping_basket_outlined,
         'Missing ${match.missingEssentials.length} '
-        '${match.missingEssentials.length == 1 ? 'essential' : 'essentials'}: '
-        '${match.missingEssentials.join(', ')}.',
+            '${match.missingEssentials.length == 1 ? 'essential' : 'essentials'}: '
+            '${match.missingEssentials.join(', ')}.',
+      ),
+    };
+    // Status meaning is carried by icon and text; the tint only groups it.
+    final (tint, iconColor) = switch (match.category) {
+      BarMatchCategory.ready => (ZestPalette.celery, colors.primary),
+      BarMatchCategory.substitution => (
+        ZestPalette.grapefruit.withValues(alpha: 0.4),
+        colors.primary,
+      ),
+      BarMatchCategory.missingEssentials => (
+        ZestPalette.errorSurface,
+        ZestPalette.berry,
       ),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ExcludeSemantics(
-              child: Icon(icon, size: 20, color: colors.onSurfaceVariant),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: tint,
+            borderRadius: ZestShape.control,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(ZestSpace.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(child: Icon(icon, size: 20, color: iconColor)),
+                const SizedBox(width: ZestSpace.sm),
+                Expanded(child: Text(headline)),
+              ],
             ),
-            const SizedBox(width: ZestSpace.sm),
-            Expanded(child: Text(headline)),
-          ],
+          ),
         ),
         for (final substitution in match.substitutions) ...[
           const SizedBox(height: ZestSpace.xs),
@@ -377,10 +380,7 @@ class BarMatchResults extends ConsumerWidget {
       BarMatchStatus.done => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            liveRegion: true,
-            child: Text(_summary(run)),
-          ),
+          Semantics(liveRegion: true, child: Text(_summary(run))),
           if (run.unavailable > 0) ...[
             const SizedBox(height: ZestSpace.xs),
             Text(
@@ -408,9 +408,8 @@ class BarMatchResults extends ConsumerWidget {
   }
 
   String _summary(BarMatchState run) {
-    int count(BarMatchCategory category) => run.matches
-        .where((match) => match.category == category)
-        .length;
+    int count(BarMatchCategory category) =>
+        run.matches.where((match) => match.category == category).length;
     return 'Finished checking ${run.checked} of ${run.total} recipes. '
         '${count(BarMatchCategory.ready)} ready, '
         '${count(BarMatchCategory.substitution)} with a substitution, '
@@ -431,18 +430,23 @@ class _MatchGroups extends StatelessWidget {
     final substitutions = matches
         .where((match) => match.category == BarMatchCategory.substitution)
         .toList();
-    final missing = matches
-        .where((match) => match.category == BarMatchCategory.missingEssentials)
-        .toList()
-      ..sort(
-        (a, b) => a.missingEssentials.length.compareTo(
-              b.missingEssentials.length,
-            ) != 0
-              ? a.missingEssentials.length.compareTo(
-                  b.missingEssentials.length,
-                )
-              : a.recipe.name.compareTo(b.recipe.name),
-      );
+    final missing =
+        matches
+            .where(
+              (match) => match.category == BarMatchCategory.missingEssentials,
+            )
+            .toList()
+          ..sort(
+            (a, b) =>
+                a.missingEssentials.length.compareTo(
+                      b.missingEssentials.length,
+                    ) !=
+                    0
+                ? a.missingEssentials.length.compareTo(
+                    b.missingEssentials.length,
+                  )
+                : a.recipe.name.compareTo(b.recipe.name),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

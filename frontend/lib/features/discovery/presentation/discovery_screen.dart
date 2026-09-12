@@ -74,20 +74,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Widget build(BuildContext context) {
     final query = widget.query;
     return DiscoveryFrame(
+      eyebrow: 'Discover',
+      title: 'A little curiosity.\n',
+      titleAccent: 'A new cocktail.',
+      intro: 'Start with a name or an ingredient. See where it takes you.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Discover', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: ZestSpace.sm),
-          const DiscoveryHeading(
-            'A little curiosity.\nA new cocktail.',
-            large: true,
-          ),
-          const SizedBox(height: ZestSpace.md),
-          const Text(
-            'Start with a name or an ingredient. See where it takes you.',
-          ),
-          const SizedBox(height: ZestSpace.section),
           ZestCard(
             child: Form(
               key: _form,
@@ -148,19 +141,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                           ? 'Enter a name to start your search.'
                           : null,
                       decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
                         errorMaxLines: 4,
-                        border: const OutlineInputBorder(
-                          borderRadius: ZestShape.control,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: ZestShape.control,
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
+                        prefixIcon: const Icon(Icons.search_rounded),
                       ),
                     ),
                   ),
@@ -356,15 +338,13 @@ class ResultsScreen extends ConsumerWidget {
     final results = ref.watch(discoveryResultsProvider(query));
     return DiscoveryFrame(
       back: true,
+      eyebrow: 'All results',
+      title: resultTitle(query),
+      intro:
+          'All results returned for this search. This is not the full recipe collection.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DiscoveryHeading(resultTitle(query), large: true),
-          const SizedBox(height: ZestSpace.md),
-          const Text(
-            'All results returned for this search. This is not the full recipe collection.',
-          ),
-          const SizedBox(height: ZestSpace.lg),
           if (results.isLoading)
             const ZestLoadingState()
           else if (results.hasError)

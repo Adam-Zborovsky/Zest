@@ -90,6 +90,10 @@ abstract final class ZestTheme {
       tapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
     );
+    const inkBorder = OutlineInputBorder(
+      borderRadius: ZestShape.control,
+      borderSide: BorderSide(color: ZestPalette.leaf, width: 1.5),
+    );
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
@@ -135,6 +139,27 @@ abstract final class ZestTheme {
           ),
           animationDuration: button.animationDuration,
           splashFactory: button.splashFactory,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: ZestPalette.peach,
+        hintStyle: text.bodyLarge!.copyWith(color: ZestPalette.secondaryInk),
+        prefixIconColor: ZestPalette.leaf,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: ZestSpace.lg,
+          vertical: 14,
+        ),
+        border: inkBorder,
+        enabledBorder: inkBorder,
+        focusedBorder: inkBorder.copyWith(
+          borderSide: const BorderSide(color: ZestPalette.leaf, width: 3),
+        ),
+        errorBorder: inkBorder.copyWith(
+          borderSide: const BorderSide(color: ZestPalette.berry, width: 1.5),
+        ),
+        focusedErrorBorder: inkBorder.copyWith(
+          borderSide: const BorderSide(color: ZestPalette.berry, width: 3),
         ),
       ),
       cardTheme: const CardThemeData(

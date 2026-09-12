@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/zest_tokens.dart';
+import '../../../core/widgets/botanical_art.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_sheet.dart';
@@ -16,6 +17,8 @@ import '../../catalog/domain/sync_state.dart';
 import '../../discovery/application/discovery_providers.dart';
 import '../../discovery/domain/recipe.dart';
 import '../domain/ingredient_graph.dart';
+import '../domain/ingredient_kind.dart';
+import 'ingredient_glyph.dart';
 
 /// First-letter display form for normalized identities ("mint leaf" →
 /// "Mint leaf"). Identities are data; only the display capitalizes.
@@ -59,7 +62,7 @@ Future<void> showSharedRecipesSheet(
         const SizedBox(height: ZestSpace.lg),
         for (final recipe in recipes) ...[
           SharedRecipeTile(recipe: recipe),
-          const SizedBox(height: ZestSpace.sm),
+          const SizedBox(height: ZestSpace.lg),
         ],
       ],
     ),
@@ -77,15 +80,9 @@ class SharedRecipeTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          recipe.name,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(recipe.name, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: ZestSpace.xs),
-        Text(
-          'TheCocktailDB',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text('TheCocktailDB', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: ZestSpace.md),
         ZestButton(
           key: ValueKey('constellation-recipe-${recipe.id}'),
@@ -97,6 +94,50 @@ class SharedRecipeTile extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// The glyph key for the canvas: only the groups present in this graph, in
+/// a fixed order, with the plain statement of what the colors mean.
+class ConstellationLegend extends StatelessWidget {
+  const ConstellationLegend({super.key, required this.graph});
+
+  final IngredientGraph graph;
+
+  @override
+  Widget build(BuildContext context) {
+    final present = {
+      for (final node in graph.nodes) ingredientKindOf(node.identity),
+    };
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: ZestSpace.lg,
+          runSpacing: ZestSpace.sm,
+          children: [
+            for (final kind in IngredientKind.values)
+              if (present.contains(kind))
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IngredientGlyph(kind: kind, size: 24),
+                    const SizedBox(width: ZestSpace.sm),
+                    Flexible(
+                      child: Text(kind.label, style: textTheme.labelMedium),
+                    ),
+                  ],
+                ),
+          ],
+        ),
+        const SizedBox(height: ZestSpace.sm),
+        Text(
+          'Colors group ingredients by name, not by flavor.',
+          style: textTheme.bodySmall!.copyWith(color: ZestPalette.secondaryInk),
+        ),
+      ],
+    );
+  }
 }
 
 /// The textual route to the constellation's information: every kept
@@ -120,9 +161,7 @@ class _ConstellationListViewState extends State<ConstellationListView> {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final node in widget.graph.nodes) _row(context, node),
-      ],
+      children: [for (final node in widget.graph.nodes) _row(context, node)],
     );
   }
 
@@ -143,6 +182,8 @@ class _ConstellationListViewState extends State<ConstellationListView> {
             padding: const EdgeInsets.symmetric(vertical: ZestSpace.md),
             child: Row(
               children: [
+                IngredientGlyph(kind: ingredientKindOf(node.identity)),
+                const SizedBox(width: ZestSpace.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,8 +231,9 @@ class _ConstellationListViewState extends State<ConstellationListView> {
                     ),
                   )
                 else
-                  for (final connection
-                      in neighborhood.connections.take(_visibleConnections))
+                  for (final connection in neighborhood.connections.take(
+                    _visibleConnections,
+                  ))
                     InkWell(
                       key: ValueKey(
                         'constellation-connection-'
@@ -250,9 +292,11 @@ class _ConstellationListViewState extends State<ConstellationListView> {
   }
 }
 
-/// Home's sync and coverage card: explains the on-device collection, drives
-/// the resumable sync, and always labels counts as the loaded collection —
-/// never as proof of full-catalog completeness.
+/// Home's sync and coverage status: explains the on-device collection,
+/// drives the resumable sync, and always labels counts as the loaded
+/// collection — never as proof of full-catalog completeness. Once the sync
+/// has finished it shrinks to one quiet identified line; the completeness
+/// guidance lives one tap away in a sheet instead of repeating on the page.
 class CatalogSyncCard extends ConsumerStatefulWidget {
   const CatalogSyncCard({super.key});
 
@@ -331,6 +375,12 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
     final recipes = coverage?.recipeCount ?? state.recipesLoaded;
     final lettersTotal = coverage?.lettersTotal ?? 26;
     final loaded = recipes > 0;
+    final report = CoverageReport(
+      lettersCompleted: letters,
+      lettersTotal: lettersTotal,
+      recipeCount: recipes,
+      lastCompletedAt: coverage?.lastCompletedAt,
+    );
 
     return switch (state.status) {
       CatalogSyncStatus.idle => ZestCard(
@@ -347,17 +397,10 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
             const SizedBox(height: ZestSpace.sm),
             Text(
               loaded
-                  ? coverageLine(
-                      CoverageReport(
-                        lettersCompleted: letters,
-                        lettersTotal: lettersTotal,
-                        recipeCount: recipes,
-                        lastCompletedAt: coverage?.lastCompletedAt,
-                      ),
-                    )
+                  ? coverageLine(report)
                   : 'Nothing is loaded yet. Syncing browses the recipe '
-                      'source one letter at a time and saves every recipe on '
-                      'this device — progress survives a restart.',
+                        'source one letter at a time and saves every recipe on '
+                        'this device — progress survives a restart.',
             ),
             if (loaded) ...[
               const SizedBox(height: ZestSpace.sm),
@@ -396,16 +439,14 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
             Text(
               state.currentLetter != null
                   ? 'Browsing letter '
-                      '“${state.currentLetter!.toUpperCase()}”.'
+                        '“${state.currentLetter!.toUpperCase()}”.'
                   : 'Finishing up.',
             ),
             const SizedBox(height: ZestSpace.sm),
             const Text(
               'Everything loaded so far is saved on this device. Stopping '
               'keeps it.',
-              style: TextStyle(
-                color: ZestPalette.secondaryInk,
-              ),
+              style: TextStyle(color: ZestPalette.secondaryInk),
             ),
             const SizedBox(height: ZestSpace.lg),
             ZestButton(
@@ -446,7 +487,9 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
                 final remaining = _remainingSeconds(state);
                 return ZestButton(
                   key: const ValueKey('sync-resume'),
-                  label: remaining > 0 ? 'Resume in $remaining s' : 'Resume syncing',
+                  label: remaining > 0
+                      ? 'Resume in $remaining s'
+                      : 'Resume syncing',
                   icon: Icons.play_arrow_rounded,
                   onPressed: remaining > 0
                       ? null
@@ -459,45 +502,74 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
       ),
       CatalogSyncStatus.pausedError => ZestErrorState(
         title: 'The sync hit a problem',
-        message: 'The recipe source is unavailable right now. Everything '
+        message:
+            'The recipe source is unavailable right now. Everything '
             'loaded so far is saved on this device.',
         actionLabel: 'Resume syncing',
         onRetry: () => ref.read(catalogSyncProvider.notifier).resume(),
       ),
-      CatalogSyncStatus.finished => ZestCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                'Collection loaded',
-                style: Theme.of(context).textTheme.titleLarge,
+      CatalogSyncStatus.finished => _CollectionNote(report: report),
+    };
+  }
+}
+
+/// The finished collection, stated once: the identified coverage line and a
+/// details button whose sheet carries the completeness guidance.
+class _CollectionNote extends StatelessWidget {
+  const _CollectionNote({required this.report});
+
+  final CoverageReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        const BotanicalArt(motif: BotanicalMotif.citrus, size: 44),
+        const SizedBox(width: ZestSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text('Collection loaded', style: textTheme.titleMedium),
               ),
-            ),
-            const SizedBox(height: ZestSpace.sm),
-            Text(
-              coverageLine(
-                CoverageReport(
-                  lettersCompleted: letters,
-                  lettersTotal: lettersTotal,
-                  recipeCount: recipes,
-                  lastCompletedAt: coverage?.lastCompletedAt,
+              Text(
+                coverageLine(report),
+                style: textTheme.bodySmall!.copyWith(
+                  color: ZestPalette.secondaryInk,
                 ),
               ),
-            ),
-            if (letters >= lettersTotal) ...[
-              const SizedBox(height: ZestSpace.xs),
-              const Text('Every A–Z browse has completed.'),
             ],
-            const SizedBox(height: ZestSpace.xs),
-            const Text(
-              CoverageReport.completenessGuidance,
-              style: TextStyle(color: ZestPalette.secondaryInk),
-            ),
-          ],
+          ),
         ),
-      ),
-    };
+        IconButton(
+          key: const ValueKey('collection-details'),
+          tooltip: 'About these counts',
+          icon: const Icon(Icons.info_outline_rounded),
+          onPressed: () => showZestSheet<void>(
+            context: context,
+            title: 'About these counts',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(coverageLine(report)),
+                if (report.lettersCompleted >= report.lettersTotal) ...[
+                  const SizedBox(height: ZestSpace.sm),
+                  const Text('Every A–Z browse has completed.'),
+                ],
+                const SizedBox(height: ZestSpace.sm),
+                const Text(
+                  CoverageReport.completenessGuidance,
+                  style: TextStyle(color: ZestPalette.secondaryInk),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

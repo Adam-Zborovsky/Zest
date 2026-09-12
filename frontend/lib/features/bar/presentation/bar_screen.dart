@@ -21,32 +21,29 @@ class BarScreen extends ConsumerWidget {
     );
     return DiscoveryFrame(
       back: true,
+      eyebrow: 'Your bar',
+      title: 'What can I make?',
+      intro:
+          'Tell Zest what is on your shelf. It checks the recipes in your '
+          'current results and sorts them by what is missing.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Your bar', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: ZestSpace.sm),
-          const DiscoveryHeading('What can I make?', large: true),
-          const SizedBox(height: ZestSpace.md),
-          const Text(
-            'Tell Zest what is on your shelf. It checks the recipes in your '
-            'current results and sorts them by what is missing.',
-          ),
-          const SizedBox(height: ZestSpace.section),
           if (scope == null)
             ZestEmptyState(
               announce: true,
               title: 'Nothing to match yet',
-              message: 'Search or browse in Discover, then choose "What can '
+              message:
+                  'Search or browse in Discover, then choose "What can '
                   'I make" from the results.',
               actionLabel: 'Explore discovery',
               onAction: () => context.go('/discover'),
             )
           else ...[
             BarScopeCard(scope: scope),
-            const SizedBox(height: ZestSpace.md),
-            const IngredientSelectionCard(),
             const SizedBox(height: ZestSpace.lg),
+            const IngredientSelectionCard(),
+            const SizedBox(height: ZestSpace.xl),
             ZestButton(
               key: const ValueKey('bar-find-matches'),
               label: 'Find matches',
@@ -55,7 +52,7 @@ class BarScreen extends ConsumerWidget {
                   ? null
                   : () => ref.read(barMatchProvider.notifier).start(),
             ),
-            const SizedBox(height: ZestSpace.sm),
+            const SizedBox(height: ZestSpace.md),
             Text(
               running
                   ? 'Checking recipes now — matches appear below as they land.'
