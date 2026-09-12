@@ -2,6 +2,9 @@
 .dart_tool/
 .packages
 build/
+node_modules/
+/backend/dist/
+/backend/coverage/
 .flutter-plugins
 .flutter-plugins-dependencies
 # Flutter's generated golden-test comparison images (not reviewed baselines)
