@@ -1,5 +1,11 @@
 # Verification record
 
+## Web catalog connection fixed — 2026-09-12
+
+Adam's browser run surfaced `ArgumentError: When compiling to the web, the 'web' parameter needs to be set` from `driftDatabase` — the catalog connection passed only `DriftNativeOptions`, so the web branch of the documented cross-platform opener threw at runtime. Neither `flutter analyze` nor `flutter build web --release` can catch this: the missing parameter is a runtime error on the browser platform only, the exact untested path the M5 review flagged.
+
+Fix: `openCatalogConnection` now passes `DriftWebOptions` pointing at the committed `web/sqlite3.wasm` and `web/drift_worker.js` (relative URIs per the installed drift_flutter 0.3.1 source). Browser-platform tests cannot run in this toolchain (`flutter test -p chrome` is gone; `-d chrome` finds no browser tests), so the runtime check is the browser session itself: run with `flutter run -d chrome --web-port 5173` so the app origin matches the gateway's allowlisted CORS origins, then resume the sync. VM verification after the fix: `flutter analyze` — no issues; `flutter test` — **186 passed**; `flutter build web --release` — succeeds.
+
 ## Gateway upstream moved to the V2 API — 2026-09-12
 
 Adam's catalog sync surfaced the resumable error state ("recipe source is unavailable"). Live diagnosis (direct provider probes with the paid key, value never read into any record): V1 letter browse returns empty 0-byte `text/html` 200 bodies for the purchased key — which the gateway correctly rejects as a malformed envelope (502) and the app correctly pauses on. The purchase email confirms the key is a **V2 API key**; all five allowlisted operations, the full-record letter browse (109 records for `f=a`), and the `{"drinks":null}` no-data shape were verified live on the V2 base with the paid key, and the public test key also works on V2 with smaller result sets.
