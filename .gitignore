@@ -40,3 +40,6 @@ photos/
 media/
 *.heic
 *.HEIC
+
+# Claude Code subagent worktrees (local only)
+.claude/worktrees/

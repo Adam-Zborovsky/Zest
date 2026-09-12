@@ -4,22 +4,20 @@ import '../data/collection_repository.dart';
 import '../data/memory_photo_picker.dart';
 import '../domain/collection_entry.dart';
 import '../domain/memory_photo.dart';
+import 'collection_photo_providers.dart';
+import 'collection_storage_providers.dart';
 
-/// The private collection store. The storage track replaces this body with
-/// the drift-backed repository; tests override it with
+/// The private collection store: the drift-backed repository over the
+/// separate on-device `collection` database. Tests override it with
 /// `InMemoryCollectionRepository` from `test/support`.
 final collectionRepositoryProvider = Provider<CollectionRepository>(
-  (ref) => throw UnimplementedError(
-    'M6 integration wires the drift-backed collection repository here.',
-  ),
+  (ref) => ref.watch(driftCollectionRepositoryProvider),
 );
 
-/// The photo picker. The photo track replaces this body with the
-/// image_picker implementation; tests override it with `FakeMemoryPhotoPicker`.
+/// The photo picker: `image_picker` on web and Android. Tests override it
+/// with `FakeMemoryPhotoPicker` from `test/support`.
 final memoryPhotoPickerProvider = Provider<MemoryPhotoPicker>(
-  (ref) => throw UnimplementedError(
-    'M6 integration wires the image_picker memory photo picker here.',
-  ),
+  (ref) => ref.watch(imagePickerMemoryPhotoPickerProvider),
 );
 
 final collectionEntriesProvider = StreamProvider<List<CollectionEntry>>(
