@@ -9,17 +9,13 @@ import '../../../support/session_store_contract.dart';
 
 /// An in-memory platform that can be told to fail its next write, so the
 /// contract's failure tests exercise the same "cache runs ahead of the
-/// platform" hazard [PrefsOnboardingStore] and [PrefsAuthRepository] guard
-/// against, rather than a fake that can't fail at all.
+/// platform" hazard [PrefsOnboardingStore] guards against, rather than a
+/// fake that can't fail at all.
 base class FailingSharedPreferencesAsync extends InMemorySharedPreferencesAsync {
   FailingSharedPreferencesAsync.empty() : super.empty();
 
   /// When true, the next write throws and resets.
   bool failNextWrite = false;
-
-  /// When set, the next string write to this key throws and resets, so a
-  /// test can fail the second of two writes while the first succeeds.
-  String? failWriteToKey;
 
   void _maybeFail() {
     if (!failNextWrite) return;
@@ -33,10 +29,6 @@ base class FailingSharedPreferencesAsync extends InMemorySharedPreferencesAsync 
     String value,
     SharedPreferencesOptions options,
   ) async {
-    if (key == failWriteToKey) {
-      failWriteToKey = null;
-      throw Exception('Synthetic platform write failure for $key');
-    }
     _maybeFail();
     return super.setString(key, value, options);
   }
@@ -84,57 +76,4 @@ void main() {
     failNextWrite: () => platform.failNextWrite = true,
     relaunch: () async => PrefsOnboardingStore(await prefs()),
   );
-
-  runAuthRepositoryContract(
-    'PrefsAuthRepository',
-    create: () async => PrefsAuthRepository(
-      await prefs(),
-      clock: () => DateTime.utc(2026, 9, 13),
-      newId: () => 'prefs-profile',
-    ),
-    failNextWrite: () => platform.failNextWrite = true,
-    relaunch: () async => PrefsAuthRepository(
-      await prefs(),
-      clock: () => DateTime.utc(2026, 9, 13),
-      newId: () => 'prefs-profile',
-    ),
-    seedMalformedProfile: () async {
-      const options = SharedPreferencesOptions();
-      await platform.setString(
-        SessionPrefsKeys.currentProfile,
-        'not json',
-        options,
-      );
-      await platform.setString(
-        SessionPrefsKeys.lastProfile,
-        'not json',
-        options,
-      );
-    },
-  );
-
-  // continueOnDevice makes two separate writes; whichever one fails, a
-  // failed sign-in must not come back signed in after a relaunch.
-  for (final key in [
-    SessionPrefsKeys.lastProfile,
-    SessionPrefsKeys.currentProfile,
-  ]) {
-    test('PrefsAuthRepository: a failed write to $key during '
-        'continueOnDevice leaves a relaunch signed out', () async {
-      final auth = PrefsAuthRepository(
-        await prefs(),
-        newId: () => 'prefs-profile',
-      );
-      platform.failWriteToKey = key;
-
-      await expectLater(
-        auth.continueOnDevice(displayName: 'Sam'),
-        throwsA(isA<Exception>()),
-      );
-      expect(auth.currentProfile, isNull);
-
-      final relaunched = PrefsAuthRepository(await prefs());
-      expect(relaunched.currentProfile, isNull);
-    });
-  }
 }

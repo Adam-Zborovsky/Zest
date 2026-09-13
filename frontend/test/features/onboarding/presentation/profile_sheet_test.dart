@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zest/core/design/zest_theme.dart';
+import 'package:zest/features/account/data/account_repository.dart';
 import 'package:zest/features/onboarding/application/session_providers.dart';
-import 'package:zest/features/onboarding/data/session_stores.dart';
 import 'package:zest/features/onboarding/domain/launch_destination.dart';
 import 'package:zest/features/onboarding/presentation/login_screen.dart';
 import 'package:zest/features/onboarding/presentation/profile_sheet.dart';
 
+import '../../../support/fake_account_repository.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
@@ -37,12 +38,12 @@ class _OnboardingStub extends StatelessWidget {
 /// the profile button and its sheet have someone to show.
 Future<GoRouter> _pumpHome(
   WidgetTester tester, {
-  AuthRepository? auth,
+  AccountRepository? account,
   Key? capture,
 }) async {
   final overrides = sessionTestOverrides(
     onboarding: InMemoryOnboardingStore(seen: true),
-    auth: auth ?? InMemoryAuthRepository(current: syntheticProfile()),
+    account: account ?? FakeAccountRepository(current: syntheticAccount()),
   );
   final container = ProviderContainer(overrides: [...overrides]);
   addTearDown(container.dispose);
@@ -86,75 +87,34 @@ void main() {
 
   Finder keyed(String value) => find.byKey(ValueKey(value));
 
-  testWidgets('the button opens the sheet with the name and date', (
+  testWidgets('the button opens the sheet with the account email', (
     tester,
   ) async {
-    final auth = InMemoryAuthRepository(
-      current: syntheticProfile(displayName: 'Robin'),
+    final account = FakeAccountRepository(
+      current: syntheticAccount(email: 'robin@example.test'),
     );
-    await _pumpHome(tester, auth: auth);
+    await _pumpHome(tester, account: account);
 
     await tester.tap(keyed('open-profile'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Robin'), findsOneWidget);
-    expect(find.textContaining('Kept on this device since'), findsOneWidget);
+    expect(find.text('robin@example.test'), findsWidgets);
   });
 
-  testWidgets('the sheet shows "On this device" for a nameless profile', (
+  testWidgets('Sign out lands on /login and clears the account', (
     tester,
   ) async {
-    final auth = InMemoryAuthRepository(current: syntheticProfile(displayName: null));
-    await _pumpHome(tester, auth: auth);
+    final account = FakeAccountRepository(current: syntheticAccount());
+    final router = await _pumpHome(tester, account: account);
 
     await tester.tap(keyed('open-profile'));
     await tester.pumpAndSettle();
+    await tester.tap(keyed('profile-sign-out'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('On this device'), findsOneWidget);
+    expect(router.state.uri.path, SessionRoutes.login);
+    expect(account.currentAccount, isNull);
   });
-
-  testWidgets(
-    'Sign out lands on /login, clears the profile, and keeps lastProfile',
-    (tester) async {
-      final auth = InMemoryAuthRepository(current: syntheticProfile());
-      final router = await _pumpHome(tester, auth: auth);
-
-      await tester.tap(keyed('open-profile'));
-      await tester.pumpAndSettle();
-      await tester.tap(keyed('profile-sign-out'));
-      await tester.pumpAndSettle();
-
-      expect(router.state.uri.path, SessionRoutes.login);
-      expect(auth.currentProfile, isNull);
-      expect(auth.lastProfile, isNotNull);
-    },
-  );
-
-  testWidgets(
-    'a sign-out failure keeps the sheet open and shows the inline error',
-    (tester) async {
-      final auth = InMemoryAuthRepository(current: syntheticProfile())
-        ..failNextWrite = true;
-      await _pumpHome(tester, auth: auth);
-
-      await tester.tap(keyed('open-profile'));
-      await tester.pumpAndSettle();
-      await tester.tap(keyed('profile-sign-out'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text("Couldn't sign out on this device. Try again."),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('profile-sign-out')), findsOneWidget);
-      expect(auth.currentProfile, isNotNull);
-
-      await tester.tap(keyed('profile-sign-out'));
-      await tester.pumpAndSettle();
-
-      expect(auth.currentProfile, isNull);
-    },
-  );
 
   testWidgets('profile-sheet Night Garden render', (tester) async {
     tester.view.devicePixelRatio = 1;
@@ -165,8 +125,8 @@ void main() {
 
     await _pumpHome(
       tester,
-      auth: InMemoryAuthRepository(
-        current: syntheticProfile(displayName: 'Robin'),
+      account: FakeAccountRepository(
+        current: syntheticAccount(email: 'robin@example.test'),
       ),
       capture: capture,
     );

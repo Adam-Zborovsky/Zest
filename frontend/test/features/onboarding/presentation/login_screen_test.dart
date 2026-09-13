@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zest/features/account/data/account_repository.dart';
+import 'package:zest/features/account/domain/account.dart';
 import 'package:zest/features/onboarding/application/session_providers.dart';
-import 'package:zest/features/onboarding/data/session_stores.dart';
 import 'package:zest/features/onboarding/domain/launch_destination.dart';
-import 'package:zest/features/onboarding/domain/local_profile.dart';
 import 'package:zest/features/onboarding/presentation/login_screen.dart';
 
+import '../../../support/fake_account_repository.dart';
 import '../../../support/in_memory_session.dart';
 
 class _HomeStub extends StatelessWidget {
@@ -28,38 +29,42 @@ class _OnboardingStub extends StatelessWidget {
       const Scaffold(body: Center(child: Text('Onboarding')));
 }
 
-/// Counts `continueOnDevice` calls while delegating everything else to a
-/// real [InMemoryAuthRepository], so a double tap can be told apart from a
-/// single sign-in that merely takes two frames to settle.
-class _CountingAuthRepository implements AuthRepository {
-  _CountingAuthRepository(this._inner);
+/// Counts `signIn` calls while delegating everything else to a real
+/// [FakeAccountRepository], so a double tap can be told apart from a single
+/// sign-in that merely takes two frames to settle.
+class _CountingAccountRepository implements AccountRepository {
+  _CountingAccountRepository(this._inner);
 
-  final InMemoryAuthRepository _inner;
-  int continueCalls = 0;
+  final FakeAccountRepository _inner;
+  int signInCalls = 0;
 
   /// Held open while set, so a test can keep a first call in flight long
-  /// enough for a second, overlapping call to observe the busy guard. The
-  /// in-memory store otherwise resolves on the next microtask, which would
-  /// let the first call finish (and clear the busy flag) before a second
-  /// `tester.tap` ever fires.
+  /// enough for a second, overlapping call to observe the busy guard.
   Completer<void>? gate;
 
   @override
-  LocalProfile? get currentProfile => _inner.currentProfile;
+  Account? get currentAccount => _inner.currentAccount;
 
   @override
-  LocalProfile? get lastProfile => _inner.lastProfile;
+  String? get sessionToken => _inner.sessionToken;
 
   @override
-  Future<LocalProfile> continueOnDevice({required String? displayName}) async {
-    continueCalls++;
+  Future<Account> register({required String email, required String password}) =>
+      _inner.register(email: email, password: password);
+
+  @override
+  Future<Account> signIn({required String email, required String password}) async {
+    signInCalls++;
     final gate = this.gate;
     if (gate != null) await gate.future;
-    return _inner.continueOnDevice(displayName: displayName);
+    return _inner.signIn(email: email, password: password);
   }
 
   @override
   Future<void> signOut() => _inner.signOut();
+
+  @override
+  Future<void> expireSession() => _inner.expireSession();
 }
 
 /// The small test router the login track builds against: it mirrors what
@@ -68,12 +73,12 @@ class _CountingAuthRepository implements AuthRepository {
 Future<GoRouter> _pumpLogin(
   WidgetTester tester, {
   InMemoryOnboardingStore? onboarding,
-  AuthRepository? auth,
+  AccountRepository? account,
   String initial = SessionRoutes.login,
 }) async {
   final overrides = sessionTestOverrides(
     onboarding: onboarding ?? InMemoryOnboardingStore(seen: true),
-    auth: auth ?? InMemoryAuthRepository(),
+    account: account ?? FakeAccountRepository(),
   );
   final container = ProviderContainer(overrides: [...overrides]);
   addTearDown(container.dispose);
@@ -111,114 +116,118 @@ Future<GoRouter> _pumpLogin(
 void main() {
   Finder keyed(String value) => find.byKey(ValueKey(value));
 
-  testWidgets('Continue with a name lands on home with the trimmed name', (
-    tester,
-  ) async {
-    final auth = InMemoryAuthRepository();
-    final router = await _pumpLogin(tester, auth: auth);
+  Future<void> enterCredentials(
+    WidgetTester tester, {
+    String email = 'sam@example.test',
+    String password = 'longenoughpass',
+  }) async {
+    await tester.enterText(keyed('login-email-field'), email);
+    await tester.enterText(keyed('login-password-field'), password);
+  }
 
-    await tester.enterText(keyed('login-name-field'), '  Sam  ');
-    await tester.tap(keyed('login-continue'));
+  // The taller email/password card can push the submit buttons below the
+  // fold on the default test surface, unlike the single-field M7 form.
+  Future<void> tapButton(WidgetTester tester, String key) async {
+    final finder = keyed(key);
+    await tester.ensureVisible(finder);
+    await tester.tap(finder);
+  }
+
+  testWidgets('Create account signs in and lands on home', (tester) async {
+    final account = FakeAccountRepository();
+    final router = await _pumpLogin(tester, account: account);
+
+    await enterCredentials(tester);
+    await tapButton(tester, 'login-create-account');
     await tester.pumpAndSettle();
 
     expect(router.state.uri.path, '/');
-    expect(auth.currentProfile?.displayName, 'Sam');
+    expect(account.currentAccount?.email, 'sam@example.test');
   });
 
-  testWidgets('Continue with a blank name creates a profile with no name', (
-    tester,
-  ) async {
-    final auth = InMemoryAuthRepository();
-    final router = await _pumpLogin(tester, auth: auth);
+  testWidgets('Sign in with correct credentials lands on home', (tester) async {
+    final account = FakeAccountRepository();
+    account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
+    final router = await _pumpLogin(tester, account: account);
 
-    await tester.tap(keyed('login-continue'));
+    await enterCredentials(tester);
+    await tapButton(tester, 'login-sign-in');
     await tester.pumpAndSettle();
 
     expect(router.state.uri.path, '/');
-    expect(auth.currentProfile, isNotNull);
-    expect(auth.currentProfile?.displayName, isNull);
+  });
+
+  testWidgets('an invalid email shows an inline error and does not sign in', (
+    tester,
+  ) async {
+    final account = FakeAccountRepository();
+    await _pumpLogin(tester, account: account);
+
+    await enterCredentials(tester, email: 'not-an-email');
+    await tapButton(tester, 'login-sign-in');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+    expect(account.currentAccount, isNull);
+  });
+
+  testWidgets('wrong credentials show an inline error', (tester) async {
+    final account = FakeAccountRepository();
+    account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
+    await _pumpLogin(tester, account: account);
+
+    await enterCredentials(tester, password: 'thewrongpassword');
+    await tapButton(tester, 'login-sign-in');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Incorrect email or password.'), findsOneWidget);
+    expect(account.currentAccount, isNull);
   });
 
   testWidgets(
-    'the returning variant prefills the name and keeps the same id',
+    'creating an account with a taken email shows an inline error, and a '
+    'retry with different credentials succeeds',
     (tester) async {
-      final auth = InMemoryAuthRepository(
-        last: syntheticProfile(displayName: 'Robin'),
-      );
-      final lastId = auth.lastProfile!.id;
-      final router = await _pumpLogin(tester, auth: auth);
+      final account = FakeAccountRepository();
+      account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
+      final router = await _pumpLogin(tester, account: account);
 
-      expect(find.text('Welcome back, Robin.'), findsOneWidget);
+      await enterCredentials(tester);
+      await tapButton(tester, 'login-create-account');
+      await tester.pumpAndSettle();
+
       expect(
-        tester.widget<TextField>(keyed('login-name-field')).controller!.text,
-        'Robin',
+        find.text('An account with that email already exists.'),
+        findsOneWidget,
       );
 
-      await tester.tap(keyed('login-continue'));
+      await enterCredentials(tester, email: 'robin@example.test');
+      await tapButton(tester, 'login-create-account');
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/');
-      expect(auth.currentProfile?.id, lastId);
-    },
-  );
-
-  testWidgets(
-    'a storage failure shows an inline error, keeps the name, and a retry '
-    'succeeds',
-    (tester) async {
-      final auth = InMemoryAuthRepository()..failNextWrite = true;
-      await _pumpLogin(tester, auth: auth);
-
-      await tester.enterText(keyed('login-name-field'), 'Sam');
-      await tester.tap(keyed('login-continue'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text("Couldn't save your profile on this device. Try again."),
-        findsOneWidget,
-      );
-      expect(find.text('Sam'), findsOneWidget);
-      expect(auth.currentProfile, isNull);
-
-      await tester.tap(keyed('login-continue'));
-      await tester.pumpAndSettle();
-
-      expect(auth.currentProfile?.displayName, 'Sam');
-      expect(
-        find.text("Couldn't save your profile on this device. Try again."),
-        findsNothing,
-      );
+      expect(account.currentAccount?.email, 'robin@example.test');
     },
   );
 
   testWidgets('a double tap signs in only once', (tester) async {
     final gate = Completer<void>();
-    final counting = _CountingAuthRepository(InMemoryAuthRepository())
-      ..gate = gate;
-    await _pumpLogin(tester, auth: counting);
+    final inner = FakeAccountRepository();
+    inner.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
+    final counting = _CountingAccountRepository(inner)..gate = gate;
+    await _pumpLogin(tester, account: counting);
 
     // Hold the first sign-in in flight so the second tap lands while the
     // screen is still busy, then release both.
-    await tester.tap(keyed('login-continue'));
+    await enterCredentials(tester);
+    await tapButton(tester, 'login-sign-in');
     await tester.pump();
-    await tester.tap(keyed('login-continue'));
+    await tapButton(tester, 'login-sign-in');
     await tester.pump();
     gate.complete();
     await tester.pumpAndSettle();
 
-    expect(counting.continueCalls, 1);
-  });
-
-  testWidgets('Replay the tour goes to /onboarding', (tester) async {
-    final router = await _pumpLogin(tester);
-
-    // The night band now grows to fill about 55% of the page, so on the
-    // default 800x600 test surface the link sits below the fold.
-    await tester.ensureVisible(keyed('login-replay-tour'));
-    await tester.tap(keyed('login-replay-tour'));
-    await tester.pumpAndSettle();
-
-    expect(router.state.uri.path, SessionRoutes.onboarding);
+    expect(counting.signInCalls, 1);
   });
 
   testWidgets('no overflow at 320 wide with 2x text', (tester) async {
@@ -231,15 +240,6 @@ void main() {
 
     await _pumpLogin(tester);
 
-    expect(tester.takeException(), isNull);
-
-    // Returning variant, same size, also must not overflow.
-    await _pumpLogin(
-      tester,
-      auth: InMemoryAuthRepository(
-        last: syntheticProfile(displayName: 'Alexandria the Third'),
-      ),
-    );
     expect(tester.takeException(), isNull);
   });
 }

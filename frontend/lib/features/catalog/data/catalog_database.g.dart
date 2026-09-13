@@ -169,6 +169,13 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
 class RecipeRow extends DataClass implements Insertable<RecipeRow> {
   final String providerId;
   final String name;
+
+  /// The browse that last wrote this row — never a letter derived from the
+  /// recipe name. A recipe returned by two different letter browses is
+  /// last-writer-wins: [CatalogRepository.upsertLetter] replaces the row
+  /// (and its ingredient usages, which are primary-keyed on
+  /// (recipeId, identity) and so cannot duplicate) with the newest browse's
+  /// copy and stamps this column with that letter.
   final String firstLetter;
   final String sourceJson;
   final DateTime updatedAt;

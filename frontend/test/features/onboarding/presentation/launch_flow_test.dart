@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/features/account/data/account_repository.dart';
 import 'package:zest/features/constellation/presentation/home_screen.dart';
 import 'package:zest/features/onboarding/application/session_providers.dart';
 import 'package:zest/features/onboarding/data/session_stores.dart';
@@ -10,10 +11,11 @@ import 'package:zest/features/onboarding/presentation/onboarding_screen.dart';
 
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/fake_account_repository.dart';
 import '../../../support/in_memory_session.dart';
 
 /// Pumps `ZestApp` behind a manually created container so tests can drive the
-/// session directly (as `continueOnDevice`/`signOut` would from a screen the
+/// session directly (as `register`/`signOut` would from a screen the
 /// onboarding/login tracks own) and still observe the resulting screen.
 ///
 /// Home is reachable in every state under test, so catalog and collection
@@ -24,7 +26,7 @@ Future<ProviderContainer> openApp(
   bool onboardingSeen = true,
   bool signedIn = true,
   OnboardingStore? onboarding,
-  AuthRepository? auth,
+  AccountRepository? account,
 }) async {
   final database = openInMemoryCatalog();
   addTearDown(database.close);
@@ -37,7 +39,7 @@ Future<ProviderContainer> openApp(
         onboardingSeen: onboardingSeen,
         signedIn: signedIn,
         onboarding: onboarding,
-        auth: auth,
+        account: account,
       ),
     ],
   );
@@ -78,11 +80,10 @@ void main() {
   });
 
   testWidgets('signed out after having signed in opens login', (tester) async {
-    final last = syntheticProfile();
     await openApp(
       tester,
       onboarding: InMemoryOnboardingStore(seen: true),
-      auth: InMemoryAuthRepository(current: null, last: last),
+      account: FakeAccountRepository(current: null),
     );
 
     expect(find.byType(LoginScreen), findsOneWidget);
@@ -118,8 +119,7 @@ void main() {
   });
 
   testWidgets(
-    'continuing on this device while on login moves to home without manual '
-    'navigation',
+    'signing in while on login moves to home without manual navigation',
     (tester) async {
       final container = await openApp(
         tester,
@@ -131,7 +131,7 @@ void main() {
 
       await container
           .read(sessionControllerProvider)
-          .continueOnDevice(displayName: 'Sam');
+          .register(email: 'sam@example.test', password: 'longenoughpass');
       await tester.pumpAndSettle();
 
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -197,8 +197,9 @@ void main() {
   });
 
   group('through the real screens', () {
-    testWidgets('fresh launch: Skip, then Continue on this device, opens '
-        'home', (tester) async {
+    testWidgets('fresh launch: Skip, then create an account, opens home', (
+      tester,
+    ) async {
       await openApp(tester, onboardingSeen: false, signedIn: false);
 
       await tester.tap(find.byKey(const ValueKey('onboarding-skip')));
@@ -206,17 +207,22 @@ void main() {
       expect(find.byType(LoginScreen), findsOneWidget);
 
       await tester.enterText(
-        find.byKey(const ValueKey('login-name-field')),
-        'Sam',
+        find.byKey(const ValueKey('login-email-field')),
+        'sam@example.test',
       );
-      await tester.tap(find.byKey(const ValueKey('login-continue')));
+      await tester.enterText(
+        find.byKey(const ValueKey('login-password-field')),
+        'longenoughpass',
+      );
+      final createAccount = find.byKey(const ValueKey('login-create-account'));
+      await tester.ensureVisible(createAccount);
+      await tester.tap(createAccount);
       await tester.pumpAndSettle();
 
       expect(find.byType(HomeScreen), findsOneWidget);
     });
 
-    testWidgets('Sign out from the profile sheet opens login, which welcomes '
-        'the same profile back', (tester) async {
+    testWidgets('Sign out from the profile sheet opens login', (tester) async {
       await openApp(tester, onboardingSeen: true, signedIn: true);
 
       await tester.tap(find.byKey(const ValueKey('open-profile')));
@@ -225,7 +231,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(LoginScreen), findsOneWidget);
-      expect(find.textContaining('Welcome back'), findsOneWidget);
     });
   });
 }
