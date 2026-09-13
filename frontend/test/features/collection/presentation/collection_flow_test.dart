@@ -86,6 +86,7 @@ Future<InMemoryCollectionRepository> openApp(
       overrides: [
         ...collectionTestOverrides(repository: repository),
         cocktailDbClientProvider.overrideWithValue(client),
+        nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
       ],
       child: ZestApp(initialLocation: location),
     ),
@@ -99,61 +100,102 @@ Future<InMemoryCollectionRepository> openApp(
 void main() {
   setUpAll(loadZestFonts);
 
-  testWidgets('save from recipe detail, open the entry, then remove it', (
+  testWidgets('each save from recipe detail is a new entry dated today', (
     tester,
   ) async {
-    await openApp(
+    final repository = await openApp(
       tester,
       location: '/discover/recipe/99001',
       respond: (_) async => discoveryResponse([
         discoveryRecipe(id: '99001', name: 'Paper Garden 1'),
       ]),
     );
-    expect(keyed('recipe-save'), findsOneWidget);
-    expect(find.text('Saved to your collection'), findsNothing);
-    await activate(tester, keyed('recipe-save'));
-    expect(find.text('Saved to your collection'), findsOneWidget);
-    expect(keyed('recipe-save'), findsNothing);
-    expect(keyed('recipe-open-saved'), findsOneWidget);
-
-    await activate(tester, keyed('recipe-open-saved'));
-    expect(find.text('Saved recipe'), findsWidgets);
     expect(
-      find.textContaining('Paper Garden 1'),
-      findsWidgets,
-      reason: 'Entry detail should show the saved recipe name.',
+      find.text(
+        'Save this drink to today in your calendar. You can change the day '
+        'later.',
+      ),
+      findsOneWidget,
     );
 
-    router(tester).pop();
-    await tester.pumpAndSettle();
-    await activate(tester, keyed('recipe-remove-saved'));
-    expect(find.text('Remove from collection?'), findsOneWidget);
-    await activate(tester, keyed('recipe-remove-saved-confirm'));
-    expect(keyed('recipe-save'), findsOneWidget);
-    expect(find.text('Saved to your collection'), findsNothing);
+    await activate(tester, keyed('recipe-save'));
+    expect(find.text('Saved to your calendar once.'), findsOneWidget);
+    await activate(tester, keyed('recipe-save'));
+    expect(find.text('Saved to your calendar 2 times.'), findsOneWidget);
+
+    final entries = await repository.watchEntries().first;
+    expect(entries, hasLength(2));
+    expect(entries.map((entry) => entry.day).toSet(), {DateTime(2026, 9, 13)});
+
+    await activate(tester, keyed('recipe-saved-${entries.first.id}'));
+    expect(router(tester).state.uri.path, '/collection/${entries.first.id}');
+    expect(find.text('Sunday, September 13, 2026'), findsOneWidget);
   });
 
-  testWidgets('collection list shows saved and variation entries labeled', (
+  testWidgets('the calendar opens a single drink directly and lists several', (
     tester,
   ) async {
     final repository = await openApp(tester, location: '/collection');
     expect(find.text('Nothing saved yet'), findsOneWidget);
+    expect(find.text('September 2026'), findsOneWidget);
 
-    await repository.saveRecipe(
+    final single = await repository.saveRecipe(
       seedRecipe(id: '99001', name: 'Paper Garden 1'),
     );
-    final variationSource = seedRecipe(id: '99002', name: 'Paper Garden 2');
+    await repository.moveToDay(single.id, DateTime(2026, 9, 10));
+    final saved = await repository.saveRecipe(
+      seedRecipe(id: '99002', name: 'Paper Garden 2'),
+    );
     await repository.createVariation(
-      variationSource,
+      seedRecipe(id: '99003', name: 'Paper Garden 3'),
       seedVariation(name: 'My Twist'),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Paper Garden 1'), findsOneWidget);
+    expect(find.text('Nothing saved yet'), findsNothing);
+    expect(
+      find.bySemanticsLabel('Thursday, September 10, 2026, 1 drink'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('Sunday, September 13, 2026, today, 2 drinks'),
+      findsOneWidget,
+    );
+
+    await activate(tester, keyed('calendar-day-2026-09-10'));
+    expect(router(tester).state.uri.path, '/collection/${single.id}');
+    router(tester).pop();
+    await tester.pumpAndSettle();
+
+    await activate(tester, keyed('calendar-day-2026-09-13'));
+    expect(find.text('2 drinks on this day.'), findsOneWidget);
+    expect(find.text('Your variation of Paper Garden 3'), findsOneWidget);
     expect(find.text('Saved recipe'), findsOneWidget);
-    expect(find.text('My Twist'), findsOneWidget);
-    expect(find.text('Your variation of Paper Garden 2'), findsOneWidget);
+    await activate(tester, keyed('collection-${saved.id}'));
+    expect(router(tester).state.uri.path, '/collection/${saved.id}');
     expectReadable(tester);
+  });
+
+  testWidgets('an entry can be moved to another day', (tester) async {
+    final repository = await openApp(tester, location: '/collection');
+    final entry = await repository.saveRecipe(
+      seedRecipe(id: '99001', name: 'Paper Garden 1'),
+    );
+    router(tester).go('/collection/${entry.id}');
+    await tester.pumpAndSettle();
+    expect(find.text('Sunday, September 13, 2026'), findsOneWidget);
+
+    await activate(tester, keyed('entry-change-date'));
+    await tester.tap(find.text('11'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Friday, September 11, 2026'), findsOneWidget);
+    expect(
+      (await repository.watchEntry(entry.id).first)!.day,
+      DateTime(2026, 9, 11),
+    );
   });
 
   testWidgets(

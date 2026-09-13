@@ -81,12 +81,14 @@ void main() {
       final saved = CollectionEntry.saved(
         id: 'a',
         source: source,
+        day: DateTime(2026, 9, 13),
         createdAt: DateTime(2026, 9, 13),
       );
       final variation = CollectionEntry.variation(
         id: 'b',
         source: source,
         details: VariationDetails(name: 'Mine', ingredients: const []),
+        day: DateTime(2026, 9, 13),
         createdAt: DateTime(2026, 9, 13),
       );
       expect(saved.displayName, 'Testbench Tonic');

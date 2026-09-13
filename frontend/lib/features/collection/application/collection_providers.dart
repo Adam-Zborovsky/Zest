@@ -30,10 +30,12 @@ final collectionEntryProvider = StreamProvider.family<CollectionEntry?, String>(
   retry: (retryCount, error) => null,
 );
 
-final savedEntryForRecipeProvider =
-    StreamProvider.family<CollectionEntry?, String>(
-      (ref, sourceRecipeId) =>
-          ref.watch(collectionRepositoryProvider).watchSavedFor(sourceRecipeId),
+/// Every saved entry of one source recipe, newest day first.
+final savedEntriesForRecipeProvider =
+    StreamProvider.family<List<CollectionEntry>, String>(
+      (ref, sourceRecipeId) => ref
+          .watch(collectionRepositoryProvider)
+          .watchSavedEntriesFor(sourceRecipeId),
       retry: (retryCount, error) => null,
     );
 

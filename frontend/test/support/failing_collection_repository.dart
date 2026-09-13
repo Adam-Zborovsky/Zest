@@ -13,6 +13,7 @@ final class FailingCollectionRepository implements CollectionRepository {
 
   bool failSave = false;
   bool failVariation = false;
+  bool failMove = false;
   bool failDelete = false;
   bool failSetPhoto = false;
   bool failRemovePhoto = false;
@@ -26,8 +27,8 @@ final class FailingCollectionRepository implements CollectionRepository {
   Stream<CollectionEntry?> watchEntry(String id) => inner.watchEntry(id);
 
   @override
-  Stream<CollectionEntry?> watchSavedFor(String sourceRecipeId) =>
-      inner.watchSavedFor(sourceRecipeId);
+  Stream<List<CollectionEntry>> watchSavedEntriesFor(String sourceRecipeId) =>
+      inner.watchSavedEntriesFor(sourceRecipeId);
 
   @override
   Future<CollectionEntry> saveRecipe(Recipe source) async =>
@@ -44,6 +45,10 @@ final class FailingCollectionRepository implements CollectionRepository {
     String id,
     VariationDetails details,
   ) async => failVariation ? _fail() : inner.updateVariation(id, details);
+
+  @override
+  Future<CollectionEntry> moveToDay(String id, DateTime day) async =>
+      failMove ? _fail() : inner.moveToDay(id, day);
 
   @override
   Future<void> delete(String id) async =>

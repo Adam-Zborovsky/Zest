@@ -24,15 +24,22 @@ final class DriftCollectionRepository implements CollectionRepository {
   final DateTime Function() _now;
   final String Function() _newId;
 
-  @override
-  Stream<List<CollectionEntry>> watchEntries() {
-    final query = _database.select(_database.entries)
-      ..orderBy([
-        (t) => OrderingTerm.desc(t.updatedAt),
-        (t) => OrderingTerm.asc(t.id),
-      ]);
-    return query.watch().map((rows) => List.unmodifiable(rows.map(_mapRow)));
+  SimpleSelectStatement<$EntriesTable, Entry> _ordered(
+    Expression<bool> Function($EntriesTable t)? filter,
+  ) {
+    final query = _database.select(_database.entries);
+    if (filter != null) query.where(filter);
+    return query..orderBy([
+      (t) => OrderingTerm.desc(t.day),
+      (t) => OrderingTerm.desc(t.updatedAt),
+      (t) => OrderingTerm.asc(t.id),
+    ]);
   }
+
+  @override
+  Stream<List<CollectionEntry>> watchEntries() => _ordered(
+    null,
+  ).watch().map((rows) => List.unmodifiable(rows.map(_mapRow)));
 
   @override
   Stream<CollectionEntry?> watchEntry(String id) {
@@ -44,75 +51,68 @@ final class DriftCollectionRepository implements CollectionRepository {
   }
 
   @override
-  Stream<CollectionEntry?> watchSavedFor(String sourceRecipeId) {
-    final query = _database.select(_database.entries)
-      ..where(
+  Stream<List<CollectionEntry>> watchSavedEntriesFor(String sourceRecipeId) =>
+      _ordered(
         (t) =>
             t.sourceRecipeId.equals(sourceRecipeId) &
             t.kind.equalsValue(CollectionEntryKind.saved),
-      );
-    return query.watchSingleOrNull().map(
-      (row) => row == null ? null : _mapRow(row),
-    );
-  }
+      ).watch().map((rows) => List.unmodifiable(rows.map(_mapRow)));
 
   @override
-  Future<CollectionEntry> saveRecipe(Recipe source) {
-    return _database.transaction(() async {
-      final existing = await _savedRowFor(source.id);
-      if (existing != null) return _mapRow(existing);
-      final now = _now();
-      final id = _newId();
-      await _database
-          .into(_database.entries)
-          .insert(
-            EntriesCompanion.insert(
-              id: id,
-              kind: CollectionEntryKind.saved,
-              sourceRecipeId: source.id,
-              sourceJson: jsonEncode(source.toJson()),
-              createdAt: now,
-              updatedAt: now,
-            ),
-          );
-      return CollectionEntry.saved(
-        id: id,
-        source: source,
-        createdAt: now,
-        updatedAt: now,
-      );
-    });
+  Future<CollectionEntry> saveRecipe(Recipe source) async {
+    final now = _now();
+    final id = _newId();
+    await _database
+        .into(_database.entries)
+        .insert(
+          EntriesCompanion.insert(
+            id: id,
+            kind: CollectionEntryKind.saved,
+            sourceRecipeId: source.id,
+            sourceJson: jsonEncode(source.toJson()),
+            day: Value(collectionDayKey(collectionDay(now))),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    return CollectionEntry.saved(
+      id: id,
+      source: source,
+      day: now,
+      createdAt: now,
+      updatedAt: now,
+    );
   }
 
   @override
   Future<CollectionEntry> createVariation(
     Recipe source,
     VariationDetails details,
-  ) {
-    return _database.transaction(() async {
-      final now = _now();
-      final id = _newId();
-      await _database
-          .into(_database.entries)
-          .insert(
-            EntriesCompanion.insert(
-              id: id,
-              kind: CollectionEntryKind.variation,
-              sourceRecipeId: source.id,
-              sourceJson: jsonEncode(source.toJson()),
-              variationJson: Value(jsonEncode(details.toJson())),
-              createdAt: now,
-              updatedAt: now,
-            ),
-          );
-      return CollectionEntry.variation(
-        id: id,
-        source: source,
-        details: details,
-        createdAt: now,
-        updatedAt: now,
-      );
-    });
+  ) async {
+    final now = _now();
+    final id = _newId();
+    await _database
+        .into(_database.entries)
+        .insert(
+          EntriesCompanion.insert(
+            id: id,
+            kind: CollectionEntryKind.variation,
+            sourceRecipeId: source.id,
+            sourceJson: jsonEncode(source.toJson()),
+            variationJson: Value(jsonEncode(details.toJson())),
+            day: Value(collectionDayKey(collectionDay(now))),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    return CollectionEntry.variation(
+      id: id,
+      source: source,
+      details: details,
+      day: now,
+      createdAt: now,
+      updatedAt: now,
+    );
   }
 
   @override
@@ -123,17 +123,32 @@ final class DriftCollectionRepository implements CollectionRepository {
       if (row.kind != CollectionEntryKind.variation) {
         throw StateError('Collection entry $id is not a variation.');
       }
-      final now = _now();
       await (_database.update(
         _database.entries,
       )..where((t) => t.id.equals(id))).write(
         EntriesCompanion(
           variationJson: Value(jsonEncode(details.toJson())),
-          updatedAt: Value(now),
+          updatedAt: Value(_now()),
         ),
       );
-      final updated = await _entryRow(id);
-      return _mapRow(updated!);
+      return _mapRow((await _entryRow(id))!);
+    });
+  }
+
+  @override
+  Future<CollectionEntry> moveToDay(String id, DateTime day) {
+    return _database.transaction(() async {
+      final row = await _entryRow(id);
+      if (row == null) throw StateError('No collection entry $id.');
+      await (_database.update(
+        _database.entries,
+      )..where((t) => t.id.equals(id))).write(
+        EntriesCompanion(
+          day: Value(collectionDayKey(collectionDay(day))),
+          updatedAt: Value(_now()),
+        ),
+      );
+      return _mapRow((await _entryRow(id))!);
     });
   }
 
@@ -180,11 +195,13 @@ final class DriftCollectionRepository implements CollectionRepository {
         _database.photos,
       )..where((t) => t.entryId.equals(id))).go();
       if (deletedCount == 0) return;
-      final now = _now();
       await (_database.update(
         _database.entries,
       )..where((t) => t.id.equals(id))).write(
-        EntriesCompanion(hasPhoto: const Value(false), updatedAt: Value(now)),
+        EntriesCompanion(
+          hasPhoto: const Value(false),
+          updatedAt: Value(_now()),
+        ),
       );
     });
   }
@@ -202,18 +219,10 @@ final class DriftCollectionRepository implements CollectionRepository {
     _database.entries,
   )..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<Entry?> _savedRowFor(String sourceRecipeId) =>
-      (_database.select(_database.entries)..where(
-            (t) =>
-                t.sourceRecipeId.equals(sourceRecipeId) &
-                t.kind.equalsValue(CollectionEntryKind.saved),
-          ))
-          .getSingleOrNull();
-
-  /// Rehydrates a stored row into a [CollectionEntry]. The source snapshot
-  /// and, for a variation, the variation details are parsed here; malformed
-  /// stored JSON throws a clear [FormatException] naming the entry instead
-  /// of surfacing as a silently empty entry.
+  /// Rehydrates a stored row into a [CollectionEntry]. The source snapshot,
+  /// the day, and for a variation the variation details are parsed here;
+  /// malformed stored data throws a clear [FormatException] naming the entry
+  /// instead of surfacing as a silently empty or misdated entry.
   CollectionEntry _mapRow(Entry row) {
     final Recipe source;
     try {
@@ -225,11 +234,20 @@ final class DriftCollectionRepository implements CollectionRepository {
         'Malformed source snapshot for collection entry ${row.id}: $error',
       );
     }
+    final DateTime day;
+    try {
+      day = parseCollectionDayKey(row.day);
+    } on FormatException catch (error) {
+      throw FormatException(
+        'Malformed day for collection entry ${row.id}: ${error.message}',
+      );
+    }
     switch (row.kind) {
       case CollectionEntryKind.saved:
         return CollectionEntry.saved(
           id: row.id,
           source: source,
+          day: day,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           hasPhoto: row.hasPhoto,
@@ -257,6 +275,7 @@ final class DriftCollectionRepository implements CollectionRepository {
           id: row.id,
           source: source,
           details: details,
+          day: day,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           hasPhoto: row.hasPhoto,

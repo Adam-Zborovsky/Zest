@@ -11,8 +11,8 @@ import 'in_memory_collection_repository.dart';
 /// built against one behave the same way against the others.
 ///
 /// [create] builds a fresh, empty repository for one test, given the `now`
-/// function that test controls (so ordering and `updatedAt` bumps can be
-/// asserted deterministically). [onTearDown] releases whatever [create]
+/// function that test controls (so days, ordering, and `updatedAt` bumps can
+/// be asserted deterministically). [onTearDown] releases whatever [create]
 /// opened (a database connection, for example) after each test. (Named
 /// [onTearDown], not `tearDown`, so it does not shadow `package:test`'s
 /// top-level `tearDown` used below.)
@@ -50,9 +50,10 @@ void runCollectionRepositoryContract(
       expect(await repository.watchEntries().first, isEmpty);
     });
 
-    test('watchEntry and watchSavedFor start null for an unknown id', () async {
+    test('watchEntry starts null and watchSavedEntriesFor starts empty for '
+        'an unknown id', () async {
       expect(await repository.watchEntry('missing').first, isNull);
-      expect(await repository.watchSavedFor('missing').first, isNull);
+      expect(await repository.watchSavedEntriesFor('missing').first, isEmpty);
     });
 
     test('saveRecipe creates a saved entry with the source snapshot', () async {
@@ -68,21 +69,38 @@ void runCollectionRepositoryContract(
       expect(entry.updatedAt, current);
       // The stored source snapshot round-trips to an equal `Recipe.toJson`.
       expect(entry.source.toJson(), source.toJson());
+      expect(
+        (await repository.watchEntry(entry.id).first)!.source.toJson(),
+        source.toJson(),
+      );
     });
 
-    test('saveRecipe is idempotent per source recipe id', () async {
+    test('saves and variations are dated to today\'s calendar day', () async {
+      current = DateTime(2026, 9, 12, 23, 45);
+      final saved = await repository.saveRecipe(recipe());
+      final variation = await repository.createVariation(recipe(), details());
+
+      expect(saved.day, DateTime(2026, 9, 12));
+      expect(variation.day, DateTime(2026, 9, 12));
+      expect(
+        (await repository.watchEntry(saved.id).first)!.day,
+        DateTime(2026, 9, 12),
+      );
+    });
+
+    test('saving the same recipe again creates a new entry, even on the same '
+        'day', () async {
       final source = recipe();
       final first = await repository.saveRecipe(source);
       current = current.add(const Duration(minutes: 5));
       final second = await repository.saveRecipe(source);
 
-      expect(second.id, first.id);
-      expect(second.createdAt, first.createdAt);
-      expect(second.updatedAt, first.updatedAt);
-      expect(await repository.watchEntries().first, hasLength(1));
+      expect(second.id, isNot(first.id));
+      expect(second.day, first.day);
+      expect(await repository.watchEntries().first, hasLength(2));
     });
 
-    test('concurrent saves of one recipe still produce one entry', () async {
+    test('concurrent saves of one recipe each create an entry', () async {
       final source = recipe();
       final results = await Future.wait([
         repository.saveRecipe(source),
@@ -90,19 +108,9 @@ void runCollectionRepositoryContract(
         repository.saveRecipe(source),
       ]);
 
-      expect(results.map((entry) => entry.id).toSet(), hasLength(1));
-      expect(await repository.watchEntries().first, hasLength(1));
+      expect(results.map((entry) => entry.id).toSet(), hasLength(3));
+      expect(await repository.watchEntries().first, hasLength(3));
     });
-
-    test(
-      'saveRecipe allows different source recipes as separate entries',
-      () async {
-        await repository.saveRecipe(recipe(id: '1', name: 'One'));
-        await repository.saveRecipe(recipe(id: '2', name: 'Two'));
-
-        expect(await repository.watchEntries().first, hasLength(2));
-      },
-    );
 
     test('createVariation always creates a new entry', () async {
       final source = recipe();
@@ -121,23 +129,6 @@ void runCollectionRepositoryContract(
     });
 
     test(
-      'a source can have many variations independent of being saved',
-      () async {
-        final source = recipe();
-        await repository.saveRecipe(source);
-        await repository.createVariation(source, details(name: 'A'));
-        await repository.createVariation(source, details(name: 'B'));
-
-        final entries = await repository.watchEntries().first;
-        expect(entries, hasLength(3));
-        expect(
-          entries.where((e) => e.isVariation).map((e) => e.displayName),
-          containsAll(<String>['A', 'B']),
-        );
-      },
-    );
-
-    test(
       'updateVariation replaces variation details and bumps updatedAt',
       () async {
         final entry = await repository.createVariation(recipe(), details());
@@ -150,6 +141,7 @@ void runCollectionRepositoryContract(
 
         expect(updated.id, entry.id);
         expect(updated.variation!.name, 'Updated Twist');
+        expect(updated.day, entry.day);
         expect(updated.createdAt, entry.createdAt);
         expect(updated.updatedAt, current);
         expect(
@@ -174,6 +166,36 @@ void runCollectionRepositoryContract(
       );
     });
 
+    test(
+      'moveToDay changes only the day, normalized, and bumps updatedAt',
+      () async {
+        final entry = await repository.saveRecipe(recipe());
+        current = current.add(const Duration(minutes: 3));
+
+        final moved = await repository.moveToDay(
+          entry.id,
+          DateTime(2026, 8, 30, 18, 20),
+        );
+
+        expect(moved.id, entry.id);
+        expect(moved.day, DateTime(2026, 8, 30));
+        expect(moved.createdAt, entry.createdAt);
+        expect(moved.updatedAt, current);
+        expect(moved.source.toJson(), entry.source.toJson());
+        expect(
+          (await repository.watchEntry(entry.id).first)!.day,
+          DateTime(2026, 8, 30),
+        );
+      },
+    );
+
+    test('moveToDay throws StateError for a missing id', () async {
+      expect(
+        () => repository.moveToDay('missing', DateTime(2026, 9, 1)),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('delete removes the entry', () async {
       final entry = await repository.saveRecipe(recipe());
       await repository.delete(entry.id);
@@ -187,14 +209,17 @@ void runCollectionRepositoryContract(
       expect(await repository.watchEntries().first, isEmpty);
     });
 
-    test('deleting a saved recipe never deletes its variations', () async {
+    test('deleting one entry keeps the other saves and variations of the same '
+        'recipe', () async {
       final source = recipe();
       final saved = await repository.saveRecipe(source);
+      final otherSave = await repository.saveRecipe(source);
       final variation = await repository.createVariation(source, details());
 
       await repository.delete(saved.id);
 
       expect(await repository.watchEntry(saved.id).first, isNull);
+      expect(await repository.watchEntry(otherSave.id).first, isNotNull);
       expect(await repository.watchEntry(variation.id).first, isNotNull);
     });
 
@@ -255,34 +280,51 @@ void runCollectionRepositoryContract(
       expect(await repository.photo('missing'), isNull);
     });
 
-    test('watchSavedFor tracks save and delete of the saved entry', () async {
+    test('watchSavedEntriesFor lists only that recipe\'s saved entries, newest '
+        'day first', () async {
       final source = recipe();
-      expect(await repository.watchSavedFor(source.id).first, isNull);
+      final first = await repository.saveRecipe(source);
+      await repository.moveToDay(first.id, DateTime(2026, 9, 1));
+      current = current.add(const Duration(minutes: 1));
+      final second = await repository.saveRecipe(source);
+      await repository.createVariation(source, details());
+      await repository.saveRecipe(recipe(id: '98002', name: 'Other'));
 
-      final saved = await repository.saveRecipe(source);
-      expect((await repository.watchSavedFor(source.id).first)!.id, saved.id);
+      final ids = (await repository.watchSavedEntriesFor(source.id).first)
+          .map((entry) => entry.id)
+          .toList();
+      expect(ids, [second.id, first.id]);
 
-      await repository.delete(saved.id);
-      expect(await repository.watchSavedFor(source.id).first, isNull);
+      await repository.delete(second.id);
+      expect(
+        (await repository.watchSavedEntriesFor(source.id).first).map(
+          (entry) => entry.id,
+        ),
+        [first.id],
+      );
     });
 
-    test('watchEntries orders by updatedAt descending, then id', () async {
+    test('watchEntries orders by day descending, then updatedAt descending, '
+        'then id', () async {
       current = DateTime(2026, 9, 12, 10);
       final a = await repository.saveRecipe(recipe(id: '101', name: 'A'));
       current = current.add(const Duration(minutes: 1));
       final b = await repository.saveRecipe(recipe(id: '102', name: 'B'));
       current = current.add(const Duration(minutes: 1));
       final c = await repository.saveRecipe(recipe(id: '103', name: 'C'));
+      current = current.add(const Duration(minutes: 1));
+      final older = await repository.saveRecipe(recipe(id: '104', name: 'D'));
+      current = current.add(const Duration(minutes: 1));
+      await repository.moveToDay(older.id, DateTime(2026, 9, 11));
 
-      // Bump `a` back to the front by touching its photo, which bumps
-      // `updatedAt` without changing its identity.
+      // Touch `a`'s photo, bumping `updatedAt` within the same day.
       current = current.add(const Duration(minutes: 1));
       await repository.setPhoto(a.id, validTinyPng());
 
       final ids = (await repository.watchEntries().first)
           .map((entry) => entry.id)
           .toList();
-      expect(ids, [a.id, c.id, b.id]);
+      expect(ids, [a.id, c.id, b.id, older.id]);
     });
 
     test('watchEntries emits again after a relevant change', () async {

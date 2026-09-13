@@ -26,11 +26,9 @@ final class InMemoryCollectionRepository implements CollectionRepository {
 
   String _id() => nextId?.call() ?? newCollectionEntryId();
 
-  List<CollectionEntry> _sorted() => _entries.values.toList()
-    ..sort((a, b) {
-      final byTime = b.updatedAt.compareTo(a.updatedAt);
-      return byTime != 0 ? byTime : a.id.compareTo(b.id);
-    });
+  List<CollectionEntry> _sorted([bool Function(CollectionEntry)? where]) =>
+      (where == null ? _entries.values : _entries.values.where(where)).toList()
+        ..sort(compareCollectionEntries);
 
   Stream<T> _watch<T>(T Function() read) async* {
     yield read();
@@ -46,26 +44,22 @@ final class InMemoryCollectionRepository implements CollectionRepository {
   Stream<CollectionEntry?> watchEntry(String id) => _watch(() => _entries[id]);
 
   @override
-  Stream<CollectionEntry?> watchSavedFor(String sourceRecipeId) =>
-      _watch(() => _savedFor(sourceRecipeId));
-
-  CollectionEntry? _savedFor(String sourceRecipeId) {
-    for (final entry in _entries.values) {
-      if (!entry.isVariation && entry.sourceRecipeId == sourceRecipeId) {
-        return entry;
-      }
-    }
-    return null;
-  }
+  Stream<List<CollectionEntry>> watchSavedEntriesFor(String sourceRecipeId) =>
+      _watch(
+        () => _sorted(
+          (entry) =>
+              !entry.isVariation && entry.sourceRecipeId == sourceRecipeId,
+        ),
+      );
 
   @override
   Future<CollectionEntry> saveRecipe(Recipe source) async {
-    final existing = _savedFor(source.id);
-    if (existing != null) return existing;
+    final now = _now();
     final entry = CollectionEntry.saved(
       id: _id(),
       source: Recipe.fromJson(source.toJson()),
-      createdAt: _now(),
+      day: now,
+      createdAt: now,
     );
     _entries[entry.id] = entry;
     _changed();
@@ -77,15 +71,27 @@ final class InMemoryCollectionRepository implements CollectionRepository {
     Recipe source,
     VariationDetails details,
   ) async {
+    final now = _now();
     final entry = CollectionEntry.variation(
       id: _id(),
       source: Recipe.fromJson(source.toJson()),
       details: details,
-      createdAt: _now(),
+      day: now,
+      createdAt: now,
     );
     _entries[entry.id] = entry;
     _changed();
     return entry;
+  }
+
+  @override
+  Future<CollectionEntry> moveToDay(String id, DateTime day) async {
+    final entry = _entries[id];
+    if (entry == null) throw StateError('No collection entry $id.');
+    final moved = entry.copyWith(day: day, updatedAt: _now());
+    _entries[id] = moved;
+    _changed();
+    return moved;
   }
 
   @override

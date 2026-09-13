@@ -6,8 +6,8 @@ import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_paper.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
+import '../../../core/widgets/zest_chip.dart';
 import '../../../core/widgets/zest_inline_error.dart';
-import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../collection/application/collection_providers.dart';
 import '../../constellation/domain/ingredient_kind.dart';
@@ -176,9 +176,10 @@ class _RecipeContent extends StatelessWidget {
 String _metadata(String label, String? value) =>
     '$label: ${value == null || value.trim().isEmpty ? 'Not provided' : value.trim()}';
 
-/// Save/unsave and "make a variation" actions. A save is idempotent per
-/// source recipe id (the repository contract), so this never creates a
-/// duplicate saved entry.
+/// "Save to today" and "make a variation" actions. Every save is a new
+/// entry on today's date in the drink calendar, so one cocktail can be saved
+/// on many days; the days it was saved are listed here and each opens its
+/// entry, where the date can be changed or the entry removed.
 class _CollectionActions extends ConsumerStatefulWidget {
   const _CollectionActions({required this.recipe});
   final Recipe recipe;
@@ -188,83 +189,61 @@ class _CollectionActions extends ConsumerStatefulWidget {
 }
 
 class _CollectionActionsState extends ConsumerState<_CollectionActions> {
+  static const _visibleSaves = 6;
+
   bool _busy = false;
   String? _error;
-
-  /// Runs one storage action. A failure is stated inline with what to do,
-  /// never dropped: a save that silently fails would look like a success.
-  Future<void> _run(Future<void> Function() action, String failure) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await action();
-    } catch (_) {
-      if (mounted) setState(() => _error = failure);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final recipe = widget.recipe;
-    final saved = ref.watch(savedEntryForRecipeProvider(recipe.id)).value;
-    final textTheme = Theme.of(context).textTheme;
+    final saves =
+        ref.watch(savedEntriesForRecipeProvider(recipe.id)).value ?? const [];
+    final localizations = MaterialLocalizations.of(context);
     return ZestCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const DiscoveryHeading('Your collection'),
           const SizedBox(height: ZestSpace.md),
-          if (saved == null) ...[
-            const Text(
-              'Save this recipe to keep it in your private collection.',
-            ),
+          Text(
+            saves.isEmpty
+                ? 'Save this drink to today in your calendar. You can change '
+                      'the day later.'
+                : saves.length == 1
+                ? 'Saved to your calendar once.'
+                : 'Saved to your calendar ${saves.length} times.',
+          ),
+          const SizedBox(height: ZestSpace.md),
+          ZestButton(
+            key: const ValueKey('recipe-save'),
+            label: 'Save to today',
+            icon: Icons.event_available_outlined,
+            kind: ZestButtonKind.secondary,
+            onPressed: _busy ? null : _save,
+          ),
+          if (saves.isNotEmpty) ...[
             const SizedBox(height: ZestSpace.md),
-            ZestButton(
-              key: const ValueKey('recipe-save'),
-              label: 'Save to collection',
-              icon: Icons.bookmark_add_outlined,
-              kind: ZestButtonKind.secondary,
-              onPressed: _busy
-                  ? null
-                  : () => _run(
-                      () async => ref
-                          .read(collectionRepositoryProvider)
-                          .saveRecipe(recipe),
-                      'Zest could not save this recipe on this device. '
-                      'Try again.',
-                    ),
-            ),
-          ] else ...[
-            Row(
+            Wrap(
+              spacing: ZestSpace.sm,
+              runSpacing: ZestSpace.sm,
               children: [
-                const Icon(Icons.bookmark_rounded, color: ZestPalette.leaf),
-                const SizedBox(width: ZestSpace.sm),
-                Expanded(
-                  child: Text(
-                    'Saved to your collection',
-                    style: textTheme.titleMedium,
+                for (final entry in saves.take(_visibleSaves))
+                  ZestChip(
+                    key: ValueKey('recipe-saved-${entry.id}'),
+                    label: localizations.formatShortMonthDay(entry.day),
+                    selected: false,
+                    onSelected: (_) => context.push('/collection/${entry.id}'),
                   ),
-                ),
               ],
             ),
-            const SizedBox(height: ZestSpace.md),
-            ZestButton(
-              key: const ValueKey('recipe-open-saved'),
-              label: 'Open saved entry',
-              kind: ZestButtonKind.secondary,
-              onPressed: () => context.push('/collection/${saved.id}'),
-            ),
-            const SizedBox(height: ZestSpace.sm),
-            ZestButton(
-              key: const ValueKey('recipe-remove-saved'),
-              label: 'Remove from collection',
-              kind: ZestButtonKind.danger,
-              onPressed: _busy ? null : () => _confirmRemove(saved.id),
-            ),
+            if (saves.length > _visibleSaves) ...[
+              const SizedBox(height: ZestSpace.sm),
+              Text(
+                '+ ${saves.length - _visibleSaves} more in your calendar.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
           if (_error != null) ...[
             const SizedBox(height: ZestSpace.md),
@@ -285,38 +264,24 @@ class _CollectionActionsState extends ConsumerState<_CollectionActions> {
     );
   }
 
-  Future<void> _confirmRemove(String id) async {
-    final confirmed = await showZestSheet<bool>(
-      context: context,
-      title: 'Remove from collection?',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'This also deletes any photo you added to this entry. '
-            'This cannot be undone.',
-          ),
-          const SizedBox(height: ZestSpace.lg),
-          ZestButton(
-            key: const ValueKey('recipe-remove-saved-confirm'),
-            label: 'Remove',
-            kind: ZestButtonKind.danger,
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-          const SizedBox(height: ZestSpace.sm),
-          ZestButton(
-            label: 'Cancel',
-            kind: ZestButtonKind.quiet,
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      await _run(
-        () => ref.read(collectionRepositoryProvider).delete(id),
-        'Zest could not remove this entry. Try again.',
-      );
+  /// A failure is stated inline with what to do, never dropped: a save that
+  /// silently fails would look like a success.
+  Future<void> _save() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(collectionRepositoryProvider).saveRecipe(widget.recipe);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Zest could not save this recipe on this device. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 }

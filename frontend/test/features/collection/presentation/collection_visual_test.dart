@@ -7,6 +7,7 @@ import 'package:zest/features/collection/domain/collection_entry.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
+import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/discovery_fixtures.dart';
@@ -41,6 +42,11 @@ Future<void> _renderAndCheck(
       overrides: [
         ...collectionTestOverrides(repository: repository),
         cocktailDbClientProvider.overrideWithValue(client),
+        nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
+        // Source thumbnails render a synthetic picture; no network.
+        recipeImageProvider.overrideWithValue(
+          (_) => MemoryImage(validTinyPng().bytes),
+        ),
       ],
       child: RepaintBoundary(
         key: capture,
@@ -81,30 +87,57 @@ Future<void> _renderAndCheck(
 void main() {
   setUpAll(loadZestFonts);
 
-  testWidgets('collection-list Night Garden render', (tester) async {
-    // Distinct timestamps so `watchEntries()`'s newest-first sort has a
-    // deterministic order: with equal `updatedAt` it falls back to
-    // comparing each entry's random id, which flips the card order (and
-    // the golden) from run to run.
+  testWidgets('collection-calendar Night Garden render', (tester) async {
+    // A distinct clock per write keeps each day's bubble order stable.
     var clock = DateTime(2026, 9, 13, 9);
-    final repository = InMemoryCollectionRepository(now: () => clock);
-    await repository.createVariation(
-      _recipe(id: '99002', name: 'Garden Sour'),
-      VariationDetails(
-        name: 'My Sour Twist',
-        ingredients: [
-          VariationIngredient(name: 'Imaginary gin', measure: '2 oz'),
-          VariationIngredient(name: 'Lime juice', measure: '1 oz'),
-        ],
-        method: 'Shake with ice and strain.',
+    DateTime tick() => clock = clock.add(const Duration(minutes: 1));
+    final repository = InMemoryCollectionRepository(now: tick);
+    Recipe thumbnailed(String id, String name) => Recipe.fromJson(
+      discoveryRecipe(
+        id: id,
+        name: name,
+        thumbnailUrl:
+            'https://www.thecocktaildb.com/images/media/drink/$id.jpg',
       ),
     );
-    clock = clock.add(const Duration(minutes: 1));
-    await repository.saveRecipe(_recipe(id: '99001', name: 'Paper Garden'));
+
+    Future<void> onDay(
+      DateTime day,
+      Recipe source, {
+      bool photo = false,
+    }) async {
+      final entry = await repository.saveRecipe(source);
+      await repository.moveToDay(entry.id, day);
+      if (photo) await repository.setPhoto(entry.id, validTinyPng());
+    }
+
+    // Today: one drink with a memory photo.
+    await onDay(
+      DateTime(2026, 9, 13),
+      _recipe(id: '99001', name: 'Paper Garden'),
+      photo: true,
+    );
+    // Three drinks: two with source pictures, one with no picture at all.
+    await onDay(DateTime(2026, 9, 10), thumbnailed('99002', 'Garden Sour'));
+    await onDay(
+      DateTime(2026, 9, 10),
+      _recipe(id: '99003', name: 'Plain Fizz'),
+    );
+    await onDay(
+      DateTime(2026, 9, 10),
+      thumbnailed('99004', 'Leaf Spritz'),
+      photo: true,
+    );
+    // Two drinks on one day.
+    await onDay(DateTime(2026, 9, 5), thumbnailed('99005', 'Night Mule'));
+    await onDay(DateTime(2026, 9, 5), thumbnailed('99006', 'Moss Collins'));
+    // A single drink last month.
+    await onDay(DateTime(2026, 8, 28), thumbnailed('99007', 'August Cooler'));
+
     await _renderAndCheck(
       tester,
-      'collection-list',
-      const Size(412, 1400),
+      'collection-calendar',
+      const Size(412, 1500),
       repository: repository,
       location: '/collection',
     );

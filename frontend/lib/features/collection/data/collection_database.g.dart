@@ -59,6 +59,16 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _hasPhotoMeta = const VerificationMeta(
     'hasPhoto',
   );
@@ -103,6 +113,7 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     sourceRecipeId,
     sourceJson,
     variationJson,
+    day,
     hasPhoto,
     createdAt,
     updatedAt,
@@ -150,6 +161,12 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
           data['variation_json']!,
           _variationJsonMeta,
         ),
+      );
+    }
+    if (data.containsKey('day')) {
+      context.handle(
+        _dayMeta,
+        day.isAcceptableOrUnknown(data['day']!, _dayMeta),
       );
     }
     if (data.containsKey('has_photo')) {
@@ -205,6 +222,10 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         DriftSqlType.string,
         data['${effectivePrefix}variation_json'],
       ),
+      day: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}day'],
+      )!,
       hasPhoto: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_photo'],
@@ -235,6 +256,7 @@ class Entry extends DataClass implements Insertable<Entry> {
   final String sourceRecipeId;
   final String sourceJson;
   final String? variationJson;
+  final String day;
   final bool hasPhoto;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -244,6 +266,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     required this.sourceRecipeId,
     required this.sourceJson,
     this.variationJson,
+    required this.day,
     required this.hasPhoto,
     required this.createdAt,
     required this.updatedAt,
@@ -260,6 +283,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     if (!nullToAbsent || variationJson != null) {
       map['variation_json'] = Variable<String>(variationJson);
     }
+    map['day'] = Variable<String>(day);
     map['has_photo'] = Variable<bool>(hasPhoto);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -275,6 +299,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       variationJson: variationJson == null && nullToAbsent
           ? const Value.absent()
           : Value(variationJson),
+      day: Value(day),
       hasPhoto: Value(hasPhoto),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -292,6 +317,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       sourceRecipeId: serializer.fromJson<String>(json['sourceRecipeId']),
       sourceJson: serializer.fromJson<String>(json['sourceJson']),
       variationJson: serializer.fromJson<String?>(json['variationJson']),
+      day: serializer.fromJson<String>(json['day']),
       hasPhoto: serializer.fromJson<bool>(json['hasPhoto']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -306,6 +332,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       'sourceRecipeId': serializer.toJson<String>(sourceRecipeId),
       'sourceJson': serializer.toJson<String>(sourceJson),
       'variationJson': serializer.toJson<String?>(variationJson),
+      'day': serializer.toJson<String>(day),
       'hasPhoto': serializer.toJson<bool>(hasPhoto),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -318,6 +345,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     String? sourceRecipeId,
     String? sourceJson,
     Value<String?> variationJson = const Value.absent(),
+    String? day,
     bool? hasPhoto,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -329,6 +357,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     variationJson: variationJson.present
         ? variationJson.value
         : this.variationJson,
+    day: day ?? this.day,
     hasPhoto: hasPhoto ?? this.hasPhoto,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -346,6 +375,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       variationJson: data.variationJson.present
           ? data.variationJson.value
           : this.variationJson,
+      day: data.day.present ? data.day.value : this.day,
       hasPhoto: data.hasPhoto.present ? data.hasPhoto.value : this.hasPhoto,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -360,6 +390,7 @@ class Entry extends DataClass implements Insertable<Entry> {
           ..write('sourceRecipeId: $sourceRecipeId, ')
           ..write('sourceJson: $sourceJson, ')
           ..write('variationJson: $variationJson, ')
+          ..write('day: $day, ')
           ..write('hasPhoto: $hasPhoto, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -374,6 +405,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     sourceRecipeId,
     sourceJson,
     variationJson,
+    day,
     hasPhoto,
     createdAt,
     updatedAt,
@@ -387,6 +419,7 @@ class Entry extends DataClass implements Insertable<Entry> {
           other.sourceRecipeId == this.sourceRecipeId &&
           other.sourceJson == this.sourceJson &&
           other.variationJson == this.variationJson &&
+          other.day == this.day &&
           other.hasPhoto == this.hasPhoto &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -398,6 +431,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
   final Value<String> sourceRecipeId;
   final Value<String> sourceJson;
   final Value<String?> variationJson;
+  final Value<String> day;
   final Value<bool> hasPhoto;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -408,6 +442,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     this.sourceRecipeId = const Value.absent(),
     this.sourceJson = const Value.absent(),
     this.variationJson = const Value.absent(),
+    this.day = const Value.absent(),
     this.hasPhoto = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -419,6 +454,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     required String sourceRecipeId,
     required String sourceJson,
     this.variationJson = const Value.absent(),
+    this.day = const Value.absent(),
     this.hasPhoto = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -435,6 +471,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Expression<String>? sourceRecipeId,
     Expression<String>? sourceJson,
     Expression<String>? variationJson,
+    Expression<String>? day,
     Expression<bool>? hasPhoto,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -446,6 +483,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       if (sourceRecipeId != null) 'source_recipe_id': sourceRecipeId,
       if (sourceJson != null) 'source_json': sourceJson,
       if (variationJson != null) 'variation_json': variationJson,
+      if (day != null) 'day': day,
       if (hasPhoto != null) 'has_photo': hasPhoto,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -459,6 +497,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Value<String>? sourceRecipeId,
     Value<String>? sourceJson,
     Value<String?>? variationJson,
+    Value<String>? day,
     Value<bool>? hasPhoto,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -470,6 +509,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       sourceRecipeId: sourceRecipeId ?? this.sourceRecipeId,
       sourceJson: sourceJson ?? this.sourceJson,
       variationJson: variationJson ?? this.variationJson,
+      day: day ?? this.day,
       hasPhoto: hasPhoto ?? this.hasPhoto,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -497,6 +537,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     if (variationJson.present) {
       map['variation_json'] = Variable<String>(variationJson.value);
     }
+    if (day.present) {
+      map['day'] = Variable<String>(day.value);
+    }
     if (hasPhoto.present) {
       map['has_photo'] = Variable<bool>(hasPhoto.value);
     }
@@ -520,6 +563,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
           ..write('sourceRecipeId: $sourceRecipeId, ')
           ..write('sourceJson: $sourceJson, ')
           ..write('variationJson: $variationJson, ')
+          ..write('day: $day, ')
           ..write('hasPhoto: $hasPhoto, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -851,6 +895,10 @@ abstract class _$CollectionDatabase extends GeneratedDatabase {
     'entries_source_recipe_id',
     'CREATE INDEX entries_source_recipe_id ON entries (source_recipe_id)',
   );
+  late final Index entriesDay = Index(
+    'entries_day',
+    'CREATE INDEX entries_day ON entries (day)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -859,6 +907,7 @@ abstract class _$CollectionDatabase extends GeneratedDatabase {
     entries,
     photos,
     entriesSourceRecipeId,
+    entriesDay,
   ];
 }
 
@@ -869,6 +918,7 @@ typedef $$EntriesTableCreateCompanionBuilder =
       required String sourceRecipeId,
       required String sourceJson,
       Value<String?> variationJson,
+      Value<String> day,
       Value<bool> hasPhoto,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -881,6 +931,7 @@ typedef $$EntriesTableUpdateCompanionBuilder =
       Value<String> sourceRecipeId,
       Value<String> sourceJson,
       Value<String?> variationJson,
+      Value<String> day,
       Value<bool> hasPhoto,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -923,6 +974,11 @@ class $$EntriesTableFilterComposer
 
   ColumnFilters<String> get variationJson => $composableBuilder(
     column: $table.variationJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get day => $composableBuilder(
+    column: $table.day,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -976,6 +1032,11 @@ class $$EntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get hasPhoto => $composableBuilder(
     column: $table.hasPhoto,
     builder: (column) => ColumnOrderings(column),
@@ -1022,6 +1083,9 @@ class $$EntriesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get day =>
+      $composableBuilder(column: $table.day, builder: (column) => column);
+
   GeneratedColumn<bool> get hasPhoto =>
       $composableBuilder(column: $table.hasPhoto, builder: (column) => column);
 
@@ -1065,6 +1129,7 @@ class $$EntriesTableTableManager
                 Value<String> sourceRecipeId = const Value.absent(),
                 Value<String> sourceJson = const Value.absent(),
                 Value<String?> variationJson = const Value.absent(),
+                Value<String> day = const Value.absent(),
                 Value<bool> hasPhoto = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -1075,6 +1140,7 @@ class $$EntriesTableTableManager
                 sourceRecipeId: sourceRecipeId,
                 sourceJson: sourceJson,
                 variationJson: variationJson,
+                day: day,
                 hasPhoto: hasPhoto,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -1087,6 +1153,7 @@ class $$EntriesTableTableManager
                 required String sourceRecipeId,
                 required String sourceJson,
                 Value<String?> variationJson = const Value.absent(),
+                Value<String> day = const Value.absent(),
                 Value<bool> hasPhoto = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -1097,6 +1164,7 @@ class $$EntriesTableTableManager
                 sourceRecipeId: sourceRecipeId,
                 sourceJson: sourceJson,
                 variationJson: variationJson,
+                day: day,
                 hasPhoto: hasPhoto,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

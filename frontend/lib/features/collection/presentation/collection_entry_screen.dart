@@ -12,6 +12,7 @@ import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../constellation/domain/ingredient_kind.dart';
 import '../../constellation/presentation/ingredient_glyph.dart';
+import '../../discovery/application/discovery_providers.dart';
 import '../../discovery/domain/recipe.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/collection_providers.dart';
@@ -81,6 +82,8 @@ class _EntryContent extends StatelessWidget {
       children: [
         _PhotoSection(entry: entry),
         const SizedBox(height: ZestSpace.xl),
+        _EntryDate(entry: entry),
+        const SizedBox(height: ZestSpace.xl),
         if (entry.isVariation) ...[
           Text('Named "${entry.variation!.name}"', style: textTheme.titleLarge),
           const SizedBox(height: ZestSpace.md),
@@ -115,6 +118,86 @@ class _EntryContent extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The calendar day an entry sits on, with a way to move it to another day.
+class _EntryDate extends ConsumerStatefulWidget {
+  const _EntryDate({required this.entry});
+  final CollectionEntry entry;
+
+  @override
+  ConsumerState<_EntryDate> createState() => _EntryDateState();
+}
+
+class _EntryDateState extends ConsumerState<_EntryDate> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _change() async {
+    final today = collectionDay(ref.read(nowProvider)());
+    final current = widget.entry.day;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2000),
+      lastDate: current.isAfter(today) ? current : today,
+      helpText: 'Move this drink to a day',
+    );
+    if (picked == null || !mounted || collectionDay(picked) == current) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(collectionRepositoryProvider)
+          .moveToDay(widget.entry.id, picked);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Zest could not change the date. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          const ExcludeSemantics(
+            child: Icon(Icons.event_rounded, color: ZestPalette.leaf),
+          ),
+          const SizedBox(width: ZestSpace.sm),
+          Expanded(
+            child: Text(
+              MaterialLocalizations.of(
+                context,
+              ).formatFullDate(widget.entry.day),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ],
+      ),
+      Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ZestButton(
+          key: const ValueKey('entry-change-date'),
+          label: 'Change date',
+          icon: Icons.edit_calendar_rounded,
+          kind: ZestButtonKind.quiet,
+          expand: false,
+          onPressed: _busy ? null : _change,
+        ),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: ZestSpace.sm),
+        ZestInlineError(_error!),
+      ],
+    ],
+  );
 }
 
 class _SavedBody extends StatelessWidget {

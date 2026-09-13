@@ -85,12 +85,12 @@ void main() {
       find.text('Zest could not save this recipe on this device. Try again.'),
       findsOneWidget,
     );
-    expect(find.text('Saved to your collection'), findsNothing);
+    expect(find.text('Saved to your calendar once.'), findsNothing);
 
     // Recovery: the next attempt succeeds and clears the message.
     repository.failSave = false;
     await _activate(tester, keyed('recipe-save'));
-    expect(find.text('Saved to your collection'), findsOneWidget);
+    expect(find.text('Saved to your calendar once.'), findsOneWidget);
     expect(find.textContaining('could not save this recipe'), findsNothing);
   });
 

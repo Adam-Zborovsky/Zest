@@ -156,17 +156,21 @@ final class VariationDetails {
       Object.hash(name, method, notes, Object.hashAll(ingredients));
 }
 
-/// One entry in the person's private collection.
+/// One entry in the person's private collection, placed on one calendar day.
 ///
 /// [source] is a snapshot of the recipe taken when the entry was created, so
 /// the entry stays readable offline and never changes when the catalog does.
 /// It is kept byte-for-byte as the source gave it; a variation's edits live
 /// only in [variation].
+///
+/// [day] is the local calendar day the drink belongs to: the day it was
+/// saved, until the person moves it. It carries no time of day.
 final class CollectionEntry {
   const CollectionEntry._({
     required this.id,
     required this.kind,
     required this.source,
+    required this.day,
     required this.createdAt,
     required this.updatedAt,
     required this.variation,
@@ -176,6 +180,7 @@ final class CollectionEntry {
   factory CollectionEntry.saved({
     required String id,
     required Recipe source,
+    required DateTime day,
     required DateTime createdAt,
     DateTime? updatedAt,
     bool hasPhoto = false,
@@ -183,6 +188,7 @@ final class CollectionEntry {
     id: id,
     kind: CollectionEntryKind.saved,
     source: source,
+    day: collectionDay(day),
     createdAt: createdAt,
     updatedAt: updatedAt ?? createdAt,
     variation: null,
@@ -193,6 +199,7 @@ final class CollectionEntry {
     required String id,
     required Recipe source,
     required VariationDetails details,
+    required DateTime day,
     required DateTime createdAt,
     DateTime? updatedAt,
     bool hasPhoto = false,
@@ -200,6 +207,7 @@ final class CollectionEntry {
     id: id,
     kind: CollectionEntryKind.variation,
     source: source,
+    day: collectionDay(day),
     createdAt: createdAt,
     updatedAt: updatedAt ?? createdAt,
     variation: details,
@@ -209,6 +217,9 @@ final class CollectionEntry {
   final String id;
   final CollectionEntryKind kind;
   final Recipe source;
+
+  /// The calendar day at local midnight.
+  final DateTime day;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -226,6 +237,7 @@ final class CollectionEntry {
     VariationDetails? variation,
     bool? hasPhoto,
     DateTime? updatedAt,
+    DateTime? day,
   }) {
     if (variation != null && !isVariation) {
       throw StateError('A saved recipe has no variation details to replace.');
@@ -234,12 +246,52 @@ final class CollectionEntry {
       id: id,
       kind: kind,
       source: source,
+      day: day == null ? this.day : collectionDay(day),
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       variation: variation ?? this.variation,
       hasPhoto: hasPhoto ?? this.hasPhoto,
     );
   }
+}
+
+/// The local calendar day of [moment], at midnight with no time of day.
+DateTime collectionDay(DateTime moment) =>
+    DateTime(moment.year, moment.month, moment.day);
+
+/// The `YYYY-MM-DD` storage key for a calendar day. Text keeps a stored day
+/// stable across time zones and daylight-saving changes.
+String collectionDayKey(DateTime day) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${day.year.toString().padLeft(4, '0')}-${two(day.month)}-'
+      '${two(day.day)}';
+}
+
+/// Parses a `YYYY-MM-DD` key; throws [FormatException] for anything else,
+/// including impossible dates such as `2026-02-30`.
+DateTime parseCollectionDayKey(String key) {
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(key);
+  if (match == null) {
+    throw FormatException('Invalid collection day "$key".');
+  }
+  final year = int.parse(match.group(1)!);
+  final month = int.parse(match.group(2)!);
+  final day = int.parse(match.group(3)!);
+  final parsed = DateTime(year, month, day);
+  if (parsed.year != year || parsed.month != month || parsed.day != day) {
+    throw FormatException('Invalid collection day "$key".');
+  }
+  return parsed;
+}
+
+/// The collection's shared order: newest day first, then most recently
+/// updated, then id for a stable tie-break.
+int compareCollectionEntries(CollectionEntry a, CollectionEntry b) {
+  final byDay = b.day.compareTo(a.day);
+  if (byDay != 0) return byDay;
+  final byUpdate = b.updatedAt.compareTo(a.updatedAt);
+  if (byUpdate != 0) return byUpdate;
+  return a.id.compareTo(b.id);
 }
 
 /// A random 128-bit identifier in lowercase hex. Local-only ids: entries
