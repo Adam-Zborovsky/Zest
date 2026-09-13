@@ -45,7 +45,7 @@ Tracks may not change contract files. A needed change is reported back to the in
 ## Build record (2026-09-13)
 
 - **State track — merged.** `shared_preferences` 2.5.x with `SharedPreferencesWithCache` created in `main()` before `runApp`. `PrefsOnboardingStore` and `PrefsAuthRepository` with a shared contract suite run against prefs and in-memory implementations. Routes `/onboarding` and `/login` with session-based go_router redirect and `refreshListenable`. App-level tests launch into each roadmap state. Analysis clean, 390 tests pass. See [reviews/M7.md](reviews/M7.md) — Finding 1 (write order) fixed; Finding 2 (startup exception) accepted as limitation; Finding 3 (name length) fixed; Finding 4 (step count) verified intentional.
-- **Onboarding track — merged.** Four `PageView` pages with constellation, bar, variation, and photo demonstrations using real components and synthetic data. `LimeSprite` character as `CustomPainter`. Next, Back, Skip, visible "n of 5" progress. No animation waits or automatic advances. Reduced-motion variants. Keyboard and screen-reader access. Goldens included.
+- **Onboarding track — merged.** Four `PageView` pages with constellation, bar, variation, and photo demonstrations built from the public design primitives (`IngredientGlyph`, `paintIngredientGlyph`, `PaperTag`, `NightBand`, `ZestCard`) with synthetic data; no feature widget was made public, so the demos imitate the real screens rather than reuse them. `LimeSprite` character as `CustomPainter`. Next, Back, Skip, visible "n of 5" progress. No animation waits or automatic advances. Reduced-motion variants. Keyboard and screen-reader access. Goldens included.
 - **Login track — merged.** Optional name field, "Continue on this device", returning-user prefilled welcome variant, "Replay the tour" link, honest local-only note. Loading and inline error states. Profile sheet (signed-in top bar) with sign-out (never deletes profile or collection). Goldens included.
 - **Integrator polish — merged.** Lime sprite waves on login. Launch-flow tests through real screens. Sprite moved inside band so it does not cover page heading. Night band proportions, fennel page ground, opaque page 2 swap strip, page 4 calendar tiles, constellation label font in goldens, sprite color refinement (commits `cc216a9`, `9ab6ae7`, `e20562f`).
 - **Known limitation — startup exception.** If `SharedPreferencesWithCache.create` throws, the app does not render. The app cannot function without its flags store; revisit alongside deferred Android lost-photo recovery.
@@ -62,7 +62,7 @@ Corrections applied in conversion:
 - No "My spin" chip; variations read "Your variation of <recipe>".
 - Stitch's Epilogue headings become Fraunces; its palette and shapes map to the existing tokens.
 - No dot texture behind text on the fennel page.
-- The night band sizes to its content instead of leaving empty field, and the character renders at about 96 logical pixels so it reads as a character.
+- The night band takes a minimum share of the page height (about 68% on onboarding and 56% on login) with its content centered, so the fennel section below is not left mostly empty. The character renders at about 96 logical pixels on onboarding and 64 on login.
 
 ## Out of scope
 
