@@ -29,8 +29,8 @@ Signing in also records onboarding as seen, so a later sign-out lands on login e
 | `lib/features/onboarding/data/session_stores.dart` | Contract | `OnboardingStore`, `AuthRepository` and their invariants, `SessionStorageException` |
 | `lib/features/onboarding/application/session_controller.dart` | Contract | `SessionController`, the router's `refreshListenable` |
 | `lib/features/onboarding/application/session_providers.dart` | Contract; store bodies wired by the state track | Riverpod providers |
-| `lib/features/onboarding/presentation/onboarding_screen.dart` | Shell; owned by the onboarding track | `OnboardingScreen` |
-| `lib/features/onboarding/presentation/login_screen.dart` | Shell; owned by the login track | `LoginScreen` |
+| `lib/features/onboarding/presentation/onboarding_screen.dart` | Implemented | `OnboardingScreen` |
+| `lib/features/onboarding/presentation/login_screen.dart` | Implemented | `LoginScreen` |
 | `test/support/in_memory_session.dart` | Contract | In-memory stores with failure injection, `syntheticProfile`, `sessionTestOverrides` |
 | `test/features/onboarding/application/session_controller_test.dart` | Contract | The roadmap state machine, redirect table, and profile rules |
 
@@ -41,6 +41,15 @@ Tracks may not change contract files. A needed change is reported back to the in
 - **State track.** Adds `shared_preferences` with its stated reason; implements `PrefsOnboardingStore` and `PrefsAuthRepository` over `SharedPreferencesWithCache` with a contract suite run against both the prefs and in-memory implementations; wires the providers and `main()`; gives `createZestRouter` the session redirect, `refreshListenable`, and the `/onboarding` and `/login` routes; adds `sessionTestOverrides()` to every existing test that pumps `ZestApp`; and adds app-level tests that launch into each roadmap state.
 - **Onboarding track.** Replaces `OnboardingScreen`: a `PageView` of four pages with Next, Back, Skip, visible progress, keyboard and screen-reader access, no automatic advance and no waits on animation. Each page shows a live demonstration built from the app's real components with synthetic data, never real providers. Adds the lime-wedge character as a `CustomPainter` in `lib/core/widgets/`. Provides reduced-motion variants, flow tests, and goldens.
 - **Login track.** Replaces `LoginScreen`: optional name, "Continue on this device", loading and inline error states, a welcome-back variant prefilled from the last profile, "Replay the tour", and the honest local-only note. Adds the profile sheet and its top-bar button with sign-out. Tests and goldens.
+
+## Build record (2026-09-13)
+
+- **State track — merged.** `shared_preferences` 2.5.x with `SharedPreferencesWithCache` created in `main()` before `runApp`. `PrefsOnboardingStore` and `PrefsAuthRepository` with a shared contract suite run against prefs and in-memory implementations. Routes `/onboarding` and `/login` with session-based go_router redirect and `refreshListenable`. App-level tests launch into each roadmap state. Analysis clean, 390 tests pass. See [reviews/M7.md](reviews/M7.md) — Finding 1 (write order) fixed; Finding 2 (startup exception) accepted as limitation; Finding 3 (name length) fixed; Finding 4 (step count) verified intentional.
+- **Onboarding track — merged.** Four `PageView` pages with constellation, bar, variation, and photo demonstrations using real components and synthetic data. `LimeSprite` character as `CustomPainter`. Next, Back, Skip, visible "n of 5" progress. No animation waits or automatic advances. Reduced-motion variants. Keyboard and screen-reader access. Goldens included.
+- **Login track — merged.** Optional name field, "Continue on this device", returning-user prefilled welcome variant, "Replay the tour" link, honest local-only note. Loading and inline error states. Profile sheet (signed-in top bar) with sign-out (never deletes profile or collection). Goldens included.
+- **Integrator polish — merged.** Lime sprite waves on login. Launch-flow tests through real screens. Sprite moved inside band so it does not cover page heading. Night band proportions, fennel page ground, opaque page 2 swap strip, page 4 calendar tiles, constellation label font in goldens, sprite color refinement (commits `cc216a9`, `9ab6ae7`, `e20562f`).
+- **Known limitation — startup exception.** If `SharedPreferencesWithCache.create` throws, the app does not render. The app cannot function without its flags store; revisit alongside deferred Android lost-photo recovery.
+- **Not verified.** On-device real-platform `shared_preferences`, screen-reader session, Adam's visual approval of the lime character and full screens. M7 is not marked DONE; closeout awaits Adam's on-device check.
 
 ## Design references and corrections
 
