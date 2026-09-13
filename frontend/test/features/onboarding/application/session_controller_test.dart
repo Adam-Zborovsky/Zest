@@ -1,21 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zest/features/account/data/account_repository.dart';
 import 'package:zest/features/onboarding/application/session_controller.dart';
 import 'package:zest/features/onboarding/data/session_stores.dart';
 import 'package:zest/features/onboarding/domain/launch_destination.dart';
-import 'package:zest/features/onboarding/domain/local_profile.dart';
 
+import '../../../support/fake_account_repository.dart';
 import '../../../support/in_memory_session.dart';
 
 void main() {
   late InMemoryOnboardingStore onboarding;
-  late InMemoryAuthRepository auth;
+  late FakeAccountRepository account;
   late SessionController session;
   late int notifications;
 
+  SessionController buildSession() =>
+      SessionController(onboarding: onboarding, account: account, sync: NoOpCollectionSync());
+
   setUp(() {
     onboarding = InMemoryOnboardingStore();
-    auth = InMemoryAuthRepository(clock: () => DateTime.utc(2026, 9, 13));
-    session = SessionController(onboarding: onboarding, auth: auth);
+    account = FakeAccountRepository();
+    session = buildSession();
     notifications = 0;
     session.addListener(() => notifications++);
   });
@@ -31,24 +35,24 @@ void main() {
         'launch goes to login', () async {
       await session.markOnboardingSeen();
 
-      final relaunched = SessionController(onboarding: onboarding, auth: auth);
+      final relaunched = buildSession();
       addTearDown(relaunched.dispose);
       expect(relaunched.destination, LaunchDestination.login);
-      expect(relaunched.profile, isNull);
+      expect(relaunched.account, isNull);
     });
 
     test('onboarding completed and signed in goes to the app', () async {
       await session.markOnboardingSeen();
-      await session.continueOnDevice(displayName: 'Sam');
+      await session.register(email: 'sam@example.test', password: 'longenoughpass');
 
-      final relaunched = SessionController(onboarding: onboarding, auth: auth);
+      final relaunched = buildSession();
       addTearDown(relaunched.dispose);
       expect(relaunched.destination, LaunchDestination.app);
     });
 
     test('signed out after having signed in goes to login', () async {
       await session.markOnboardingSeen();
-      await session.continueOnDevice(displayName: null);
+      await session.register(email: 'sam@example.test', password: 'longenoughpass');
       await session.signOut();
 
       expect(session.destination, LaunchDestination.login);
@@ -57,23 +61,31 @@ void main() {
 
   test('signing in from a direct login link also records onboarding, so '
       'signing out lands on login, not onboarding', () async {
-    await session.continueOnDevice(displayName: null);
+    await session.register(email: 'sam@example.test', password: 'longenoughpass');
     await session.signOut();
 
     expect(onboarding.hasSeenOnboarding, isTrue);
     expect(session.destination, LaunchDestination.login);
   });
 
-  test('continuing again after sign-out keeps the same profile id and '
-      'replaces the name, including clearing it', () async {
-    final first = await session.continueOnDevice(displayName: 'Sam');
-    await session.signOut();
-    expect(session.lastProfile, first);
+  test('register throws AccountException for an invalid email or weak '
+      'password without touching onboarding', () async {
+    await expectLater(
+      session.register(email: 'not-an-email', password: 'longenoughpass'),
+      throwsA(isA<AccountException>()),
+    );
+    expect(session.account, isNull);
 
-    final again = await session.continueOnDevice(displayName: '  ');
-    expect(again.id, first.id);
-    expect(again.createdAt, first.createdAt);
-    expect(again.displayName, isNull);
+    await expectLater(
+      session.signIn(email: 'sam@example.test', password: 'longenoughpass'),
+      throwsA(
+        isA<AccountException>().having(
+          (e) => e.failure,
+          'failure',
+          AccountFailure.invalidCredentials,
+        ),
+      ),
+    );
   });
 
   test('each successful change notifies once; repeated Skip does not', () async {
@@ -81,27 +93,28 @@ void main() {
     await session.markOnboardingSeen();
     expect(notifications, 1);
 
-    await session.continueOnDevice(displayName: null);
+    await session.register(email: 'sam@example.test', password: 'longenoughpass');
     await session.signOut();
     expect(notifications, 3);
   });
 
-  test('a failed write changes nothing and does not notify', () async {
+  test('a failed onboarding write changes nothing and does not notify', () async {
     onboarding.failNextWrite = true;
     await expectLater(
       session.markOnboardingSeen(),
       throwsA(isA<SessionStorageException>()),
     );
     expect(session.destination, LaunchDestination.onboarding);
+    expect(notifications, 0);
+  });
 
-    await session.markOnboardingSeen();
-    auth.failNextWrite = true;
+  test('a failed register throws AccountException and does not sign in', () async {
+    account.failNext = const AccountException(AccountFailure.server);
     await expectLater(
-      session.continueOnDevice(displayName: 'Sam'),
-      throwsA(isA<SessionStorageException>()),
+      session.register(email: 'sam@example.test', password: 'longenoughpass'),
+      throwsA(isA<AccountException>()),
     );
-    expect(session.destination, LaunchDestination.login);
-    expect(notifications, 1);
+    expect(session.account, isNull);
   });
 
   group('launchRedirect', () {
@@ -132,45 +145,6 @@ void main() {
       expect(launchRedirect(d, home), isNull);
       expect(launchRedirect(d, onboardingUri), SessionRoutes.home);
       expect(launchRedirect(d, loginUri), SessionRoutes.home);
-    });
-  });
-
-  group('LocalProfile', () {
-    test('trims names, treats blank as no name, and rejects overlong names', () {
-      final at = DateTime.utc(2026, 9, 13);
-      expect(
-        LocalProfile(id: 'p', displayName: '  Sam ', createdAt: at).displayName,
-        'Sam',
-      );
-      expect(
-        LocalProfile(id: 'p', displayName: '', createdAt: at).displayName,
-        isNull,
-      );
-      expect(
-        () => LocalProfile(id: 'p', displayName: 'x' * 41, createdAt: at),
-        throwsArgumentError,
-      );
-      expect(
-        () => LocalProfile(id: ' ', displayName: null, createdAt: at),
-        throwsArgumentError,
-      );
-    });
-
-    test('round-trips through JSON and rejects malformed records', () {
-      final profile = LocalProfile(
-        id: 'p',
-        displayName: 'Sam',
-        createdAt: DateTime.utc(2026, 9, 13, 8),
-      );
-      expect(LocalProfile.fromJson(profile.toJson()), profile);
-      expect(
-        () => LocalProfile.fromJson({'id': 3, 'createdAt': 'x'}),
-        throwsFormatException,
-      );
-      expect(
-        () => LocalProfile.fromJson({'id': 'p', 'createdAt': 'not a date'}),
-        throwsFormatException,
-      );
     });
   });
 }
