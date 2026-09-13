@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/core/widgets/zest_button.dart';
 import 'package:zest/features/onboarding/data/session_stores.dart';
+import 'package:zest/features/onboarding/presentation/login_screen.dart';
 
 import '../../../support/in_memory_session.dart';
 import 'onboarding_test_harness.dart';
@@ -92,7 +93,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(onboarding.hasSeenOnboarding, isTrue);
-      expect(find.text('Login'), findsOneWidget);
+      expect(find.byType(LoginScreen), findsOneWidget);
     },
   );
 
@@ -119,7 +120,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(onboarding.hasSeenOnboarding, isTrue);
-      expect(find.text('Login'), findsOneWidget);
+      expect(find.byType(LoginScreen), findsOneWidget);
     },
   );
 
@@ -144,13 +145,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('1 of 5'), findsOneWidget);
-      expect(find.text('Login'), findsNothing);
+      expect(find.byType(LoginScreen), findsNothing);
 
       // The page recovers: a following attempt still works.
       onboarding.failNextWrite = false;
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
-      expect(find.text('Login'), findsOneWidget);
+      expect(find.byType(LoginScreen), findsOneWidget);
     },
   );
 
@@ -170,6 +171,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(onboarding.writes, 1);
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.byType(LoginScreen), findsOneWidget);
   });
 }
