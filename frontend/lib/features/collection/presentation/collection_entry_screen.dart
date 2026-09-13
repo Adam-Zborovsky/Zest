@@ -666,26 +666,13 @@ class _PhotoSectionState extends ConsumerState<_PhotoSection> {
               ],
             ),
           ] else ...[
-            ClipRRect(
-              borderRadius: radius,
-              child: SizedBox(
-                height: 180,
-                width: double.infinity,
-                child: ColoredBox(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  child: Center(
-                    child: Semantics(
-                      label: 'No photo added yet',
-                      child: const ExcludeSemantics(
-                        child: BotanicalArt(
-                          motif: BotanicalMotif.emptyGlass,
-                          size: 88,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            // No photo of the person's own yet: show the cocktail's picture
+            // from the recipe source, as the calendar does, with its source
+            // credit, so it is never mistaken for the person's photo. With no
+            // source image either, RecipeImage shows its labeled artwork.
+            RecipeImage(
+              url: widget.entry.source.thumbnailUrl,
+              name: widget.entry.source.name,
             ),
             const SizedBox(height: ZestSpace.md),
             ZestButton(
