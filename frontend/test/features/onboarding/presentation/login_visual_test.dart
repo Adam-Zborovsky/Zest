@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zest/core/design/zest_theme.dart';
+import 'package:zest/features/account/data/account_repository.dart';
 import 'package:zest/features/onboarding/application/session_providers.dart';
-import 'package:zest/features/onboarding/data/session_stores.dart';
 import 'package:zest/features/onboarding/domain/launch_destination.dart';
 import 'package:zest/features/onboarding/presentation/login_screen.dart';
 
+import '../../../support/fake_account_repository.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
@@ -33,11 +34,11 @@ class _OnboardingStub extends StatelessWidget {
 Future<void> _pumpLogin(
   WidgetTester tester, {
   required Key capture,
-  AuthRepository? auth,
+  AccountRepository? account,
 }) async {
   final overrides = sessionTestOverrides(
     onboarding: InMemoryOnboardingStore(seen: true),
-    auth: auth ?? InMemoryAuthRepository(),
+    account: account ?? FakeAccountRepository(),
   );
   final container = ProviderContainer(overrides: [...overrides]);
   addTearDown(container.dispose);
@@ -87,12 +88,12 @@ void main() {
     semantics.dispose();
   }
 
-  testWidgets('login-fresh Night Garden render', (tester) async {
+  testWidgets('login Night Garden render', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(412, 915);
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    const capture = ValueKey('login-fresh-capture');
+    const capture = ValueKey('login-capture');
 
     await _pumpLogin(tester, capture: capture);
 
@@ -100,27 +101,6 @@ void main() {
     await expectLater(
       find.byKey(capture),
       matchesGoldenFile('goldens/login-fresh.png'),
-    );
-    await checkGuidelines(tester);
-  });
-
-  testWidgets('login-returning Night Garden render', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(412, 915);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    const capture = ValueKey('login-returning-capture');
-
-    await _pumpLogin(
-      tester,
-      capture: capture,
-      auth: InMemoryAuthRepository(last: syntheticProfile(displayName: 'Robin')),
-    );
-
-    expect(tester.takeException(), isNull);
-    await expectLater(
-      find.byKey(capture),
-      matchesGoldenFile('goldens/login-returning.png'),
     );
     await checkGuidelines(tester);
   });

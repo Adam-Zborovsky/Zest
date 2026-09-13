@@ -7,9 +7,8 @@ import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../application/session_controller.dart';
 import '../application/session_providers.dart';
-import '../data/session_stores.dart';
 
-/// The top-bar entry to the on-device profile sheet. Never watches or reads
+/// The top-bar entry to the account profile sheet. Never watches or reads
 /// a session provider during build — only inside [onPressed] — so any
 /// screen that renders this button in a test pumped without session
 /// overrides is unaffected.
@@ -28,18 +27,20 @@ class ProfileButton extends ConsumerWidget {
     final controller = ref.read(sessionControllerProvider);
     showZestSheet(
       context: context,
-      title: controller.profile?.displayName ?? 'On this device',
+      title: controller.account?.email ?? 'Your account',
       child: ProfileSheetBody(controller: controller),
     );
   }
 }
 
-/// The sheet body: since-date, the honest sign-out note, and Sign out.
+/// The sheet body: the account email and Sign out. This is the interim
+/// functional shell (`docs/ACCOUNTS.md`); a separate login UI track adds
+/// sync status and "Sync now" once it merges.
 ///
 /// Sign-out is attempted while the sheet is still open; the sheet closes
-/// only once it succeeds. On [SessionStorageException] the sheet stays open
-/// and states the failure inline instead, matching how the collection
-/// screens surface storage failures.
+/// only once it succeeds. On failure the sheet stays open and states it
+/// inline instead, matching how the collection screens surface storage
+/// failures.
 class ProfileSheetBody extends StatefulWidget {
   const ProfileSheetBody({super.key, required this.controller});
 
@@ -62,10 +63,10 @@ class _ProfileSheetBodyState extends State<ProfileSheetBody> {
     try {
       await widget.controller.signOut();
       if (mounted) Navigator.of(context).pop();
-    } on SessionStorageException {
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _error = "Couldn't sign out on this device. Try again.";
+          _error = "Couldn't sign out. Try again.";
         });
       }
     } finally {
@@ -75,25 +76,20 @@ class _ProfileSheetBodyState extends State<ProfileSheetBody> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = widget.controller.profile;
-    final since = profile == null
-        ? null
-        : MaterialLocalizations.of(context).formatFullDate(profile.createdAt);
+    final account = widget.controller.account;
     final textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (since != null) ...[
-          Text('Kept on this device since $since'),
-          const SizedBox(height: ZestSpace.md),
-        ],
-        Text(
-          'Signing out keeps your saves and photos on this device.',
-          style: textTheme.bodyMedium?.copyWith(
-            color: ZestPalette.secondaryInk,
+        if (account != null) ...[
+          Text(
+            account.email,
+            style: textTheme.bodyMedium?.copyWith(
+              color: ZestPalette.secondaryInk,
+            ),
           ),
-        ),
-        const SizedBox(height: ZestSpace.lg),
+          const SizedBox(height: ZestSpace.lg),
+        ],
         ZestButton(
           key: const ValueKey('profile-sign-out'),
           label: _busy ? 'Signing out…' : 'Sign out',

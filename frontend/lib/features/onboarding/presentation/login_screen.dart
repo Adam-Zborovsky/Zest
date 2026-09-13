@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_art.dart';
@@ -9,15 +8,14 @@ import '../../../core/widgets/lime_sprite.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_inline_error.dart';
+import '../../account/data/account_repository.dart';
 import '../application/session_providers.dart';
-import '../data/session_stores.dart';
-import '../domain/launch_destination.dart';
-import '../domain/local_profile.dart';
 
-/// The local-first login gate: an optional name and "Continue on this
-/// device". No account, credential, or sync — the copy under the card says
-/// so plainly. Replaces the M7 contract shell; the class name and const
-/// no-argument constructor are the contract other tracks build against.
+/// The M8 account gate: email, password, sign in, or create an account. This
+/// is the interim functional shell after M7's local-first login was
+/// superseded (`docs/ACCOUNTS.md`); a separate login UI track designs this
+/// screen properly. The class name and const no-argument constructor are the
+/// contract other tracks build against.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -26,66 +24,67 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  late final TextEditingController _nameController;
-  late final LocalProfile? _lastProfile;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _busy = false;
   String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    // Read once, here, and nowhere in build: the M7 contract requires this
-    // screen never watch a session provider during build, so app tests that
-    // pump ZestApp before the state track wires session overrides keep
-    // landing on home undisturbed. This screen only ever mounts once the
-    // router has already sent someone to /login, so the provider is wired
-    // by then.
-    _lastProfile = ref.read(sessionControllerProvider).lastProfile;
-    _nameController = TextEditingController(
-      text: _lastProfile?.displayName ?? '',
-    );
-  }
-
-  @override
   void dispose() {
-    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _continue() async {
+  Future<void> _submit({required bool register}) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await ref
-          .read(sessionControllerProvider)
-          .continueOnDevice(displayName: _nameController.text);
+      final controller = ref.read(sessionControllerProvider);
+      final email = _emailController.text;
+      final password = _passwordController.text;
+      if (register) {
+        await controller.register(email: email, password: password);
+      } else {
+        await controller.signIn(email: email, password: password);
+      }
       // The router's refresh redirect moves to home on success; nothing to
       // navigate here, and this widget may already be disposed by the time
       // the future settles.
-    } on SessionStorageException {
+    } on AccountException catch (error) {
       if (!mounted) return;
-      setState(() {
-        _error = "Couldn't save your profile on this device. Try again.";
-      });
-    } on ArgumentError {
-      // The field's maxLength already stops overlong names; this keeps the
-      // screen safe if that coupling ever breaks.
-      if (!mounted) return;
-      setState(() {
-        _error =
-            'Use a name of ${LocalProfile.maxNameLength} characters or fewer.';
-      });
+      setState(() => _error = _copyFor(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  // The night band takes roughly 55-60% of the page's available height,
-  // matching the Stitch reference, instead of leaving a blank fennel area
-  // below the card.
+  String _copyFor(AccountException error) {
+    switch (error.failure) {
+      case AccountFailure.invalidEmail:
+        return 'Enter a valid email address.';
+      case AccountFailure.weakPassword:
+        return 'Use a password of 10 to 128 characters.';
+      case AccountFailure.invalidCredentials:
+        return 'Incorrect email or password.';
+      case AccountFailure.emailTaken:
+        return 'An account with that email already exists.';
+      case AccountFailure.rateLimited:
+        final retryAfter = error.retryAfter;
+        return retryAfter == null
+            ? 'Too many attempts. Try again later.'
+            : 'Too many attempts. Try again in '
+                  '${retryAfter.inSeconds} seconds.';
+      case AccountFailure.unreachable:
+        return "Couldn't reach the server. Check your connection.";
+      case AccountFailure.server:
+        return 'Something went wrong. Try again.';
+    }
+  }
+
   static const _bandHeightFraction = 0.56;
 
   @override
@@ -141,8 +140,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // The onboarding character waves from the corner beside the short
-        // wordmark row, clear of the heading and intro lines.
         const Positioned(
           top: -4,
           right: 0,
@@ -188,13 +185,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: ZestSpace.xs),
             Semantics(
               header: true,
-              child: _heading(
-                textTheme.displayMedium!.copyWith(color: ZestPalette.nightInk),
+              child: Text(
+                'Sign in to your bar.',
+                style: textTheme.displayMedium!.copyWith(
+                  color: ZestPalette.nightInk,
+                ),
               ),
             ),
             const SizedBox(height: ZestSpace.md),
             Text(
-              'Zest keeps your bar, saves, and photos on this device.',
+              'Your saves, variations, and photos sync to your account.',
               style: textTheme.bodyLarge!.copyWith(
                 color: ZestPalette.nightMuted,
               ),
@@ -205,124 +205,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _heading(TextStyle style) {
-    final name = _lastProfile?.displayName;
-    if (_lastProfile == null) {
-      return Text.rich(
-        TextSpan(
-          text: 'Pull up a ',
-          children: [
-            TextSpan(
-              text: 'stool.',
-              style: const TextStyle(
-                color: ZestPalette.grapefruit,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        style: style,
-      );
-    }
-    if (name == null) {
-      return Text('Welcome back.', style: style);
-    }
-    return Text.rich(
-      TextSpan(
-        text: 'Welcome back, ',
+  Widget _body(BuildContext context) {
+    return ZestCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextSpan(
-            text: '$name.',
-            style: const TextStyle(color: ZestPalette.grapefruit),
+          Text('Email', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: ZestSpace.sm),
+          TextField(
+            key: const ValueKey('login-email-field'),
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(hintText: 'you@example.com'),
           ),
+          const SizedBox(height: ZestSpace.md),
+          Text('Password', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: ZestSpace.sm),
+          TextField(
+            key: const ValueKey('login-password-field'),
+            controller: _passwordController,
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(register: false),
+            decoration: const InputDecoration(hintText: 'At least 10 characters'),
+          ),
+          const SizedBox(height: ZestSpace.lg),
+          ZestButton(
+            key: const ValueKey('login-sign-in'),
+            label: _busy ? 'Signing in…' : 'Sign in',
+            onPressed: _busy ? null : () => _submit(register: false),
+          ),
+          const SizedBox(height: ZestSpace.sm),
+          ZestButton(
+            key: const ValueKey('login-create-account'),
+            label: _busy ? 'Please wait…' : 'Create account',
+            kind: ZestButtonKind.secondary,
+            onPressed: _busy ? null : () => _submit(register: true),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: ZestSpace.md),
+            ZestInlineError(_error!),
+          ],
         ],
       ),
-      style: style,
-    );
-  }
-
-  Widget _body(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ZestCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text.rich(
-                TextSpan(
-                  text: 'Your name ',
-                  children: [
-                    TextSpan(
-                      text: '(optional)',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: ZestPalette.secondaryInk,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-                style: textTheme.titleSmall,
-              ),
-              const SizedBox(height: ZestSpace.sm),
-              TextField(
-                key: const ValueKey('login-name-field'),
-                controller: _nameController,
-                maxLength: LocalProfile.maxNameLength,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _continue(),
-                decoration: const InputDecoration(
-                  hintText: 'What should we call you?',
-                  counterText: '',
-                ),
-              ),
-              const SizedBox(height: ZestSpace.sm),
-              ZestButton(
-                key: const ValueKey('login-continue'),
-                label: _busy ? 'Setting up…' : 'Continue on this device',
-                onPressed: _busy ? null : _continue,
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: ZestSpace.md),
-                ZestInlineError(_error!),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: ZestSpace.lg),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: 16,
-                color: ZestPalette.leaf,
-              ),
-            ),
-            const SizedBox(width: ZestSpace.sm),
-            Expanded(
-              child: Text(
-                'No account and no sync. Everything stays on this device.',
-                style: textTheme.bodySmall?.copyWith(color: ZestPalette.leaf),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: ZestSpace.lg),
-        Center(
-          child: ZestButton(
-            key: const ValueKey('login-replay-tour'),
-            label: 'Replay the tour',
-            kind: ZestButtonKind.quiet,
-            expand: false,
-            onPressed: () => context.go(SessionRoutes.onboarding),
-          ),
-        ),
-      ],
     );
   }
 }
