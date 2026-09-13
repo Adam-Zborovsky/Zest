@@ -9,6 +9,7 @@ import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/in_memory_collection_repository.dart';
 import '../../../support/load_fonts.dart';
@@ -57,6 +58,7 @@ void main() {
       ProviderScope(
         overrides: [
           ...collectionTestOverrides(repository: repository, picker: picker),
+          ...sessionTestOverrides(),
           cocktailDbClientProvider.overrideWithValue(client),
           recipeImageProvider.overrideWithValue((url) {
             requestedUrls.add(url);

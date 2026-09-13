@@ -23,12 +23,19 @@ dependencies:
   drift_flutter: ^0.3.1
   path_provider: ^2.1.6
   image_picker: ^1.2.3
+  # M7 onboarding and session flags: the flags store already named in
+  # AGENTS.md, backing whether onboarding was seen and the local-first
+  # profile (no account, credential, or sync).
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   build_runner: ^2.15.1
   drift_dev: ^2.35.0
   flutter_test:
     sdk: flutter
+  # M7 onboarding: InMemorySharedPreferencesAsync backs the shared
+  # session-store contract suite run against the prefs-backed stores.
+  shared_preferences_platform_interface: ^2.4.2
 
 flutter:
   uses-material-design: true

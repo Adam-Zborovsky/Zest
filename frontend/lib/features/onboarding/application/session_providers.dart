@@ -1,21 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/prefs_session_stores.dart';
 import '../data/session_stores.dart';
 import 'session_controller.dart';
+import 'session_storage_providers.dart';
 
-/// Contract providers: they throw until M7 integration wires the
-/// `shared_preferences`-backed stores. Tests override them with the fakes in
-/// `test/support/in_memory_session.dart`.
+/// Wired to the `shared_preferences`-backed stores over the shared
+/// `SharedPreferencesWithCache` from [sharedPreferencesProvider]. Tests
+/// override these with the fakes in `test/support/in_memory_session.dart`.
 final onboardingStoreProvider = Provider<OnboardingStore>(
-  (ref) => throw UnimplementedError(
-    'onboardingStoreProvider is wired at M7 integration',
-  ),
+  (ref) => PrefsOnboardingStore(ref.watch(sharedPreferencesProvider)),
 );
 
 final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => throw UnimplementedError(
-    'authRepositoryProvider is wired at M7 integration',
-  ),
+  (ref) => PrefsAuthRepository(ref.watch(sharedPreferencesProvider)),
 );
 
 final sessionControllerProvider = Provider<SessionController>((ref) {

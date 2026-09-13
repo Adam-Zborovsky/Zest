@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
 
+import '../support/in_memory_session.dart';
 import '../support/load_fonts.dart';
 
 void main() {
@@ -16,7 +18,13 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       const capture = ValueKey('gallery-capture');
       await tester.pumpWidget(
-        const RepaintBoundary(key: capture, child: ZestApp(showGallery: true)),
+        ProviderScope(
+          overrides: [...sessionTestOverrides()],
+          child: const RepaintBoundary(
+            key: capture,
+            child: ZestApp(showGallery: true),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

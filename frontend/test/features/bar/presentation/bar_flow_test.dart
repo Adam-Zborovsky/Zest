@@ -15,6 +15,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
 import '../../../support/bar_fixtures.dart';
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
 Finder keyed(String value) => find.byKey(ValueKey(value));
@@ -103,6 +104,7 @@ Future<void> openApp(
         cocktailDbClientProvider.overrideWithValue(client),
         if (now != null) nowProvider.overrideWithValue(now),
         ...collectionTestOverrides(),
+        ...sessionTestOverrides(),
       ],
       child: ZestApp(initialLocation: location),
     ),

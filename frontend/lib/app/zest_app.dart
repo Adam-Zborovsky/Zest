@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design/zest_theme.dart';
+import '../features/onboarding/application/session_providers.dart';
 import 'design_gallery.dart';
 import 'zest_router.dart';
 
-class ZestApp extends StatefulWidget {
+class ZestApp extends ConsumerStatefulWidget {
   const ZestApp({super.key, this.showGallery = false, this.initialLocation});
 
   /// The temporary M1 gallery is off by default in profile/release builds.
@@ -14,14 +16,25 @@ class ZestApp extends StatefulWidget {
   final String? initialLocation;
 
   @override
-  State<ZestApp> createState() => _ZestAppState();
+  ConsumerState<ZestApp> createState() => _ZestAppState();
 }
 
-class _ZestAppState extends State<ZestApp> {
+class _ZestAppState extends ConsumerState<ZestApp> {
   bool _previewReducedMotion = false;
-  late final GoRouter _router = createZestRouter(
-    initialLocation: widget.initialLocation,
-  );
+  // Initialized eagerly in initState, not as a late-final field initializer:
+  // the gallery build path never reads `_router`, so a lazy initializer would
+  // otherwise run for the first time inside dispose() — after the element is
+  // deactivating, when `ref.read` is unsafe.
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = createZestRouter(
+      initialLocation: widget.initialLocation,
+      session: ref.read(sessionControllerProvider),
+    );
+  }
 
   @override
   void dispose() {

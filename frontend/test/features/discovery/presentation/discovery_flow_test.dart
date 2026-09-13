@@ -14,6 +14,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/load_fonts.dart';
 
@@ -47,6 +48,7 @@ Future<void> openDiscovery(
           sourceLauncherProvider.overrideWithValue(launchSource),
         if (now != null) nowProvider.overrideWithValue(now),
         ...collectionTestOverrides(),
+        ...sessionTestOverrides(),
       ],
       child: ZestApp(initialLocation: location),
     ),

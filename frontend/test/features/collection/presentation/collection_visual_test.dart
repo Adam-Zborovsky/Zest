@@ -10,6 +10,7 @@ import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/in_memory_collection_repository.dart';
 import '../../../support/load_fonts.dart';
@@ -41,6 +42,7 @@ Future<void> _renderAndCheck(
     ProviderScope(
       overrides: [
         ...collectionTestOverrides(repository: repository),
+        ...sessionTestOverrides(),
         cocktailDbClientProvider.overrideWithValue(client),
         nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
         // Source thumbnails render a synthetic picture; no network.

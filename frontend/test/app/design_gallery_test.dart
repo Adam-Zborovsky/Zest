@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/widgets/zest_button.dart';
 import 'package:zest/core/widgets/zest_states.dart';
 
+import '../support/in_memory_session.dart';
 import '../support/load_fonts.dart';
 
 Future<void> openGallery(
@@ -16,7 +18,12 @@ Future<void> openGallery(
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(const ZestApp(showGallery: true));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [...sessionTestOverrides()],
+      child: const ZestApp(showGallery: true),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 

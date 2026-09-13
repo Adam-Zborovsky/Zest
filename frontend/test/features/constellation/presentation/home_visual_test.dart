@@ -10,6 +10,7 @@ import 'package:zest/features/discovery/domain/recipe.dart';
 import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
 /// A synthetic collection shaped like a real bar: 300 invented recipes over
@@ -111,6 +112,7 @@ void main() {
               source: FakeCatalogLetterSource(letters: {}),
             ),
             ...collectionTestOverrides(),
+            ...sessionTestOverrides(),
           ],
           child: const RepaintBoundary(key: capture, child: ZestApp()),
         ),

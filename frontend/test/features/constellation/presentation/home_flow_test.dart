@@ -23,6 +23,7 @@ import 'package:zest/features/discovery/domain/recipe.dart';
 import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
 Finder keyed(String value) => find.byKey(ValueKey(value));
@@ -88,6 +89,7 @@ Future<FakeCatalogLetterSource> openHome(
         cocktailDbClientProvider.overrideWithValue(client),
         if (now != null) nowProvider.overrideWithValue(now),
         ...collectionTestOverrides(),
+        ...sessionTestOverrides(),
       ],
       child: const ZestApp(),
     ),

@@ -4,6 +4,7 @@ import 'package:zest/app/zest_app.dart';
 
 import 'support/catalog_wiring.dart';
 import 'support/collection_test_overrides.dart';
+import 'support/in_memory_session.dart';
 
 void main() {
   testWidgets('default shell opens home with the constellation lead without '
@@ -17,6 +18,7 @@ void main() {
         overrides: [
           ...catalogTestOverrides(database: database, source: source),
           ...collectionTestOverrides(),
+          ...sessionTestOverrides(),
         ],
         child: const ZestApp(),
       ),

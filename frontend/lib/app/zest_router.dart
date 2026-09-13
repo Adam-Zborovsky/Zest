@@ -10,17 +10,37 @@ import '../features/constellation/presentation/home_screen.dart';
 import '../features/discovery/domain/discovery_query.dart';
 import '../features/discovery/presentation/discovery_screen.dart';
 import '../features/discovery/presentation/recipe_detail_screen.dart';
+import '../features/onboarding/application/session_controller.dart';
+import '../features/onboarding/domain/launch_destination.dart';
+import '../features/onboarding/presentation/login_screen.dart';
+import '../features/onboarding/presentation/onboarding_screen.dart';
 
-GoRouter createZestRouter({String? initialLocation}) {
+GoRouter createZestRouter({
+  String? initialLocation,
+  required SessionController session,
+}) {
   // Keep recipe pushes addressable on web while preserving their origin on Back.
   GoRouter.optionURLReflectsImperativeAPIs = true;
   return GoRouter(
     initialLocation: initialLocation,
+    refreshListenable: session,
+    redirect: (context, state) =>
+        launchRedirect(session.destination, state.uri),
     routes: [
       GoRoute(
         path: '/',
         pageBuilder: (context, state) =>
             _page(context, state, const HomeScreen()),
+      ),
+      GoRoute(
+        path: SessionRoutes.onboarding,
+        pageBuilder: (context, state) =>
+            _page(context, state, const OnboardingScreen()),
+      ),
+      GoRoute(
+        path: SessionRoutes.login,
+        pageBuilder: (context, state) =>
+            _page(context, state, const LoginScreen()),
       ),
       GoRoute(
         path: '/bar',

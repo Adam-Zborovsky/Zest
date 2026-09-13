@@ -7,6 +7,7 @@ import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/load_fonts.dart';
 
@@ -49,6 +50,7 @@ void main() {
           overrides: [
             cocktailDbClientProvider.overrideWithValue(client),
             ...collectionTestOverrides(),
+            ...sessionTestOverrides(),
           ],
           child: RepaintBoundary(
             key: capture,
