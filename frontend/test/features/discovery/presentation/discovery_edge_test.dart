@@ -14,6 +14,7 @@ import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/collection_test_overrides.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/load_fonts.dart';
 
@@ -131,6 +132,7 @@ Future<void> _pumpApp(
         cocktailDbClientProvider.overrideWithValue(client),
         if (imageProvider != null)
           recipeImageProvider.overrideWithValue(imageProvider),
+        ...collectionTestOverrides(),
       ],
       child: ZestApp(initialLocation: location),
     ),

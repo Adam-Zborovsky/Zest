@@ -6,6 +6,7 @@ import 'package:zest/app/zest_app.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
+import '../../../support/collection_test_overrides.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/load_fonts.dart';
 
@@ -45,7 +46,10 @@ void main() {
       const capture = ValueKey('m3-capture');
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [cocktailDbClientProvider.overrideWithValue(client)],
+          overrides: [
+            cocktailDbClientProvider.overrideWithValue(client),
+            ...collectionTestOverrides(),
+          ],
           child: RepaintBoundary(
             key: capture,
             child: ZestApp(initialLocation: specimen.location),

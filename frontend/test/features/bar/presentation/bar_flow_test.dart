@@ -14,6 +14,7 @@ import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
 import '../../../support/bar_fixtures.dart';
+import '../../../support/collection_test_overrides.dart';
 import '../../../support/load_fonts.dart';
 
 Finder keyed(String value) => find.byKey(ValueKey(value));
@@ -47,10 +48,11 @@ List<Map<String, dynamic>> gardenRecipes() => [
   ),
 ];
 
-http.Response _json(Object body) =>
-    http.Response(jsonEncode(body), 200, headers: {
-      'content-type': 'application/json; charset=utf-8',
-    });
+http.Response _json(Object body) => http.Response(
+  jsonEncode(body),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
 
 Future<http.Response> _respond(
   http.Request request, {
@@ -69,7 +71,9 @@ Future<http.Response> _respond(
       (record) => record['idDrink'] == id,
       orElse: () => barRecipeJson(id: id, name: 'Paper Garden $id'),
     );
-    return _json({'drinks': [recipe]});
+    return _json({
+      'drinks': [recipe],
+    });
   }
   return _json({'drinks': gardenRecipes()});
 }
@@ -98,6 +102,7 @@ Future<void> openApp(
       overrides: [
         cocktailDbClientProvider.overrideWithValue(client),
         if (now != null) nowProvider.overrideWithValue(now),
+        ...collectionTestOverrides(),
       ],
       child: ZestApp(initialLocation: location),
     ),
@@ -183,7 +188,10 @@ void main() {
         tester.widget<ZestButton>(keyed('bar-find-matches')).onPressed,
         isNull,
       );
-      expect(find.text('Select at least one ingredient to start matching.'), findsOneWidget);
+      expect(
+        find.text('Select at least one ingredient to start matching.'),
+        findsOneWidget,
+      );
 
       // Picker: options load, nothing checked, toggling reflects immediately.
       await activate(tester, keyed('bar-add-ingredients'));
@@ -206,8 +214,14 @@ void main() {
 
       expect(find.text('Ready to make'), findsOneWidget);
       expect(find.text('Garden Sour'), findsOneWidget);
-      expect(find.text('Ready now — every essential is on your shelf.'), findsOneWidget);
-      expect(find.textContaining('Garnish not counted: Nutmeg.'), findsOneWidget);
+      expect(
+        find.text('Ready now — every essential is on your shelf.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Garnish not counted: Nutmeg.'),
+        findsOneWidget,
+      );
 
       expect(find.text('Possible with a substitution'), findsOneWidget);
       expect(find.text('Garden Gimlet'), findsOneWidget);
@@ -226,7 +240,9 @@ void main() {
       );
 
       expect(
-        find.text('Finished checking 3 of 3 recipes. 1 ready, 1 with a substitution, 1 missing essentials.'),
+        find.text(
+          'Finished checking 3 of 3 recipes. 1 ready, 1 with a substitution, 1 missing essentials.',
+        ),
         findsOneWidget,
       );
       expect(
@@ -427,11 +443,7 @@ void main() {
       addTearDown(
         tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
       );
-      await openApp(
-        tester,
-        size: const Size(320, 720),
-        respond: _respond,
-      );
+      await openApp(tester, size: const Size(320, 720), respond: _respond);
       await search(tester, 'Paper Garden');
       await activate(tester, keyed('bar-from-preview'));
       expectReadable(tester);
