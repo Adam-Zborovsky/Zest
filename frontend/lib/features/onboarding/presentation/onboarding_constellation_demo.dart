@@ -46,8 +46,17 @@ class OnboardingConstellationDemo extends StatelessWidget {
         child: OnboardingEntrance(
           active: active,
           duration: ZestMotion.pop,
+          // The real constellation canvas passes the theme's DM Sans label
+          // style into its painter; a bare TextStyle here (no fontFamily)
+          // fell back to the Flutter test harness's default glyph-box font,
+          // rendering labels as solid bars in goldens.
           builder: (context, t) => CustomPaint(
-            painter: _ConstellationDemoPainter(pop: t),
+            painter: _ConstellationDemoPainter(
+              pop: t,
+              labelStyle: Theme.of(
+                context,
+              ).textTheme.labelSmall!.copyWith(color: ZestPalette.leaf),
+            ),
             size: Size.infinite,
           ),
         ),
@@ -57,11 +66,16 @@ class OnboardingConstellationDemo extends StatelessWidget {
 }
 
 class _ConstellationDemoPainter extends CustomPainter {
-  const _ConstellationDemoPainter({required this.pop});
+  const _ConstellationDemoPainter({required this.pop, required this.labelStyle});
 
   /// 0 → 1 one-shot entrance for the selected node only; neighbors are
   /// always drawn at rest so the surrounding graph reads immediately.
   final double pop;
+
+  /// The theme's DM Sans label style, matching the real constellation
+  /// canvas — labels need an explicit font family or they fall back to the
+  /// platform default, which the golden test harness cannot render.
+  final TextStyle labelStyle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -101,14 +115,7 @@ class _ConstellationDemoPainter extends CustomPainter {
 
   void _drawLabel(Canvas canvas, Offset anchor, String text) {
     final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(
-          color: ZestPalette.leaf,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      text: TextSpan(text: text, style: labelStyle),
       textDirection: TextDirection.ltr,
     )..layout();
     final rect = Rect.fromCenter(

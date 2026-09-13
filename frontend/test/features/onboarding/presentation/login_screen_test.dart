@@ -212,6 +212,9 @@ void main() {
   testWidgets('Replay the tour goes to /onboarding', (tester) async {
     final router = await _pumpLogin(tester);
 
+    // The night band now grows to fill about 55% of the page, so on the
+    // default 800x600 test surface the link sits below the fold.
+    await tester.ensureVisible(keyed('login-replay-tour'));
     await tester.tap(keyed('login-replay-tour'));
     await tester.pumpAndSettle();
 

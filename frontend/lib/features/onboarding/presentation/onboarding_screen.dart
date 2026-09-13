@@ -141,7 +141,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final lastPage = _page == _pages.length - 1;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      // No explicit backgroundColor: the page ground is fennel, matching
+      // login and the design system's "peach is for cards" rule — the
+      // theme's scaffoldBackgroundColor already is ZestPalette.fennel.
       body: SafeArea(
         child: Column(
           children: [
@@ -270,7 +272,9 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: Theme.of(context).colorScheme.surface,
+    // Fennel, matching the page ground below the night band — peach is
+    // reserved for cards.
+    color: ZestPalette.fennel,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(
         ZestSpace.page,

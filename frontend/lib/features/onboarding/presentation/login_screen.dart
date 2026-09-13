@@ -75,41 +75,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  // The night band takes roughly 55-60% of the page's available height,
+  // matching the Stitch reference, instead of leaving a blank fennel area
+  // below the card.
+  static const _bandHeightFraction = 0.56;
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              NightBand(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    ZestSpace.page,
-                    ZestSpace.md + topInset,
-                    ZestSpace.page,
-                    ZestSpace.lg,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bandMinHeight = constraints.maxHeight * _bandHeightFraction;
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: bandMinHeight),
+                    child: NightBand(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          ZestSpace.page,
+                          ZestSpace.md + topInset,
+                          ZestSpace.page,
+                          ZestSpace.lg,
+                        ),
+                        child: Center(child: _band(context)),
+                      ),
+                    ),
                   ),
-                  child: _band(context),
-                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      ZestSpace.page,
+                      ZestSpace.xl,
+                      ZestSpace.page,
+                      ZestSpace.xxl,
+                    ),
+                    child: _body(context),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  ZestSpace.page,
-                  ZestSpace.xl,
-                  ZestSpace.page,
-                  ZestSpace.xxl,
-                ),
-                child: _body(context),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
