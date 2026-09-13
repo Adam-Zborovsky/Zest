@@ -26,13 +26,7 @@ class OnboardingBarDemo extends StatelessWidget {
             spacing: ZestSpace.sm,
             runSpacing: ZestSpace.sm,
             children: [
-              for (final (name, have) in _shelf)
-                PaperTag(
-                  label: name,
-                  color: have ? ZestPalette.celery : Colors.transparent,
-                  icon: have ? Icons.check_rounded : Icons.add_rounded,
-                  dashed: !have,
-                ),
+              for (final (name, have) in _shelf) _ShelfChip(label: name, have: have),
             ],
           ),
           const SizedBox(height: ZestSpace.lg),
@@ -57,7 +51,7 @@ class OnboardingBarDemo extends StatelessWidget {
                   t: t,
                   index: 1,
                   icon: Icons.swap_horiz_rounded,
-                  tint: ZestPalette.grapefruit.withValues(alpha: 0.4),
+                  tint: ZestPalette.grapefruit,
                   title: 'Southside Fizz',
                   detail: 'Works with a swap — soda water for sparkling water.',
                 ),
@@ -125,6 +119,52 @@ class OnboardingBarDemo extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One shelf chip: an owned ingredient reuses the shared celery [PaperTag];
+/// an unowned one needs its own peach-outlined treatment because the
+/// shared tag's dashed state reads as near-invisible on the night band.
+class _ShelfChip extends StatelessWidget {
+  const _ShelfChip({required this.label, required this.have});
+
+  final String label;
+  final bool have;
+
+  @override
+  Widget build(BuildContext context) {
+    if (have) {
+      return PaperTag(
+        label: label,
+        color: ZestPalette.celery,
+        icon: Icons.check_rounded,
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: ZestShape.pill,
+        border: Border.all(color: ZestPalette.nightInk, width: 1.2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ZestSpace.md,
+          vertical: ZestSpace.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add_rounded, size: 16, color: ZestPalette.nightInk),
+            const SizedBox(width: ZestSpace.xs),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium!.copyWith(
+                color: ZestPalette.nightInk,
+              ),
+            ),
+          ],
         ),
       ),
     );

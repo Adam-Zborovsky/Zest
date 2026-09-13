@@ -36,9 +36,12 @@ class _LimeSpritePainter extends CustomPainter {
 
   final LimeSpritePose pose;
 
-  static const _rind = ZestPalette.celery;
-  static const _pulp = ZestPalette.fennel;
-  static const _pith = ZestPalette.peach;
+  // A pale pulp fill would match the fennel page ground exactly and read as
+  // a ghost; moss/celery keep the wedge legible on both the night band and
+  // the fennel page.
+  static const _rind = ZestPalette.moss;
+  static const _pulp = ZestPalette.celery;
+  static const _pith = ZestPalette.leaf;
   static const _ink = ZestPalette.leaf;
 
   @override
@@ -49,9 +52,9 @@ class _LimeSpritePainter extends CustomPainter {
 
     final rindPaint = Paint()..color = _rind;
     final pithPaint = Paint()
-      ..color = _pith
+      ..color = _pith.withValues(alpha: 0.75)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6;
+      ..strokeWidth = 1.8;
     final inkStroke = Paint()
       ..color = _ink
       ..style = PaintingStyle.stroke

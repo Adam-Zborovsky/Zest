@@ -21,62 +21,77 @@ class OnboardingPageShell extends StatelessWidget {
   final Widget demo;
   final LimeSpritePose spritePose;
 
-  static const _spriteSize = 72.0;
+  // About 96 logical pixels so the character reads as a character, per
+  // docs/ONBOARDING.md.
+  static const _spriteSize = 96.0;
+
+  /// The night band and its demo take roughly 55-60% of the page's
+  /// available height, matching the Stitch references, instead of leaving
+  /// the lower fennel section mostly empty.
+  static const _bandHeightFraction = 0.68;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bandMinHeight = constraints.maxHeight * _bandHeightFraction;
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              NightBand(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ZestSpace.page,
-                    vertical: ZestSpace.xl,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: bandMinHeight),
+                    child: NightBand(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: ZestSpace.page,
+                          vertical: ZestSpace.xl,
+                        ),
+                        child: Center(child: demo),
+                      ),
+                    ),
                   ),
-                  child: demo,
-                ),
+                  // Straddles the band's torn edge so the character reads as
+                  // a supporting presence beside the demo, never inside it.
+                  Positioned(
+                    right: ZestSpace.page,
+                    bottom: -_spriteSize * 0.4,
+                    child: LimeSprite(pose: spritePose, size: _spriteSize),
+                  ),
+                ],
               ),
-              // Straddles the band's torn edge so the character reads as a
-              // supporting presence beside the demo, never inside it.
-              Positioned(
-                right: ZestSpace.page,
-                bottom: -_spriteSize * 0.4,
-                child: LimeSprite(pose: spritePose, size: _spriteSize),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  ZestSpace.page,
+                  ZestSpace.xl,
+                  ZestSpace.page,
+                  ZestSpace.md,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(heading, style: textTheme.headlineMedium),
+                    ),
+                    const SizedBox(height: ZestSpace.sm),
+                    Text(
+                      intro,
+                      style: textTheme.bodyLarge!.copyWith(
+                        color: ZestPalette.secondaryInk,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              ZestSpace.page,
-              ZestSpace.xl,
-              ZestSpace.page,
-              ZestSpace.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(heading, style: textTheme.headlineMedium),
-                ),
-                const SizedBox(height: ZestSpace.sm),
-                Text(
-                  intro,
-                  style: textTheme.bodyLarge!.copyWith(
-                    color: ZestPalette.secondaryInk,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -14,9 +14,12 @@ class OnboardingMemoryDemo extends StatelessWidget {
 
   static const _weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-  /// The photo tile sits on Wednesday; today (with the grapefruit ring) is
-  /// Tuesday, so the demo shows both a past memory and the present day.
+  /// The photo tile sits on Wednesday, a second day (Friday) shows the
+  /// several-drinks bubble treatment, and today (with the grapefruit ring)
+  /// is Tuesday — the demo shows a past memory, a busier day, and the
+  /// present day, matching the real collection calendar.
   static const _photoIndex = 2;
+  static const _bubbleIndex = 4;
   static const _todayIndex = 1;
 
   @override
@@ -54,7 +57,11 @@ class OnboardingMemoryDemo extends StatelessWidget {
                       label: _weekdays[i],
                       dayNumber: 12 + i,
                       isToday: i == _todayIndex,
-                      hasPhoto: i == _photoIndex,
+                      kind: switch (i) {
+                        _photoIndex => _TileKind.photo,
+                        _bubbleIndex => _TileKind.bubbles,
+                        _ => _TileKind.plain,
+                      },
                       entranceT: i == _photoIndex ? t : 1,
                     ),
                   ),
@@ -92,19 +99,24 @@ class OnboardingMemoryDemo extends StatelessWidget {
   );
 }
 
+/// What a demo day tile shows, mirroring the real collection calendar: a
+/// plain day, a single cut-paper memory, or several drinks as stacked
+/// circles.
+enum _TileKind { plain, photo, bubbles }
+
 class _DayTile extends StatelessWidget {
   const _DayTile({
     required this.label,
     required this.dayNumber,
     required this.isToday,
-    required this.hasPhoto,
+    required this.kind,
     required this.entranceT,
   });
 
   final String label;
   final int dayNumber;
   final bool isToday;
-  final bool hasPhoto;
+  final _TileKind kind;
 
   /// 0 → 1 drop-in for the photo tile only.
   final double entranceT;
@@ -127,42 +139,129 @@ class _DayTile extends StatelessWidget {
         const SizedBox(height: ZestSpace.xs),
         AspectRatio(
           aspectRatio: 0.8,
-          child: DecoratedBox(
-            decoration: BoxDecoration(borderRadius: _radius, border: ring),
-            child: hasPhoto
-                ? Transform.translate(
-                    offset: Offset(0, (1 - entranceT) * -12),
-                    child: Opacity(
-                      opacity: entranceT,
-                      child: ClipRRect(
-                        borderRadius: _radius,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            const ColoredBox(color: ZestPalette.moss),
-                            const Center(
-                              child: BotanicalArt(motif: BotanicalMotif.citrus, size: 26),
-                            ),
-                            ColoredBox(color: ZestPalette.leaf.withValues(alpha: 0.45)),
-                            Center(child: _dayNumber(context)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                : Center(child: _dayNumber(context, quiet: true)),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              switch (kind) {
+                _TileKind.photo => _PhotoTile(
+                  entranceT: entranceT,
+                  dayNumber: dayNumber,
+                ),
+                _TileKind.bubbles => const _BubblesTile(),
+                _TileKind.plain => Center(
+                  child: _dayNumber(context, dayNumber, quiet: true),
+                ),
+              },
+              if (ring != null)
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(borderRadius: _radius, border: ring),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _dayNumber(BuildContext context, {bool quiet = false}) => Text(
-    '$dayNumber',
-    style: Theme.of(context).textTheme.labelMedium!.copyWith(
-      color: quiet ? ZestPalette.nightMuted : Colors.white,
-      fontWeight: FontWeight.w700,
+Text _dayNumber(BuildContext context, int dayNumber, {bool quiet = false}) => Text(
+  '$dayNumber',
+  style: Theme.of(context).textTheme.labelMedium!.copyWith(
+    color: quiet ? ZestPalette.nightMuted : Colors.white,
+    fontWeight: FontWeight.w700,
+  ),
+);
+
+/// A rounded tile with cut-paper cocktail art under a 45% leaf tint and the
+/// white date number, matching `CollectionScreen`'s single-drink day cell —
+/// never a real photo.
+class _PhotoTile extends StatelessWidget {
+  const _PhotoTile({required this.entranceT, required this.dayNumber});
+
+  final double entranceT;
+  final int dayNumber;
+
+  static const _radius = BorderRadius.all(Radius.circular(ZestSpace.sm));
+
+  @override
+  Widget build(BuildContext context) => Transform.translate(
+    offset: Offset(0, (1 - entranceT) * -12),
+    child: Opacity(
+      opacity: entranceT,
+      child: ClipRRect(
+        borderRadius: _radius,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: ZestPalette.celery),
+            const Center(
+              child: FractionallySizedBox(
+                widthFactor: 0.66,
+                heightFactor: 0.66,
+                child: FittedBox(
+                  child: BotanicalArt(motif: BotanicalMotif.garnish, size: 48),
+                ),
+              ),
+            ),
+            ColoredBox(color: ZestPalette.leaf.withValues(alpha: 0.45)),
+            Center(child: _dayNumber(context, dayNumber)),
+          ],
+        ),
+      ),
     ),
+  );
+}
+
+/// Several drinks in one day: two overlapping floating circles, the smaller
+/// tucked under the largest like stacked stickers, matching the real
+/// `_BubbleDay` layout with synthetic cut-paper fills instead of photos.
+class _BubblesTile extends StatelessWidget {
+  const _BubblesTile();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final size = constraints.maxWidth;
+      Widget bubble(double cx, double cy, double diameter, Color fill, BotanicalMotif motif) {
+        final d = diameter * size;
+        return Positioned(
+          left: (cx - diameter / 2) * size,
+          top: (cy - diameter / 2) * size,
+          width: d,
+          height: d,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: ZestPalette.peach, width: 1.5),
+              ),
+            ),
+            child: ClipOval(
+              child: ColoredBox(
+                color: fill,
+                child: Center(
+                  child: FractionallySizedBox(
+                    widthFactor: 0.6,
+                    heightFactor: 0.6,
+                    child: FittedBox(child: BotanicalArt(motif: motif, size: 32)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Stack(
+        children: [
+          // Smaller bubble first, tucked under the larger one drawn after.
+          bubble(0.80, 0.20, 0.40, ZestPalette.disabledSurface, BotanicalMotif.citrus),
+          bubble(0.42, 0.60, 0.78, ZestPalette.celery, BotanicalMotif.garnish),
+        ],
+      );
+    },
   );
 }
 
