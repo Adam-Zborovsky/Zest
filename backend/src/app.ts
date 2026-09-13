@@ -2,6 +2,9 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { GatewayError, RecipeGateway } from './gateway.js';
 import type { Endpoint, Fetcher, Operation } from './gateway.js';
+import { registerAccountsRoutes } from './accounts/routes.js';
+import type { Db } from './accounts/db.js';
+import type { Argon2Options } from './accounts/auth.js';
 
 export interface AppOptions {
   apiKey: string;
@@ -14,6 +17,13 @@ export interface AppOptions {
   maxBytes?: number;
   maxResponseBytes?: number;
   maxConcurrent?: number;
+  // Accounts and synced collection (M8, docs/ACCOUNTS.md). Omitting `db`
+  // leaves the accounts/sync/photo routes unregistered.
+  db?: Db;
+  photoDir?: string;
+  argon2Options?: Argon2Options;
+  clock?: () => Date;
+  tokenGenerator?: () => string;
 }
 
 export function buildApp(options: AppOptions) {
@@ -29,8 +39,15 @@ export function buildApp(options: AppOptions) {
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
   });
-  app.register(cors, { origin: origins, methods: ['GET'], credentials: false,
-    allowedHeaders: ['Accept'], exposedHeaders: ['Retry-After'] });
+  // Widened for accounts and sync (docs/ACCOUNTS.md): still loopback-only origins, no credentials.
+  app.register(cors, { origin: origins, methods: ['GET', 'POST', 'PUT', 'DELETE'], credentials: false,
+    allowedHeaders: ['Accept', 'Authorization', 'Content-Type'], exposedHeaders: ['Retry-After'] });
+  if (options.db) {
+    app.register(registerAccountsRoutes, {
+      db: options.db, photoDir: options.photoDir ?? './data/photos',
+      argon2Options: options.argon2Options, clock: options.clock, tokenGenerator: options.tokenGenerator,
+    });
+  }
   app.get('/api/health', async () => ({ status: 'ok' }));
   const text = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[^\\u0000-\\u001f\\u007f]+$' };
   const routes: [Endpoint, object][] = [
