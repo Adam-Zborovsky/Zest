@@ -188,7 +188,7 @@ void runCollectionRepositoryContract(
 
     test('delete removes the entry photo', () async {
       final entry = await repository.saveRecipe(recipe());
-      await repository.setPhoto(entry.id, onePixelPng());
+      await repository.setPhoto(entry.id, validTinyPng());
       await repository.delete(entry.id);
 
       expect(await repository.photo(entry.id), isNull);
@@ -196,14 +196,14 @@ void runCollectionRepositoryContract(
 
     test('setPhoto throws StateError for a missing id', () async {
       expect(
-        () => repository.setPhoto('missing', onePixelPng()),
+        () => repository.setPhoto('missing', validTinyPng()),
         throwsA(isA<StateError>()),
       );
     });
 
     test('setPhoto sets hasPhoto and stores the photo', () async {
       final entry = await repository.saveRecipe(recipe());
-      await repository.setPhoto(entry.id, onePixelPng());
+      await repository.setPhoto(entry.id, validTinyPng());
 
       final stored = await repository.watchEntry(entry.id).first;
       expect(stored!.hasPhoto, isTrue);
@@ -214,7 +214,7 @@ void runCollectionRepositoryContract(
 
     test('setPhoto replaces any existing photo', () async {
       final entry = await repository.saveRecipe(recipe());
-      await repository.setPhoto(entry.id, onePixelPng());
+      await repository.setPhoto(entry.id, validTinyPng());
       final replacement = syntheticPngPhoto();
       await repository.setPhoto(entry.id, replacement);
 
@@ -232,7 +232,7 @@ void runCollectionRepositoryContract(
 
     test('removePhoto clears an existing photo', () async {
       final entry = await repository.saveRecipe(recipe());
-      await repository.setPhoto(entry.id, onePixelPng());
+      await repository.setPhoto(entry.id, validTinyPng());
       await repository.removePhoto(entry.id);
 
       expect((await repository.watchEntry(entry.id).first)!.hasPhoto, isFalse);
@@ -265,7 +265,7 @@ void runCollectionRepositoryContract(
       // Bump `a` back to the front by touching its photo, which bumps
       // `updatedAt` without changing its identity.
       current = current.add(const Duration(minutes: 1));
-      await repository.setPhoto(a.id, onePixelPng());
+      await repository.setPhoto(a.id, validTinyPng());
 
       final ids = (await repository.watchEntries().first)
           .map((entry) => entry.id)

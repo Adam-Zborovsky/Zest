@@ -62,7 +62,7 @@ void main() {
     tester,
   ) async {
     final repository = InMemoryCollectionRepository();
-    final picker = FakeMemoryPhotoPicker(next: onePixelPng());
+    final picker = FakeMemoryPhotoPicker(next: validTinyPng());
     await openEntry(tester, repository: repository, picker: picker);
 
     expect(find.text('No photo added yet'), findsNothing);
@@ -79,7 +79,7 @@ void main() {
     expect(keyed('photo-add'), findsNothing);
 
     // Replace with a second photo.
-    picker.next = onePixelPng();
+    picker.next = validTinyPng();
     await activate(tester, keyed('photo-replace'));
     await activate(tester, keyed('photo-choose-gallery'));
     expect(picker.requests, [PhotoSource.gallery, PhotoSource.gallery]);

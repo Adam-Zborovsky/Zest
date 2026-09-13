@@ -57,6 +57,15 @@ Future<void> _renderAndCheck(
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
+  // Image decoding does not complete inside the fake-async test zone, so
+  // memory photos are decoded for real before capture; otherwise the golden
+  // would show an empty image box instead of the person's photo.
+  await tester.runAsync(() async {
+    for (final element in find.byType(Image).evaluate()) {
+      await precacheImage((element.widget as Image).image, element);
+    }
+  });
+  await tester.pumpAndSettle();
   expect(tester.takeException(), isNull);
   await expectLater(
     find.byKey(capture),
@@ -118,11 +127,9 @@ void main() {
     final entry = await repository.saveRecipe(
       _recipe(id: '99001', name: 'Paper Garden'),
     );
-    // onePixelPng() cannot actually be decoded by this environment's image
-    // codec (a contract fixture defect — see the final report), so this
-    // golden legitimately exercises and shows the designed
-    // decode-failure fallback rather than a rendered bitmap.
-    await repository.setPhoto(entry.id, onePixelPng());
+    // A decodable synthetic PNG, so the golden shows a rendered memory photo
+    // rather than the decode-failure fallback.
+    await repository.setPhoto(entry.id, validTinyPng());
     await _renderAndCheck(
       tester,
       'collection-entry-photo',

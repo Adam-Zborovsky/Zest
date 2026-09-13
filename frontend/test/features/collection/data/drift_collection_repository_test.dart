@@ -91,7 +91,7 @@ void main() {
       'photo bytes live in the photos table and list queries never load them',
       () async {
         final entry = await repository.saveRecipe(recipe());
-        await repository.setPhoto(entry.id, onePixelPng());
+        await repository.setPhoto(entry.id, validTinyPng());
 
         // The entries table itself carries no bytes column, so a plain
         // select of entries physically cannot return image bytes.
@@ -103,7 +103,7 @@ void main() {
         final photoRow = await (database.select(
           database.photos,
         )..where((t) => t.entryId.equals(entry.id))).getSingle();
-        expect(photoRow.bytes, onePixelPng().bytes);
+        expect(photoRow.bytes, validTinyPng().bytes);
         expect(photoRow.mimeType, 'image/png');
       },
     );
@@ -117,7 +117,7 @@ void main() {
       var repo = DriftCollectionRepository(database: db, now: () => stamp);
       final source = recipe();
       final saved = await repo.saveRecipe(source);
-      await repo.setPhoto(saved.id, onePixelPng());
+      await repo.setPhoto(saved.id, validTinyPng());
       await db.close();
 
       db = CollectionDatabase(NativeDatabase(File(path)));
@@ -127,7 +127,7 @@ void main() {
       expect(reopened!.source.toJson(), source.toJson());
       final photo = await repo.photo(saved.id);
       expect(photo, isNotNull);
-      expect(photo!.bytes, onePixelPng().bytes);
+      expect(photo!.bytes, validTinyPng().bytes);
       await db.close();
     });
 

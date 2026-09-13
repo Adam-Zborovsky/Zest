@@ -6,8 +6,8 @@ import 'package:zest/features/collection/data/memory_photo_picker.dart';
 import 'package:zest/features/collection/domain/memory_photo.dart';
 
 /// A valid, decodable 1x1 PNG (synthetic, not a personal photo). Mirrors
-/// `test/support/in_memory_collection_repository.dart`'s onePixelPng bytes.
-Uint8List _onePixelPng() => Uint8List.fromList(const [
+/// `test/support/in_memory_collection_repository.dart`'s validTinyPng bytes.
+Uint8List _validTinyPng() => Uint8List.fromList(const [
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
   0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
   0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
@@ -71,7 +71,7 @@ void main() {
 
     test('maps gallery to ImageSource.gallery with 1600/1600/85', () async {
       final picker = makePicker(
-        result: () => XFile.fromData(_onePixelPng(), mimeType: 'image/png'),
+        result: () => XFile.fromData(_validTinyPng(), mimeType: 'image/png'),
       );
 
       await picker.pick(PhotoSource.gallery);
@@ -85,7 +85,7 @@ void main() {
 
     test('maps camera to ImageSource.camera with 1600/1600/85', () async {
       final picker = makePicker(
-        result: () => XFile.fromData(_onePixelPng(), mimeType: 'image/png'),
+        result: () => XFile.fromData(_validTinyPng(), mimeType: 'image/png'),
       );
 
       await picker.pick(PhotoSource.camera);
@@ -107,14 +107,14 @@ void main() {
 
     test('valid PNG bytes produce a MemoryPhoto with image/png', () async {
       final picker = makePicker(
-        result: () => XFile.fromData(_onePixelPng(), mimeType: 'image/png'),
+        result: () => XFile.fromData(_validTinyPng(), mimeType: 'image/png'),
       );
 
       final photo = await picker.pick(PhotoSource.gallery);
 
       expect(photo, isNotNull);
       expect(photo!.mimeType, 'image/png');
-      expect(photo.bytes, _onePixelPng());
+      expect(photo.bytes, _validTinyPng());
     });
 
     test(
@@ -280,7 +280,7 @@ void main() {
                 int? imageQuality,
               }) async => null,
           retrieveLostData: () async => LostDataResponse(
-            file: XFile.fromData(_onePixelPng(), mimeType: 'image/png'),
+            file: XFile.fromData(_validTinyPng(), mimeType: 'image/png'),
           ),
         );
 
