@@ -3,21 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "demo": "node --import tsx tool/demo.ts"
+    "demo": "node --import tsx tool/demo.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env --import tsx src/accounts/migrate.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
-    "fastify": "^5.12.4"
+    "@fastify/rate-limit": "11.2.0",
+    "argon2": "0.45.1",
+    "drizzle-orm": "0.45.2",
+    "fastify": "^5.12.4",
+    "pg": "8.23.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@types/node": "^24.0.0",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.10",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }
