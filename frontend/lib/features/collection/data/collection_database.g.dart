@@ -106,6 +106,49 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _dirtyMeta = const VerificationMeta('dirty');
+  @override
+  late final GeneratedColumn<bool> dirty = GeneratedColumn<bool>(
+    'dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _deletedMeta = const VerificationMeta(
+    'deleted',
+  );
+  @override
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _photoDirtyMeta = const VerificationMeta(
+    'photoDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> photoDirty = GeneratedColumn<bool>(
+    'photo_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("photo_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -117,6 +160,9 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     hasPhoto,
     createdAt,
     updatedAt,
+    dirty,
+    deleted,
+    photoDirty,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -191,6 +237,24 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('dirty')) {
+      context.handle(
+        _dirtyMeta,
+        dirty.isAcceptableOrUnknown(data['dirty']!, _dirtyMeta),
+      );
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(
+        _deletedMeta,
+        deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta),
+      );
+    }
+    if (data.containsKey('photo_dirty')) {
+      context.handle(
+        _photoDirtyMeta,
+        photoDirty.isAcceptableOrUnknown(data['photo_dirty']!, _photoDirtyMeta),
+      );
+    }
     return context;
   }
 
@@ -238,6 +302,18 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      dirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dirty'],
+      )!,
+      deleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}deleted'],
+      )!,
+      photoDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}photo_dirty'],
+      )!,
     );
   }
 
@@ -260,6 +336,19 @@ class Entry extends DataClass implements Insertable<Entry> {
   final bool hasPhoto;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Schema 3 (M8 sync). True while this row has local changes the server
+  /// has not yet seen. New rows are dirty by default so an offline save
+  /// still uploads once the person signs in or reconnects.
+  final bool dirty;
+
+  /// Schema 3. A tombstone: the row is kept (its sync history matters) but
+  /// every read hides it. Set by `DriftCollectionRepository.delete`.
+  final bool deleted;
+
+  /// Schema 3. True while this entry's photo has a local change (set or
+  /// removed) not yet pushed, independent of [dirty].
+  final bool photoDirty;
   const Entry({
     required this.id,
     required this.kind,
@@ -270,6 +359,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     required this.hasPhoto,
     required this.createdAt,
     required this.updatedAt,
+    required this.dirty,
+    required this.deleted,
+    required this.photoDirty,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -287,6 +379,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     map['has_photo'] = Variable<bool>(hasPhoto);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['dirty'] = Variable<bool>(dirty);
+    map['deleted'] = Variable<bool>(deleted);
+    map['photo_dirty'] = Variable<bool>(photoDirty);
     return map;
   }
 
@@ -303,6 +398,9 @@ class Entry extends DataClass implements Insertable<Entry> {
       hasPhoto: Value(hasPhoto),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      dirty: Value(dirty),
+      deleted: Value(deleted),
+      photoDirty: Value(photoDirty),
     );
   }
 
@@ -321,6 +419,9 @@ class Entry extends DataClass implements Insertable<Entry> {
       hasPhoto: serializer.fromJson<bool>(json['hasPhoto']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      dirty: serializer.fromJson<bool>(json['dirty']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      photoDirty: serializer.fromJson<bool>(json['photoDirty']),
     );
   }
   @override
@@ -336,6 +437,9 @@ class Entry extends DataClass implements Insertable<Entry> {
       'hasPhoto': serializer.toJson<bool>(hasPhoto),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'dirty': serializer.toJson<bool>(dirty),
+      'deleted': serializer.toJson<bool>(deleted),
+      'photoDirty': serializer.toJson<bool>(photoDirty),
     };
   }
 
@@ -349,6 +453,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     bool? hasPhoto,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? dirty,
+    bool? deleted,
+    bool? photoDirty,
   }) => Entry(
     id: id ?? this.id,
     kind: kind ?? this.kind,
@@ -361,6 +468,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     hasPhoto: hasPhoto ?? this.hasPhoto,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    dirty: dirty ?? this.dirty,
+    deleted: deleted ?? this.deleted,
+    photoDirty: photoDirty ?? this.photoDirty,
   );
   Entry copyWithCompanion(EntriesCompanion data) {
     return Entry(
@@ -379,6 +489,11 @@ class Entry extends DataClass implements Insertable<Entry> {
       hasPhoto: data.hasPhoto.present ? data.hasPhoto.value : this.hasPhoto,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      dirty: data.dirty.present ? data.dirty.value : this.dirty,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      photoDirty: data.photoDirty.present
+          ? data.photoDirty.value
+          : this.photoDirty,
     );
   }
 
@@ -393,7 +508,10 @@ class Entry extends DataClass implements Insertable<Entry> {
           ..write('day: $day, ')
           ..write('hasPhoto: $hasPhoto, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('dirty: $dirty, ')
+          ..write('deleted: $deleted, ')
+          ..write('photoDirty: $photoDirty')
           ..write(')'))
         .toString();
   }
@@ -409,6 +527,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     hasPhoto,
     createdAt,
     updatedAt,
+    dirty,
+    deleted,
+    photoDirty,
   );
   @override
   bool operator ==(Object other) =>
@@ -422,7 +543,10 @@ class Entry extends DataClass implements Insertable<Entry> {
           other.day == this.day &&
           other.hasPhoto == this.hasPhoto &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.dirty == this.dirty &&
+          other.deleted == this.deleted &&
+          other.photoDirty == this.photoDirty);
 }
 
 class EntriesCompanion extends UpdateCompanion<Entry> {
@@ -435,6 +559,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
   final Value<bool> hasPhoto;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<bool> dirty;
+  final Value<bool> deleted;
+  final Value<bool> photoDirty;
   final Value<int> rowid;
   const EntriesCompanion({
     this.id = const Value.absent(),
@@ -446,6 +573,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     this.hasPhoto = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.dirty = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.photoDirty = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   EntriesCompanion.insert({
@@ -458,6 +588,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     this.hasPhoto = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.dirty = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.photoDirty = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        kind = Value(kind),
@@ -475,6 +608,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Expression<bool>? hasPhoto,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<bool>? dirty,
+    Expression<bool>? deleted,
+    Expression<bool>? photoDirty,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -487,6 +623,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       if (hasPhoto != null) 'has_photo': hasPhoto,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (dirty != null) 'dirty': dirty,
+      if (deleted != null) 'deleted': deleted,
+      if (photoDirty != null) 'photo_dirty': photoDirty,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -501,6 +640,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Value<bool>? hasPhoto,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<bool>? dirty,
+    Value<bool>? deleted,
+    Value<bool>? photoDirty,
     Value<int>? rowid,
   }) {
     return EntriesCompanion(
@@ -513,6 +655,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       hasPhoto: hasPhoto ?? this.hasPhoto,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      dirty: dirty ?? this.dirty,
+      deleted: deleted ?? this.deleted,
+      photoDirty: photoDirty ?? this.photoDirty,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -549,6 +694,15 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (dirty.present) {
+      map['dirty'] = Variable<bool>(dirty.value);
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (photoDirty.present) {
+      map['photo_dirty'] = Variable<bool>(photoDirty.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -567,6 +721,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
           ..write('hasPhoto: $hasPhoto, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('dirty: $dirty, ')
+          ..write('deleted: $deleted, ')
+          ..write('photoDirty: $photoDirty, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -886,11 +1043,275 @@ class PhotosCompanion extends UpdateCompanion<Photo> {
   }
 }
 
+class $SyncStateTable extends SyncState
+    with TableInfo<$SyncStateTable, SyncStateData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncStateTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ownerUserIdMeta = const VerificationMeta(
+    'ownerUserId',
+  );
+  @override
+  late final GeneratedColumn<String> ownerUserId = GeneratedColumn<String>(
+    'owner_user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastRevisionMeta = const VerificationMeta(
+    'lastRevision',
+  );
+  @override
+  late final GeneratedColumn<int> lastRevision = GeneratedColumn<int>(
+    'last_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, ownerUserId, lastRevision];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncStateData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('owner_user_id')) {
+      context.handle(
+        _ownerUserIdMeta,
+        ownerUserId.isAcceptableOrUnknown(
+          data['owner_user_id']!,
+          _ownerUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_revision')) {
+      context.handle(
+        _lastRevisionMeta,
+        lastRevision.isAcceptableOrUnknown(
+          data['last_revision']!,
+          _lastRevisionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SyncStateData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncStateData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      ownerUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_user_id'],
+      ),
+      lastRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_revision'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncStateTable createAlias(String alias) {
+    return $SyncStateTable(attachedDatabase, alias);
+  }
+}
+
+class SyncStateData extends DataClass implements Insertable<SyncStateData> {
+  final int id;
+
+  /// Null until an account has claimed this device's data.
+  final String? ownerUserId;
+  final int lastRevision;
+  const SyncStateData({
+    required this.id,
+    this.ownerUserId,
+    required this.lastRevision,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || ownerUserId != null) {
+      map['owner_user_id'] = Variable<String>(ownerUserId);
+    }
+    map['last_revision'] = Variable<int>(lastRevision);
+    return map;
+  }
+
+  SyncStateCompanion toCompanion(bool nullToAbsent) {
+    return SyncStateCompanion(
+      id: Value(id),
+      ownerUserId: ownerUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerUserId),
+      lastRevision: Value(lastRevision),
+    );
+  }
+
+  factory SyncStateData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncStateData(
+      id: serializer.fromJson<int>(json['id']),
+      ownerUserId: serializer.fromJson<String?>(json['ownerUserId']),
+      lastRevision: serializer.fromJson<int>(json['lastRevision']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'ownerUserId': serializer.toJson<String?>(ownerUserId),
+      'lastRevision': serializer.toJson<int>(lastRevision),
+    };
+  }
+
+  SyncStateData copyWith({
+    int? id,
+    Value<String?> ownerUserId = const Value.absent(),
+    int? lastRevision,
+  }) => SyncStateData(
+    id: id ?? this.id,
+    ownerUserId: ownerUserId.present ? ownerUserId.value : this.ownerUserId,
+    lastRevision: lastRevision ?? this.lastRevision,
+  );
+  SyncStateData copyWithCompanion(SyncStateCompanion data) {
+    return SyncStateData(
+      id: data.id.present ? data.id.value : this.id,
+      ownerUserId: data.ownerUserId.present
+          ? data.ownerUserId.value
+          : this.ownerUserId,
+      lastRevision: data.lastRevision.present
+          ? data.lastRevision.value
+          : this.lastRevision,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncStateData(')
+          ..write('id: $id, ')
+          ..write('ownerUserId: $ownerUserId, ')
+          ..write('lastRevision: $lastRevision')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, ownerUserId, lastRevision);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncStateData &&
+          other.id == this.id &&
+          other.ownerUserId == this.ownerUserId &&
+          other.lastRevision == this.lastRevision);
+}
+
+class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
+  final Value<int> id;
+  final Value<String?> ownerUserId;
+  final Value<int> lastRevision;
+  const SyncStateCompanion({
+    this.id = const Value.absent(),
+    this.ownerUserId = const Value.absent(),
+    this.lastRevision = const Value.absent(),
+  });
+  SyncStateCompanion.insert({
+    this.id = const Value.absent(),
+    this.ownerUserId = const Value.absent(),
+    this.lastRevision = const Value.absent(),
+  });
+  static Insertable<SyncStateData> custom({
+    Expression<int>? id,
+    Expression<String>? ownerUserId,
+    Expression<int>? lastRevision,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (ownerUserId != null) 'owner_user_id': ownerUserId,
+      if (lastRevision != null) 'last_revision': lastRevision,
+    });
+  }
+
+  SyncStateCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? ownerUserId,
+    Value<int>? lastRevision,
+  }) {
+    return SyncStateCompanion(
+      id: id ?? this.id,
+      ownerUserId: ownerUserId ?? this.ownerUserId,
+      lastRevision: lastRevision ?? this.lastRevision,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (ownerUserId.present) {
+      map['owner_user_id'] = Variable<String>(ownerUserId.value);
+    }
+    if (lastRevision.present) {
+      map['last_revision'] = Variable<int>(lastRevision.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncStateCompanion(')
+          ..write('id: $id, ')
+          ..write('ownerUserId: $ownerUserId, ')
+          ..write('lastRevision: $lastRevision')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$CollectionDatabase extends GeneratedDatabase {
   _$CollectionDatabase(QueryExecutor e) : super(e);
   $CollectionDatabaseManager get managers => $CollectionDatabaseManager(this);
   late final $EntriesTable entries = $EntriesTable(this);
   late final $PhotosTable photos = $PhotosTable(this);
+  late final $SyncStateTable syncState = $SyncStateTable(this);
   late final Index entriesSourceRecipeId = Index(
     'entries_source_recipe_id',
     'CREATE INDEX entries_source_recipe_id ON entries (source_recipe_id)',
@@ -906,6 +1327,7 @@ abstract class _$CollectionDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     entries,
     photos,
+    syncState,
     entriesSourceRecipeId,
     entriesDay,
   ];
@@ -922,6 +1344,9 @@ typedef $$EntriesTableCreateCompanionBuilder =
       Value<bool> hasPhoto,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<bool> dirty,
+      Value<bool> deleted,
+      Value<bool> photoDirty,
       Value<int> rowid,
     });
 typedef $$EntriesTableUpdateCompanionBuilder =
@@ -935,6 +1360,9 @@ typedef $$EntriesTableUpdateCompanionBuilder =
       Value<bool> hasPhoto,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<bool> dirty,
+      Value<bool> deleted,
+      Value<bool> photoDirty,
       Value<int> rowid,
     });
 
@@ -996,6 +1424,21 @@ class $$EntriesTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get photoDirty => $composableBuilder(
+    column: $table.photoDirty,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$EntriesTableOrderingComposer
@@ -1051,6 +1494,21 @@ class $$EntriesTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get photoDirty => $composableBuilder(
+    column: $table.photoDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$EntriesTableAnnotationComposer
@@ -1094,6 +1552,17 @@ class $$EntriesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get dirty =>
+      $composableBuilder(column: $table.dirty, builder: (column) => column);
+
+  GeneratedColumn<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => column);
+
+  GeneratedColumn<bool> get photoDirty => $composableBuilder(
+    column: $table.photoDirty,
+    builder: (column) => column,
+  );
 }
 
 class $$EntriesTableTableManager
@@ -1133,6 +1602,9 @@ class $$EntriesTableTableManager
                 Value<bool> hasPhoto = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<bool> photoDirty = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => EntriesCompanion(
                 id: id,
@@ -1144,6 +1616,9 @@ class $$EntriesTableTableManager
                 hasPhoto: hasPhoto,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                dirty: dirty,
+                deleted: deleted,
+                photoDirty: photoDirty,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1157,6 +1632,9 @@ class $$EntriesTableTableManager
                 Value<bool> hasPhoto = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<bool> dirty = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<bool> photoDirty = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => EntriesCompanion.insert(
                 id: id,
@@ -1168,6 +1646,9 @@ class $$EntriesTableTableManager
                 hasPhoto: hasPhoto,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                dirty: dirty,
+                deleted: deleted,
+                photoDirty: photoDirty,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -1385,6 +1866,179 @@ typedef $$PhotosTableProcessedTableManager =
       Photo,
       PrefetchHooks Function()
     >;
+typedef $$SyncStateTableCreateCompanionBuilder =
+    SyncStateCompanion Function({
+      Value<int> id,
+      Value<String?> ownerUserId,
+      Value<int> lastRevision,
+    });
+typedef $$SyncStateTableUpdateCompanionBuilder =
+    SyncStateCompanion Function({
+      Value<int> id,
+      Value<String?> ownerUserId,
+      Value<int> lastRevision,
+    });
+
+class $$SyncStateTableFilterComposer
+    extends Composer<_$CollectionDatabase, $SyncStateTable> {
+  $$SyncStateTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncStateTableOrderingComposer
+    extends Composer<_$CollectionDatabase, $SyncStateTable> {
+  $$SyncStateTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncStateTableAnnotationComposer
+    extends Composer<_$CollectionDatabase, $SyncStateTable> {
+  $$SyncStateTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => column,
+  );
+}
+
+class $$SyncStateTableTableManager
+    extends
+        RootTableManager<
+          _$CollectionDatabase,
+          $SyncStateTable,
+          SyncStateData,
+          $$SyncStateTableFilterComposer,
+          $$SyncStateTableOrderingComposer,
+          $$SyncStateTableAnnotationComposer,
+          $$SyncStateTableCreateCompanionBuilder,
+          $$SyncStateTableUpdateCompanionBuilder,
+          (
+            SyncStateData,
+            BaseReferences<
+              _$CollectionDatabase,
+              $SyncStateTable,
+              SyncStateData
+            >,
+          ),
+          SyncStateData,
+          PrefetchHooks Function()
+        > {
+  $$SyncStateTableTableManager(_$CollectionDatabase db, $SyncStateTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncStateTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncStateTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncStateTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> ownerUserId = const Value.absent(),
+                Value<int> lastRevision = const Value.absent(),
+              }) => SyncStateCompanion(
+                id: id,
+                ownerUserId: ownerUserId,
+                lastRevision: lastRevision,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> ownerUserId = const Value.absent(),
+                Value<int> lastRevision = const Value.absent(),
+              }) => SyncStateCompanion.insert(
+                id: id,
+                ownerUserId: ownerUserId,
+                lastRevision: lastRevision,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SyncStateTable, SyncStateData>(table),
+                  BaseReferences<
+                    _$CollectionDatabase,
+                    $SyncStateTable,
+                    SyncStateData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncStateTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CollectionDatabase,
+      $SyncStateTable,
+      SyncStateData,
+      $$SyncStateTableFilterComposer,
+      $$SyncStateTableOrderingComposer,
+      $$SyncStateTableAnnotationComposer,
+      $$SyncStateTableCreateCompanionBuilder,
+      $$SyncStateTableUpdateCompanionBuilder,
+      (
+        SyncStateData,
+        BaseReferences<_$CollectionDatabase, $SyncStateTable, SyncStateData>,
+      ),
+      SyncStateData,
+      PrefetchHooks Function()
+    >;
 
 class $CollectionDatabaseManager {
   final _$CollectionDatabase _db;
@@ -1393,4 +2047,6 @@ class $CollectionDatabaseManager {
       $$EntriesTableTableManager(_db, _db.entries);
   $$PhotosTableTableManager get photos =>
       $$PhotosTableTableManager(_db, _db.photos);
+  $$SyncStateTableTableManager get syncState =>
+      $$SyncStateTableTableManager(_db, _db.syncState);
 }

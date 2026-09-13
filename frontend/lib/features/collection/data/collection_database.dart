@@ -41,6 +41,32 @@ class Entries extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// Schema 3 (M8 sync). True while this row has local changes the server
+  /// has not yet seen. New rows are dirty by default so an offline save
+  /// still uploads once the person signs in or reconnects.
+  BoolColumn get dirty => boolean().withDefault(const Constant(true))();
+
+  /// Schema 3. A tombstone: the row is kept (its sync history matters) but
+  /// every read hides it. Set by `DriftCollectionRepository.delete`.
+  BoolColumn get deleted => boolean().withDefault(const Constant(false))();
+
+  /// Schema 3. True while this entry's photo has a local change (set or
+  /// removed) not yet pushed, independent of [dirty].
+  BoolColumn get photoDirty => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Schema 3 (M8 sync). One row (id 0) tracking which account owns this
+/// device's collection data and how far its pull has progressed.
+class SyncState extends Table {
+  IntColumn get id => integer().withDefault(const Constant(0))();
+
+  /// Null until an account has claimed this device's data.
+  TextColumn get ownerUserId => text().nullable()();
+  IntColumn get lastRevision => integer().withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -58,14 +84,14 @@ class Photos extends Table {
   Set<Column> get primaryKey => {entryId};
 }
 
-@DriftDatabase(tables: [Entries, Photos])
+@DriftDatabase(tables: [Entries, Photos, SyncState])
 final class CollectionDatabase extends _$CollectionDatabase {
   /// Tests pass an in-memory or temp-file executor; the app passes the
   /// platform-appropriate connection from `openCollectionConnection`.
   CollectionDatabase(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -81,9 +107,21 @@ final class CollectionDatabase extends _$CollectionDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS entries_day ON entries (day);',
         );
+      }
+      if (from < 3) {
+        // M8 sync: every existing row predates accounts, so it is marked
+        // dirty (the column's own default) to upload on the first sign-in.
+        await m.addColumn(entries, entries.dirty);
+        await m.addColumn(entries, entries.deleted);
+        await m.addColumn(entries, entries.photoDirty);
+        await m.createTable(syncState);
+      }
+      if (from < 2) {
         // Date each existing entry by the local day it was created. Done in
         // Dart rather than SQL so the day matches the app's own local time,
-        // which SQLite on the web cannot see.
+        // which SQLite on the web cannot see. Runs after every column for
+        // the target schema exists, so mapping a row here never hits a
+        // column that has not been added yet.
         final rows = await select(entries).get();
         for (final row in rows) {
           await (update(entries)..where((t) => t.id.equals(row.id))).write(
