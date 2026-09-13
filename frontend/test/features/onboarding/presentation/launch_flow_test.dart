@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
@@ -151,5 +152,38 @@ void main() {
 
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
+  });
+
+  group('through the real screens', () {
+    testWidgets('fresh launch: Skip, then Continue on this device, opens '
+        'home', (tester) async {
+      await openApp(tester, onboardingSeen: false, signedIn: false);
+
+      await tester.tap(find.byKey(const ValueKey('onboarding-skip')));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginScreen), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('login-name-field')),
+        'Sam',
+      );
+      await tester.tap(find.byKey(const ValueKey('login-continue')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('Sign out from the profile sheet opens login, which welcomes '
+        'the same profile back', (tester) async {
+      await openApp(tester, onboardingSeen: true, signedIn: true);
+
+      await tester.tap(find.byKey(const ValueKey('open-profile')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('profile-sign-out')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.textContaining('Welcome back'), findsOneWidget);
+    });
   });
 }

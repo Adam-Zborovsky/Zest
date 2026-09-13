@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_art.dart';
 import '../../../core/widgets/botanical_paper.dart';
+import '../../../core/widgets/lime_sprite.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_inline_error.dart';
@@ -119,10 +120,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        // The onboarding character waves from the corner beside the short
+        // wordmark row, clear of the heading and intro lines.
         const Positioned(
-          top: -6,
-          right: -6,
-          child: BotanicalArt(motif: BotanicalMotif.citrus, size: 40),
+          top: -4,
+          right: 0,
+          child: LimeSprite(pose: LimeSpritePose.wave, size: 64),
         ),
         const Positioned(
           bottom: 2,
