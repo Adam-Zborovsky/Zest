@@ -5,6 +5,8 @@ build/
 node_modules/
 /backend/dist/
 /backend/coverage/
+# Postgres data dir and locally stored account photos (M8, docs/ACCOUNTS.md)
+/backend/data/
 .flutter-plugins
 .flutter-plugins-dependencies
 # Flutter's generated golden-test comparison images (not reviewed baselines)

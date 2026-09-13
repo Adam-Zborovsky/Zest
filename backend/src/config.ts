@@ -1,7 +1,12 @@
+import { isIP } from 'node:net';
+
 export interface Config {
   apiKey: string;
   port: number;
   origins: string[];
+  databaseUrl: string;
+  photoDir: string;
+  host: string;
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -24,5 +29,19 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error('CORS_ORIGINS must contain exact loopback HTTP(S) origins.');
     }
   }
-  return { apiKey, port, origins: [...new Set(origins)] };
+  const databaseUrl = env.DATABASE_URL;
+  if (!databaseUrl || !/^postgres(ql)?:\/\/.+/.test(databaseUrl)) {
+    throw new Error('DATABASE_URL is required and must be a postgres(ql):// connection string.');
+  }
+  const photoDir = env.PHOTO_DIR ?? './data/photos';
+  if (!photoDir.trim()) throw new Error('PHOTO_DIR must not be blank.');
+  const host = env.HOST ?? '127.0.0.1';
+  if (!['127.0.0.1', '::1', '0.0.0.0'].includes(host) && isIP(host) === 0) {
+    throw new Error('HOST must be 127.0.0.1, ::1, 0.0.0.0, or a valid IP literal.');
+  }
+  return { apiKey, port, origins: [...new Set(origins)], databaseUrl, photoDir, host };
+}
+
+export function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
 }
