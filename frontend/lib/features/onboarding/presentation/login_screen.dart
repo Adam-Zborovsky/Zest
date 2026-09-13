@@ -70,6 +70,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _error = "Couldn't save your profile on this device. Try again.";
       });
+    } on ArgumentError {
+      // The field's maxLength already stops overlong names; this keeps the
+      // screen safe if that coupling ever breaks.
+      if (!mounted) return;
+      setState(() {
+        _error =
+            'Use a name of ${LocalProfile.maxNameLength} characters or fewer.';
+      });
     } finally {
       if (mounted) setState(() => _busy = false);
     }

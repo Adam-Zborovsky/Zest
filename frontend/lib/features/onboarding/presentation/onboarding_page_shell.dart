@@ -55,11 +55,12 @@ class OnboardingPageShell extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Straddles the band's torn edge so the character reads as
-                  // a supporting presence beside the demo, never inside it.
+                  // Stands on the band just above its torn edge: a supporting
+                  // presence beside the demo that never covers the heading
+                  // below the edge.
                   Positioned(
                     right: ZestSpace.page,
-                    bottom: -_spriteSize * 0.4,
+                    bottom: NightBand.edgeDepth + ZestSpace.xs,
                     child: LimeSprite(pose: spritePose, size: _spriteSize),
                   ),
                 ],
