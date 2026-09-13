@@ -177,26 +177,59 @@ class _FrameTopBar extends StatelessWidget {
           // Plain "Back": the previous page may be home, discovery, a recipe,
           // or the collection, so naming one destination would mislead.
           tooltip: 'Back',
+          // With no history (a deep link or a web refresh), Back goes home
+          // rather than leaving the person stranded.
           onPressed:
               onBack ??
-              () => context.canPop() ? context.pop() : context.go('/discover'),
+              () => context.canPop() ? context.pop() : context.go('/'),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         const SizedBox(width: ZestSpace.xs),
       ],
-      const DecoratedBox(
-        decoration: BoxDecoration(
-          color: ZestPalette.peach,
-          shape: BoxShape.circle,
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(5),
-          child: BotanicalArt(size: 34),
-        ),
-      ),
-      const SizedBox(width: ZestSpace.sm),
+      // The wordmark is the always-available route home, from any depth.
       Expanded(
-        child: Text('Zest', style: Theme.of(context).textTheme.headlineSmall),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Tooltip(
+            message: 'Home',
+            child: InkWell(
+              key: const ValueKey('wordmark-home'),
+              borderRadius: BorderRadius.circular(ZestSpace.xl),
+              onTap: () => context.go('/'),
+              child: Semantics(
+                button: true,
+                label: 'Zest home',
+                excludeSemantics: true,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: ZestPalette.peach,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(5),
+                          child: BotanicalArt(size: 34),
+                        ),
+                      ),
+                      const SizedBox(width: ZestSpace.sm),
+                      Flexible(
+                        child: Text(
+                          'Zest',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      const SizedBox(width: ZestSpace.sm),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
       IconButton(
         key: const ValueKey('open-collection'),

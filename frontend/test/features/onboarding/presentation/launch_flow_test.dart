@@ -154,6 +154,48 @@ void main() {
     expect(find.byType(HomeScreen), findsNothing);
   });
 
+  group('a way home from every screen', () {
+    testWidgets('Find recipes, then Back, returns home', (tester) async {
+      // Tall enough that the home action tiles are on screen and tappable.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(900, 1600);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await openApp(tester);
+      final tile = find.byKey(const ValueKey('home-discover'));
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsNothing);
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('Back with no history (a deep link) goes home', (
+      tester,
+    ) async {
+      await openApp(tester, initialLocation: '/discover');
+      expect(find.byType(HomeScreen), findsNothing);
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('the wordmark goes home from deep inside the app', (
+      tester,
+    ) async {
+      await openApp(tester, initialLocation: '/collection');
+      expect(find.byType(HomeScreen), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('wordmark-home')));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+  });
+
   group('through the real screens', () {
     testWidgets('fresh launch: Skip, then Continue on this device, opens '
         'home', (tester) async {

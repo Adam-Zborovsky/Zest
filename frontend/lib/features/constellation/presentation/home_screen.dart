@@ -146,7 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           else
             _graphDetails(context, graph),
           const SizedBox(height: ZestSpace.xxl),
-          const _ActionTiles(),
+          _ActionTiles(onLeave: _clearSelection),
           const SizedBox(height: ZestSpace.xxl),
           const CatalogSyncCard(key: ValueKey('home-sync-card')),
           const SizedBox(height: ZestSpace.xl),
@@ -409,7 +409,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 /// The two core tasks as cut-paper tiles. They sit side by side when there
 /// is room and stack at narrow widths or large text.
 class _ActionTiles extends StatelessWidget {
-  const _ActionTiles();
+  const _ActionTiles({required this.onLeave});
+
+  /// Clears the constellation selection. Home stays mounted under a pushed
+  /// page, so without this a selection would still be there on Back, and
+  /// the design rule is that a selection does not survive leaving home.
+  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +423,11 @@ class _ActionTiles extends StatelessWidget {
       title: 'Find recipes',
       caption: 'By name, ingredient, or letter',
       motif: BotanicalMotif.emptyGlass,
-      onPressed: () => context.go('/discover'),
+      // Push, not go: home stays underneath so Back returns here.
+      onPressed: () {
+        onLeave();
+        context.push('/discover');
+      },
     );
     final bar = ZestActionTile(
       key: const ValueKey('home-bar'),
@@ -426,7 +435,10 @@ class _ActionTiles extends StatelessWidget {
       caption: 'Match your shelf to search results',
       motif: BotanicalMotif.garnish,
       tone: ZestTileTone.night,
-      onPressed: () => context.go('/bar'),
+      onPressed: () {
+        onLeave();
+        context.push('/bar');
+      },
     );
     return LayoutBuilder(
       builder: (context, constraints) {

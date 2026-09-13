@@ -74,6 +74,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Widget build(BuildContext context) {
     final query = widget.query;
     return DiscoveryFrame(
+      back: true,
       eyebrow: 'Discover',
       title: 'A little curiosity.\n',
       titleAccent: 'A new cocktail.',
