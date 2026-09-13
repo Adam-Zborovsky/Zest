@@ -17,6 +17,10 @@ base class FailingSharedPreferencesAsync extends InMemorySharedPreferencesAsync 
   /// When true, the next write throws and resets.
   bool failNextWrite = false;
 
+  /// When set, the next string write to this key throws and resets, so a
+  /// test can fail the second of two writes while the first succeeds.
+  String? failWriteToKey;
+
   void _maybeFail() {
     if (!failNextWrite) return;
     failNextWrite = false;
@@ -29,6 +33,10 @@ base class FailingSharedPreferencesAsync extends InMemorySharedPreferencesAsync 
     String value,
     SharedPreferencesOptions options,
   ) async {
+    if (key == failWriteToKey) {
+      failWriteToKey = null;
+      throw Exception('Synthetic platform write failure for $key');
+    }
     _maybeFail();
     return super.setString(key, value, options);
   }
@@ -104,4 +112,29 @@ void main() {
       );
     },
   );
+
+  // continueOnDevice makes two separate writes; whichever one fails, a
+  // failed sign-in must not come back signed in after a relaunch.
+  for (final key in [
+    SessionPrefsKeys.lastProfile,
+    SessionPrefsKeys.currentProfile,
+  ]) {
+    test('PrefsAuthRepository: a failed write to $key during '
+        'continueOnDevice leaves a relaunch signed out', () async {
+      final auth = PrefsAuthRepository(
+        await prefs(),
+        newId: () => 'prefs-profile',
+      );
+      platform.failWriteToKey = key;
+
+      await expectLater(
+        auth.continueOnDevice(displayName: 'Sam'),
+        throwsA(isA<Exception>()),
+      );
+      expect(auth.currentProfile, isNull);
+
+      final relaunched = PrefsAuthRepository(await prefs());
+      expect(relaunched.currentProfile, isNull);
+    });
+  }
 }

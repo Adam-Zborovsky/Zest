@@ -86,9 +86,13 @@ class PrefsAuthRepository implements AuthRepository {
         ? LocalProfile(id: _newId(), displayName: name, createdAt: _clock())
         : previous.withDisplayName(name);
     final encoded = jsonEncode(profile.toJson());
+    // The two keys are separate writes, so order them so a failure between
+    // them can never persist a sign-in the person was told failed: `last`
+    // first (at worst it only prefills the login name on relaunch), and
+    // `current` — the key that means signed in — last.
     try {
-      await _prefs.setString(SessionPrefsKeys.currentProfile, encoded);
       await _prefs.setString(SessionPrefsKeys.lastProfile, encoded);
+      await _prefs.setString(SessionPrefsKeys.currentProfile, encoded);
     } catch (error) {
       throw SessionStorageException(
         'Could not save the local profile',
