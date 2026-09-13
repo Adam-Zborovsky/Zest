@@ -24,9 +24,12 @@ dependencies:
   path_provider: ^2.1.6
   image_picker: ^1.2.3
   # M7 onboarding and session flags: the flags store already named in
-  # AGENTS.md, backing whether onboarding was seen and the local-first
-  # profile (no account, credential, or sync).
+  # AGENTS.md, backing whether onboarding was seen; since M8 also the
+  # signed-in account's JSON (not secret on its own).
   shared_preferences: ^2.5.5
+  # M8 accounts: the session bearer token is a credential, so it is kept in
+  # platform-secure storage (Android Keystore) rather than shared_preferences.
+  flutter_secure_storage: 11.1.1
 
 dev_dependencies:
   build_runner: ^2.15.1
