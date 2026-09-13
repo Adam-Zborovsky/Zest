@@ -8,6 +8,10 @@ import 'app/zest_app.dart';
 import 'features/onboarding/application/session_storage_providers.dart';
 import 'features/onboarding/data/prefs_session_stores.dart';
 
+// Must stay a const: `bool.fromEnvironment` throws at runtime outside a
+// constant context, and the root ProviderScope below is not const.
+const _designGalleryRequested = bool.fromEnvironment('ZEST_DESIGN_GALLERY');
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
@@ -29,7 +33,7 @@ Future<void> main() async {
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       child: ZestApp(
-        showGallery: kDebugMode && bool.fromEnvironment('ZEST_DESIGN_GALLERY'),
+        showGallery: kDebugMode && _designGalleryRequested,
       ),
     ),
   );
