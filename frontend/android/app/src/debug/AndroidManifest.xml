@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds only (docs/ACCOUNTS.md): allow cleartext HTTP so a phone
+         can reach Adam's development PC over the LAN, where
+         ZEST_API_BASE_URL points at a private-network HTTP address. Release
+         and profile builds keep cleartext traffic disabled. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../../../core/network/api_base_url.dart';
 import '../../../core/network/cocktail_api_exception.dart';
 import '../domain/recipe.dart';
 
@@ -296,25 +297,7 @@ final class CocktailDbClient {
   }
 }
 
-Uri _gatewayBase(String value) {
-  final uri = Uri.tryParse(value);
-  if (uri == null ||
-      uri.host.isEmpty ||
-      uri.userInfo.isNotEmpty ||
-      uri.hasQuery ||
-      uri.hasFragment ||
-      !uri.path.endsWith('/') ||
-      (uri.scheme != 'https' &&
-          !(uri.scheme == 'http' &&
-              const ['localhost', '127.0.0.1', '::1'].contains(uri.host)))) {
-    // Configuration can be sensitive; never include the supplied URI in errors.
-    throw ArgumentError(
-      'ZEST_API_BASE_URL must be an absolute HTTPS URL '
-      '(or loopback HTTP), without credentials/query/fragment, ending in /.',
-    );
-  }
-  return uri;
-}
+Uri _gatewayBase(String value) => validateApiBaseUrl(value);
 
 final class _CacheEntry<T> {
   const _CacheEntry(this.value, this.createdAt);
