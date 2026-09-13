@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_paper.dart';
+import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
+import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../collection/application/collection_providers.dart';
 import '../../constellation/domain/ingredient_kind.dart';
 import '../../constellation/presentation/ingredient_glyph.dart';
 import '../application/discovery_providers.dart';
@@ -90,6 +93,8 @@ class _RecipeContent extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: ZestSpace.xl),
+        _CollectionActions(recipe: recipe),
         const SizedBox(height: ZestSpace.xxl),
         ZestCard(
           recipe: true,
@@ -169,6 +174,116 @@ class _RecipeContent extends StatelessWidget {
 
 String _metadata(String label, String? value) =>
     '$label: ${value == null || value.trim().isEmpty ? 'Not provided' : value.trim()}';
+
+/// Save/unsave and "make a variation" actions. A save is idempotent per
+/// source recipe id (the repository contract), so this never creates a
+/// duplicate saved entry.
+class _CollectionActions extends ConsumerWidget {
+  const _CollectionActions({required this.recipe});
+  final Recipe recipe;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final saved = ref.watch(savedEntryForRecipeProvider(recipe.id)).value;
+    final textTheme = Theme.of(context).textTheme;
+    return ZestCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const DiscoveryHeading('Your collection'),
+          const SizedBox(height: ZestSpace.md),
+          if (saved == null) ...[
+            const Text(
+              'Save this recipe to keep it in your private collection.',
+            ),
+            const SizedBox(height: ZestSpace.md),
+            ZestButton(
+              key: const ValueKey('recipe-save'),
+              label: 'Save to collection',
+              icon: Icons.bookmark_add_outlined,
+              kind: ZestButtonKind.secondary,
+              onPressed: () =>
+                  ref.read(collectionRepositoryProvider).saveRecipe(recipe),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                const Icon(Icons.bookmark_rounded, color: ZestPalette.leaf),
+                const SizedBox(width: ZestSpace.sm),
+                Expanded(
+                  child: Text(
+                    'Saved to your collection',
+                    style: textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ZestSpace.md),
+            ZestButton(
+              key: const ValueKey('recipe-open-saved'),
+              label: 'Open saved entry',
+              kind: ZestButtonKind.secondary,
+              onPressed: () => context.push('/collection/${saved.id}'),
+            ),
+            const SizedBox(height: ZestSpace.sm),
+            ZestButton(
+              key: const ValueKey('recipe-remove-saved'),
+              label: 'Remove from collection',
+              kind: ZestButtonKind.danger,
+              onPressed: () => _confirmRemove(context, ref, saved.id),
+            ),
+          ],
+          const SizedBox(height: ZestSpace.lg),
+          const TwineDivider(),
+          const SizedBox(height: ZestSpace.lg),
+          ZestButton(
+            key: const ValueKey('recipe-make-variation'),
+            label: 'Make a variation',
+            icon: Icons.edit_note_rounded,
+            onPressed: () =>
+                context.push('/discover/recipe/${recipe.id}/variation'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmRemove(
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+  ) async {
+    final confirmed = await showZestSheet<bool>(
+      context: context,
+      title: 'Remove from collection?',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'This also deletes any photo you added to this entry. '
+            'This cannot be undone.',
+          ),
+          const SizedBox(height: ZestSpace.lg),
+          ZestButton(
+            key: const ValueKey('recipe-remove-saved-confirm'),
+            label: 'Remove',
+            kind: ZestButtonKind.danger,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          const SizedBox(height: ZestSpace.sm),
+          ZestButton(
+            label: 'Cancel',
+            kind: ZestButtonKind.quiet,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(collectionRepositoryProvider).delete(id);
+    }
+  }
+}
 
 /// One source ingredient: its glyph, name, and the measure exactly as the
 /// source gives it.

@@ -34,6 +34,7 @@ class DiscoveryFrame extends StatelessWidget {
     super.key,
     required this.child,
     this.back = false,
+    this.onBack,
     this.slivers = const [],
     this.eyebrow,
     this.title,
@@ -44,6 +45,12 @@ class DiscoveryFrame extends StatelessWidget {
 
   final Widget child;
   final bool back;
+
+  /// Overrides the default back action (pop, or go to discovery when there
+  /// is nothing to pop). A screen with unsaved edits uses this to confirm
+  /// before leaving — a plain [context.pop] bypasses [PopScope], which only
+  /// guards system back gestures, not an explicit button.
+  final VoidCallback? onBack;
   final List<Widget> slivers;
   final String? eyebrow;
   final String? title;
@@ -89,7 +96,7 @@ class DiscoveryFrame extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _FrameTopBar(back: back),
+                              _FrameTopBar(back: back, onBack: onBack),
                               if (eyebrow != null) ...[
                                 const SizedBox(height: ZestSpace.xl),
                                 Text(
@@ -156,9 +163,10 @@ class DiscoveryFrame extends StatelessWidget {
 }
 
 class _FrameTopBar extends StatelessWidget {
-  const _FrameTopBar({required this.back});
+  const _FrameTopBar({required this.back, this.onBack});
 
   final bool back;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -166,8 +174,9 @@ class _FrameTopBar extends StatelessWidget {
       if (back) ...[
         IconButton(
           tooltip: 'Back to discovery',
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/discover'),
+          onPressed:
+              onBack ??
+              () => context.canPop() ? context.pop() : context.go('/discover'),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         const SizedBox(width: ZestSpace.xs),
@@ -185,6 +194,12 @@ class _FrameTopBar extends StatelessWidget {
       const SizedBox(width: ZestSpace.sm),
       Expanded(
         child: Text('Zest', style: Theme.of(context).textTheme.headlineSmall),
+      ),
+      IconButton(
+        key: const ValueKey('open-collection'),
+        tooltip: 'Your collection',
+        onPressed: () => context.push('/collection'),
+        icon: const Icon(Icons.collections_bookmark_rounded),
       ),
     ],
   );
