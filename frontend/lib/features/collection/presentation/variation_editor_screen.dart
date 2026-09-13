@@ -308,6 +308,16 @@ class _VariationFormState extends ConsumerState<_VariationForm> {
       _dirty = false;
       if (!mounted) return;
       context.pushReplacement('/collection/${entry.id}');
+    } catch (_) {
+      // Storage failed: keep the person's edits and say so, rather than
+      // leaving a save button that appears to do nothing.
+      if (mounted) {
+        setState(
+          () => _formError =
+              'Zest could not save this variation on this device. Your '
+              'edits are still here. Try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

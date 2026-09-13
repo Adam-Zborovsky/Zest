@@ -6,6 +6,7 @@ import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_paper.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
+import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../collection/application/collection_providers.dart';
@@ -178,12 +179,37 @@ String _metadata(String label, String? value) =>
 /// Save/unsave and "make a variation" actions. A save is idempotent per
 /// source recipe id (the repository contract), so this never creates a
 /// duplicate saved entry.
-class _CollectionActions extends ConsumerWidget {
+class _CollectionActions extends ConsumerStatefulWidget {
   const _CollectionActions({required this.recipe});
   final Recipe recipe;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CollectionActions> createState() => _CollectionActionsState();
+}
+
+class _CollectionActionsState extends ConsumerState<_CollectionActions> {
+  bool _busy = false;
+  String? _error;
+
+  /// Runs one storage action. A failure is stated inline with what to do,
+  /// never dropped: a save that silently fails would look like a success.
+  Future<void> _run(Future<void> Function() action, String failure) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) setState(() => _error = failure);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recipe = widget.recipe;
     final saved = ref.watch(savedEntryForRecipeProvider(recipe.id)).value;
     final textTheme = Theme.of(context).textTheme;
     return ZestCard(
@@ -202,8 +228,15 @@ class _CollectionActions extends ConsumerWidget {
               label: 'Save to collection',
               icon: Icons.bookmark_add_outlined,
               kind: ZestButtonKind.secondary,
-              onPressed: () =>
-                  ref.read(collectionRepositoryProvider).saveRecipe(recipe),
+              onPressed: _busy
+                  ? null
+                  : () => _run(
+                      () async => ref
+                          .read(collectionRepositoryProvider)
+                          .saveRecipe(recipe),
+                      'Zest could not save this recipe on this device. '
+                      'Try again.',
+                    ),
             ),
           ] else ...[
             Row(
@@ -230,8 +263,12 @@ class _CollectionActions extends ConsumerWidget {
               key: const ValueKey('recipe-remove-saved'),
               label: 'Remove from collection',
               kind: ZestButtonKind.danger,
-              onPressed: () => _confirmRemove(context, ref, saved.id),
+              onPressed: _busy ? null : () => _confirmRemove(saved.id),
             ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: ZestSpace.md),
+            ZestInlineError(_error!),
           ],
           const SizedBox(height: ZestSpace.lg),
           const TwineDivider(),
@@ -248,11 +285,7 @@ class _CollectionActions extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmRemove(
-    BuildContext context,
-    WidgetRef ref,
-    String id,
-  ) async {
+  Future<void> _confirmRemove(String id) async {
     final confirmed = await showZestSheet<bool>(
       context: context,
       title: 'Remove from collection?',
@@ -279,8 +312,11 @@ class _CollectionActions extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed == true) {
-      await ref.read(collectionRepositoryProvider).delete(id);
+    if (confirmed == true && mounted) {
+      await _run(
+        () => ref.read(collectionRepositoryProvider).delete(id),
+        'Zest could not remove this entry. Try again.',
+      );
     }
   }
 }

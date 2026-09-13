@@ -257,7 +257,7 @@ void main() {
     await tester.enterText(keyed('variation-name'), 'Changed name');
     await tester.pump();
 
-    await activate(tester, find.byTooltip('Back to discovery'));
+    await activate(tester, find.byTooltip('Back'));
     expect(find.text('Discard your changes?'), findsOneWidget);
 
     await activate(tester, find.text('Keep editing'));
@@ -267,7 +267,7 @@ void main() {
       reason: 'Canceling the discard sheet keeps the edited value.',
     );
 
-    await activate(tester, find.byTooltip('Back to discovery'));
+    await activate(tester, find.byTooltip('Back'));
     await activate(tester, keyed('editor-discard-confirm'));
     expect(find.text('Your variation of Paper Garden 1'), findsNothing);
   });

@@ -411,7 +411,7 @@ void main() {
       router(tester).go('/discover/recipe/99999');
       await tester.pumpAndSettle();
       expect(find.text('Recipe not found'), findsOneWidget);
-      await activate(tester, find.byTooltip('Back to discovery'));
+      await activate(tester, find.byTooltip('Back'));
       expect(router(tester).state.uri.path, '/discover');
       expect(keyed('discovery-query'), findsOneWidget);
     },
@@ -431,7 +431,7 @@ void main() {
     );
     expect(find.text('That recipe link is not valid'), findsOneWidget);
     expect(requests, 0);
-    await activate(tester, find.byTooltip('Back to discovery'));
+    await activate(tester, find.byTooltip('Back'));
     expect(keyed('discovery-query'), findsOneWidget);
   });
 

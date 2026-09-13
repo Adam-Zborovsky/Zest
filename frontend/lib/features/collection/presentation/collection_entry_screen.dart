@@ -6,6 +6,7 @@ import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/botanical_art.dart';
 import '../../../core/widgets/botanical_paper.dart';
 import '../../../core/widgets/zest_button.dart';
+import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
@@ -314,20 +315,41 @@ class _VariationIngredientRow extends StatelessWidget {
   );
 }
 
-class _DeleteButton extends ConsumerWidget {
+class _DeleteButton extends ConsumerStatefulWidget {
   const _DeleteButton({required this.entry});
   final CollectionEntry entry;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ZestButton(
-    key: const ValueKey('entry-delete'),
-    label: entry.isVariation ? 'Delete variation' : 'Remove from collection',
-    icon: Icons.delete_outline_rounded,
-    kind: ZestButtonKind.danger,
-    onPressed: () => _confirmDelete(context, ref),
+  ConsumerState<_DeleteButton> createState() => _DeleteButtonState();
+}
+
+class _DeleteButtonState extends ConsumerState<_DeleteButton> {
+  bool _busy = false;
+  String? _error;
+
+  CollectionEntry get entry => widget.entry;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      ZestButton(
+        key: const ValueKey('entry-delete'),
+        label: entry.isVariation
+            ? 'Delete variation'
+            : 'Remove from collection',
+        icon: Icons.delete_outline_rounded,
+        kind: ZestButtonKind.danger,
+        onPressed: _busy ? null : _confirmDelete,
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: ZestSpace.md),
+        ZestInlineError(_error!),
+      ],
+    ],
   );
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDelete() async {
     final confirmed = await showZestSheet<bool>(
       context: context,
       title: entry.isVariation
@@ -359,9 +381,25 @@ class _DeleteButton extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
-    await ref.read(collectionRepositoryProvider).delete(entry.id);
-    if (context.mounted) context.go('/collection');
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(collectionRepositoryProvider).delete(entry.id);
+      if (mounted) context.go('/collection');
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = entry.isVariation
+              ? 'Zest could not delete this variation. Try again.'
+              : 'Zest could not remove this entry. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }
 
@@ -393,6 +431,14 @@ class _PhotoSectionState extends ConsumerState<_PhotoSection> {
       if (mounted) setState(() => _error = error.message);
     } on PhotoPickerUnavailable catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      // Storing the picked photo failed (for example a storage error).
+      if (mounted) {
+        setState(
+          () => _error =
+              'Zest could not keep this photo on this device. Try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -455,8 +501,19 @@ class _PhotoSectionState extends ConsumerState<_PhotoSection> {
         ],
       ),
     );
-    if (confirmed == true && mounted) {
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
       await ref.read(collectionRepositoryProvider).removePhoto(widget.entry.id);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Zest could not remove this photo. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

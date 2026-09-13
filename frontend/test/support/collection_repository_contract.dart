@@ -82,6 +82,18 @@ void runCollectionRepositoryContract(
       expect(await repository.watchEntries().first, hasLength(1));
     });
 
+    test('concurrent saves of one recipe still produce one entry', () async {
+      final source = recipe();
+      final results = await Future.wait([
+        repository.saveRecipe(source),
+        repository.saveRecipe(source),
+        repository.saveRecipe(source),
+      ]);
+
+      expect(results.map((entry) => entry.id).toSet(), hasLength(1));
+      expect(await repository.watchEntries().first, hasLength(1));
+    });
+
     test(
       'saveRecipe allows different source recipes as separate entries',
       () async {

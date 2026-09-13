@@ -191,7 +191,7 @@ void main() {
         requests.where((uri) => uri.queryParameters['i'] == '99001'),
         hasLength(1),
       );
-      await tester.tap(find.byTooltip('Back to discovery'));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(_router(tester).state.uri.queryParameters, {
         'mode': 'ingredient',

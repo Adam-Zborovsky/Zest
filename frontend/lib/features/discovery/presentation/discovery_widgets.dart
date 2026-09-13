@@ -173,7 +173,9 @@ class _FrameTopBar extends StatelessWidget {
     children: [
       if (back) ...[
         IconButton(
-          tooltip: 'Back to discovery',
+          // Plain "Back": the previous page may be home, discovery, a recipe,
+          // or the collection, so naming one destination would mislead.
+          tooltip: 'Back',
           onPressed:
               onBack ??
               () => context.canPop() ? context.pop() : context.go('/discover'),
@@ -198,7 +200,12 @@ class _FrameTopBar extends StatelessWidget {
       IconButton(
         key: const ValueKey('open-collection'),
         tooltip: 'Your collection',
-        onPressed: () => context.push('/collection'),
+        // Inside the collection, return to the one list instead of stacking
+        // another copy of it; elsewhere, push so Back returns here.
+        onPressed: () =>
+            GoRouterState.of(context).uri.path.startsWith('/collection')
+            ? context.go('/collection')
+            : context.push('/collection'),
         icon: const Icon(Icons.collections_bookmark_rounded),
       ),
     ],
