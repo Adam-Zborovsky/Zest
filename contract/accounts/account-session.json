@@ -1,0 +1,11 @@
+{
+  "user": {
+    "id": "8f14e45f-ceea-467a-9f5b-2c3b1d9e0a11",
+    "email": "sam@example.test",
+    "createdAt": "2026-09-13T10:00:00.000Z"
+  },
+  "session": {
+    "token": "c3ludGhldGljLXRva2VuLW5vdC1hLXJlYWwtb25l",
+    "expiresAt": "2026-10-13T10:00:00.000Z"
+  }
+}

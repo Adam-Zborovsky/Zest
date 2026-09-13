@@ -1,0 +1,20 @@
+{
+  "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+  "kind": "saved",
+  "sourceRecipeId": "98001",
+  "source": {
+    "idDrink": "98001",
+    "strDrink": "Testbench Tonic",
+    "strInstructions": "Stir synthetic ingredients.",
+    "strIngredient1": "Synthetic gin",
+    "strMeasure1": "1 oz"
+  },
+  "variation": null,
+  "day": "2026-09-13",
+  "hasPhoto": false,
+  "photoUpdatedAt": null,
+  "createdAt": "2026-09-13T10:05:00.000Z",
+  "updatedAt": "2026-09-13T10:05:00.000Z",
+  "deleted": false,
+  "revision": 5
+}
