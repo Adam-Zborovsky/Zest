@@ -13,6 +13,7 @@ import '../../../core/widgets/botanical_paper.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../onboarding/presentation/profile_sheet.dart';
 import '../application/discovery_providers.dart';
 
 /// Injectable image loading: tests render authored images without network access.
@@ -208,6 +209,8 @@ class _FrameTopBar extends StatelessWidget {
             : context.push('/collection'),
         icon: const Icon(Icons.collections_bookmark_rounded),
       ),
+      const SizedBox(width: ZestSpace.xs),
+      const ProfileButton(),
     ],
   );
 }
