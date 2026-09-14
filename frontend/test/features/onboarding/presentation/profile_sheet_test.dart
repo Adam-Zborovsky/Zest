@@ -49,7 +49,8 @@ Future<GoRouter> _pumpHome(
   final router = GoRouter(
     initialLocation: '/',
     refreshListenable: controller,
-    redirect: (context, state) => launchRedirect(controller.destination, state.uri),
+    redirect: (context, state) =>
+        launchRedirect(controller.destination, state.uri),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const _HomeStub()),
       GoRoute(
@@ -114,7 +115,9 @@ void main() {
   });
 
   testWidgets('syncing shows "Syncing…"', (tester) async {
-    final sync = FakeCollectionSync(initial: const SyncStatus(SyncPhase.syncing));
+    final sync = FakeCollectionSync(
+      initial: const SyncStatus(SyncPhase.syncing),
+    );
     await _pumpHome(tester, sync: sync);
 
     await tester.tap(keyed('open-profile'));
@@ -124,7 +127,9 @@ void main() {
   });
 
   testWidgets('offline shows the offline copy', (tester) async {
-    final sync = FakeCollectionSync(initial: const SyncStatus(SyncPhase.offline));
+    final sync = FakeCollectionSync(
+      initial: const SyncStatus(SyncPhase.offline),
+    );
     await _pumpHome(tester, sync: sync);
 
     await tester.tap(keyed('open-profile'));
@@ -137,7 +142,9 @@ void main() {
   });
 
   testWidgets('failed shows the retry copy', (tester) async {
-    final sync = FakeCollectionSync(initial: const SyncStatus(SyncPhase.failed));
+    final sync = FakeCollectionSync(
+      initial: const SyncStatus(SyncPhase.failed),
+    );
     await _pumpHome(tester, sync: sync);
 
     await tester.tap(keyed('open-profile'));
@@ -162,13 +169,8 @@ void main() {
     sync.emit(const SyncStatus(SyncPhase.syncing));
     await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.descendant(
-        of: keyed('profile-sync-now'),
-        matching: find.byType(FilledButton),
-      ),
-    );
-    expect(button.enabled, isFalse);
+    final button = tester.widget<IconButton>(keyed('profile-sync-now'));
+    expect(button.onPressed, isNull);
   });
 
   testWidgets('sign out lands on /login and clears the account', (
@@ -199,5 +201,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a long email does not overflow at 320 wide with 2x text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final account = FakeAccountRepository(
+      current: syntheticAccount(
+        email: 'a.very.long.experimental.mixologist.email.address@example.test',
+      ),
+    );
+    await _pumpHome(tester, account: account);
+    await tester.tap(keyed('open-profile'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the close control closes the sheet', (tester) async {
+    await _pumpHome(tester);
+
+    await tester.tap(keyed('open-profile'));
+    await tester.pumpAndSettle();
+    expect(keyed('profile-sheet-close'), findsOneWidget);
+
+    await tester.tap(keyed('profile-sheet-close'));
+    await tester.pumpAndSettle();
+
+    expect(keyed('profile-sheet-close'), findsNothing);
   });
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/zest_tokens.dart';
+import '../../../core/widgets/botanical_paper.dart';
+import '../../../core/widgets/lime_sprite.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_sheet.dart';
@@ -28,30 +30,108 @@ class ProfileButton extends ConsumerWidget {
 
   void _open(BuildContext context, WidgetRef ref) {
     final controller = ref.read(sessionControllerProvider);
+    final account = controller.account;
     showZestSheet(
       context: context,
-      title: controller.account?.email ?? 'Your account',
-      child: ProfileSheetBody(controller: controller, account: controller.account),
+      title: account?.email ?? 'Your account',
+      header: (context) => _ProfileSheetHeader(
+        account: account,
+        onClose: () => Navigator.of(context).pop(),
+      ),
+      child: ProfileSheetBody(controller: controller),
     );
   }
 }
 
-/// The sheet body: account email and creation date, live sync status,
-/// "Sync now", and sign out. See `docs/ACCOUNTS.md` for the sync rules and
-/// ownership behavior sign-out relies on.
+/// The night header at the top of the sheet: the waving lime sprite standing
+/// in for an avatar, the account email, the join date, and a quiet close
+/// control — replacing a plain sheet title and a ringed close button that
+/// read like an empty profile picture next to the email.
+class _ProfileSheetHeader extends StatelessWidget {
+  const _ProfileSheetHeader({required this.account, required this.onClose});
+
+  final Account? account;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => NightBand(
+    // A Builder so Theme.of below resolves against the peach-ink theme
+    // NightBand injects around its child, not the theme above NightBand.
+    child: Builder(builder: _content),
+  );
+
+  Widget _content(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        ZestSpace.page,
+        ZestSpace.md,
+        ZestSpace.page,
+        ZestSpace.lg,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const LimeSprite(pose: LimeSpritePose.wave, size: 64),
+          const SizedBox(width: ZestSpace.md),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: ZestSpace.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      account?.email ?? 'Your account',
+                      style: textTheme.titleLarge,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (account != null) ...[
+                    const SizedBox(height: ZestSpace.xs),
+                    Text(
+                      // createdAt is when the account was made, not this
+                      // sign-in.
+                      'Account since ${_joinDate(context, account!.createdAt)}',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: ZestPalette.nightMuted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('profile-sheet-close'),
+            autofocus: true,
+            tooltip: 'Close',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _joinDate(BuildContext context, DateTime createdAt) =>
+      MaterialLocalizations.of(context).formatMediumDate(createdAt.toLocal());
+}
+
+/// The sheet body: live sync status and "Sync now" in one tinted strip, and
+/// sign out. See `docs/ACCOUNTS.md` for the sync rules and ownership
+/// behavior sign-out relies on.
 ///
 /// Sign-out is attempted while the sheet is still open; the sheet closes
 /// only once it succeeds. On failure the sheet stays open and states it
 /// inline instead, matching how the collection screens surface storage
 /// failures.
 class ProfileSheetBody extends ConsumerStatefulWidget {
-  const ProfileSheetBody({super.key, required this.controller, this.account});
+  const ProfileSheetBody({super.key, required this.controller});
 
   final SessionController controller;
-
-  /// Read once when the sheet opens; the email and join date do not change
-  /// for the life of a session.
-  final Account? account;
 
   @override
   ConsumerState<ProfileSheetBody> createState() => _ProfileSheetBodyState();
@@ -83,39 +163,29 @@ class _ProfileSheetBodyState extends ConsumerState<ProfileSheetBody> {
 
   @override
   Widget build(BuildContext context) {
-    final account = widget.account;
     final textTheme = Theme.of(context).textTheme;
     final statusAsync = ref.watch(syncStatusProvider);
-    final syncing = statusAsync.value?.phase == SyncPhase.syncing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (account != null) ...[
-          Text(
-            // createdAt is when the account was made, not this sign-in.
-            'Account since ${_joinDate(context, account.createdAt)}',
-            style: textTheme.bodyMedium?.copyWith(
-              color: ZestPalette.secondaryInk,
+        _SyncStatusStrip(status: statusAsync),
+        const SizedBox(height: ZestSpace.xl),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(foregroundColor: ZestPalette.berry),
+              ),
+            ),
+            child: ZestButton(
+              key: const ValueKey('profile-sign-out'),
+              label: _signingOut ? 'Signing out…' : 'Sign out',
+              kind: ZestButtonKind.quiet,
+              expand: false,
+              onPressed: _signingOut ? null : _signOut,
             ),
           ),
-          const SizedBox(height: ZestSpace.lg),
-        ],
-        _SyncStatusLine(status: statusAsync),
-        const SizedBox(height: ZestSpace.md),
-        ZestButton(
-          key: const ValueKey('profile-sync-now'),
-          label: 'Sync now',
-          kind: ZestButtonKind.secondary,
-          onPressed: syncing
-              ? null
-              : () => ref.read(collectionSyncProvider).syncNow(),
-        ),
-        const SizedBox(height: ZestSpace.lg),
-        ZestButton(
-          key: const ValueKey('profile-sign-out'),
-          label: _signingOut ? 'Signing out…' : 'Sign out',
-          kind: ZestButtonKind.danger,
-          onPressed: _signingOut ? null : _signOut,
         ),
         const SizedBox(height: ZestSpace.xs),
         Text(
@@ -129,24 +199,23 @@ class _ProfileSheetBodyState extends ConsumerState<ProfileSheetBody> {
       ],
     );
   }
-
-  static String _joinDate(BuildContext context, DateTime createdAt) =>
-      MaterialLocalizations.of(context).formatMediumDate(createdAt.toLocal());
 }
 
-/// The live sync status line: idle/synced, syncing, offline, or failed. A
-/// live region so a screen reader hears status changes without moving
-/// focus.
-class _SyncStatusLine extends StatefulWidget {
-  const _SyncStatusLine({required this.status});
+/// The live sync status strip: idle/synced, syncing, offline, or failed, in
+/// the bar status-strip style — a tinted paper strip whose meaning comes
+/// from icon plus text, never color alone — with the "Sync now" action
+/// folded in as a compact icon button at the end. A live region announces
+/// status changes without moving focus.
+class _SyncStatusStrip extends ConsumerStatefulWidget {
+  const _SyncStatusStrip({required this.status});
 
   final AsyncValue<SyncStatus> status;
 
   @override
-  State<_SyncStatusLine> createState() => _SyncStatusLineState();
+  ConsumerState<_SyncStatusStrip> createState() => _SyncStatusStripState();
 }
 
-class _SyncStatusLineState extends State<_SyncStatusLine>
+class _SyncStatusStripState extends ConsumerState<_SyncStatusStrip>
     with SingleTickerProviderStateMixin {
   AnimationController? _pop;
   SyncPhase? _lastPhase;
@@ -158,14 +227,15 @@ class _SyncStatusLineState extends State<_SyncStatusLine>
   }
 
   @override
-  void didUpdateWidget(covariant _SyncStatusLine oldWidget) {
+  void didUpdateWidget(covariant _SyncStatusStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     _maybePop();
   }
 
   void _maybePop() {
     final phase = widget.status.value?.phase;
-    final enteredSyncing = phase == SyncPhase.syncing && _lastPhase != SyncPhase.syncing;
+    final enteredSyncing =
+        phase == SyncPhase.syncing && _lastPhase != SyncPhase.syncing;
     _lastPhase = phase;
     if (!enteredSyncing || !mounted) return;
     if (ZestMotion.reduced(context)) return;
@@ -184,6 +254,7 @@ class _SyncStatusLineState extends State<_SyncStatusLine>
     final status = widget.status.value;
     final phase = status?.phase;
     final textTheme = Theme.of(context).textTheme;
+    final syncing = phase == SyncPhase.syncing;
     final (icon, label) = switch (phase) {
       null => (Icons.hourglass_empty_rounded, 'Not synced yet'),
       SyncPhase.syncing => (Icons.sync_rounded, 'Syncing…'),
@@ -191,40 +262,80 @@ class _SyncStatusLineState extends State<_SyncStatusLine>
         Icons.cloud_off_rounded,
         'Offline — changes will sync when the server is reachable.',
       ),
-      SyncPhase.failed => (Icons.error_outline_rounded, "Couldn't sync. Try again."),
-      SyncPhase.idle => status?.lastSyncedAt == null
-          ? (Icons.hourglass_empty_rounded, 'Not synced yet')
-          : (Icons.check_circle_outline_rounded, 'Synced ${_relative(status!.lastSyncedAt!)}'),
+      SyncPhase.failed => (
+        Icons.error_outline_rounded,
+        "Couldn't sync. Try again.",
+      ),
+      SyncPhase.idle =>
+        status?.lastSyncedAt == null
+            ? (Icons.hourglass_empty_rounded, 'Not synced yet')
+            : (
+                Icons.check_circle_outline_rounded,
+                'Synced ${_relative(status!.lastSyncedAt!)}',
+              ),
+    };
+    // Meaning is carried by icon and text; the tint only groups it.
+    final (tint, ink) = switch (phase) {
+      null => (ZestPalette.disabledSurface, ZestPalette.secondaryInk),
+      SyncPhase.syncing => (
+        ZestPalette.grapefruit.withValues(alpha: 0.4),
+        ZestPalette.leaf,
+      ),
+      SyncPhase.offline ||
+      SyncPhase.failed => (ZestPalette.errorSurface, ZestPalette.berry),
+      SyncPhase.idle =>
+        status?.lastSyncedAt == null
+            ? (ZestPalette.disabledSurface, ZestPalette.secondaryInk)
+            : (ZestPalette.celery, ZestPalette.leaf),
     };
     final reduced = ZestMotion.reduced(context);
     final marker = reduced || _pop == null
-        ? Icon(icon, size: 20, color: ZestPalette.secondaryInk)
+        ? Icon(icon, size: 20, color: ink)
         : AnimatedBuilder(
             animation: _pop!,
             builder: (context, child) => Transform.scale(
               scale: 0.85 + 0.15 * ZestMotion.easeOut.transform(_pop!.value),
               child: child,
             ),
-            child: Icon(icon, size: 20, color: ZestPalette.secondaryInk),
+            child: Icon(icon, size: 20, color: ink),
           );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        ExcludeSemantics(child: marker),
-        const SizedBox(width: ZestSpace.sm),
-        Expanded(
-          child: Semantics(
-            liveRegion: true,
-            child: Text(
-              label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: ZestPalette.leaf,
-                fontWeight: FontWeight.w600,
+    return DecoratedBox(
+      decoration: BoxDecoration(color: tint, borderRadius: ZestShape.control),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ZestSpace.md,
+          vertical: ZestSpace.sm,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            ExcludeSemantics(child: marker),
+            const SizedBox(width: ZestSpace.sm),
+            Expanded(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  label,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
-          ),
+            IconButton(
+              key: const ValueKey('profile-sync-now'),
+              tooltip: 'Sync now',
+              onPressed: syncing
+                  ? null
+                  : () => ref.read(collectionSyncProvider).syncNow(),
+              icon: const Icon(Icons.refresh_rounded),
+              color: ink,
+              disabledColor: ZestPalette.disabledInk,
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

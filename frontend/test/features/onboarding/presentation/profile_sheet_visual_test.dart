@@ -112,7 +112,12 @@ void main() {
         current: syntheticAccount(email: 'robin@example.test'),
       ),
       sync: FakeCollectionSync(
-        initial: SyncStatus(SyncPhase.idle, lastSyncedAt: DateTime(2026, 9, 14, 9)),
+        initial: SyncStatus(
+          SyncPhase.idle,
+          lastSyncedAt: DateTime.now().subtract(
+            const Duration(hours: 3, minutes: 1),
+          ),
+        ),
       ),
     );
 
