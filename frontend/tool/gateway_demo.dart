@@ -4,27 +4,22 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 
-/// Runs the real Fastify routes against a synthetic upstream, without listeners.
+/// Runs the real Fastify routes against a synthetic upstream, without
+/// listeners. `lookup.php` is the only client-facing recipe route left
+/// (docs/GATEWAY.md "Gateway cleanup"): search/filter/list moved to the
+/// server-owned shared catalog and its refresher.
 Future<void> main() async {
   final transport = _GatewayContractTransport();
   final client = CocktailDbClient(client: transport);
   try {
-    final search = await client.searchByName('Paper & Orchard');
-    final letter = await client.browseByFirstLetter('P');
-    final filter = await client.filterByIngredient('Invented syrup');
     final detail = await client.lookupRecipe('990001');
-    final names = await client.listIngredientNames();
     await client.lookupRecipe('990001');
-    if (search.single.id != '990001' ||
-        letter.single.id != '990001' ||
-        filter.single.id != '990001' ||
-        detail?.ingredients.single.measure.raw != '1 1/2 oz' ||
-        names.single != 'Invented syrup' ||
-        transport.requests != 5) {
+    if (detail?.ingredients.single.measure.raw != '1 1/2 oz' ||
+        transport.requests != 1) {
       throw StateError('Gateway contract mismatch.');
     }
     stdout.writeln(
-      'Flutter → Fastify → synthetic upstream: all five operations passed.',
+      'Flutter → Fastify → synthetic upstream: lookup.php passed.',
     );
     stdout.writeln(
       'Source measure retained; repeated lookup uses the Flutter cache.',

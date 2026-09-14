@@ -82,10 +82,10 @@ test('errors are not cached and redirect following is explicitly disabled', asyn
     return Response.json(source);
   } });
   try {
-    const first = await app.inject('/api/cocktails/search.php?s=Paper');
+    const first = await app.inject('/api/cocktails/lookup.php?i=99101');
     assert.equal(first.statusCode, 502);
     assert.doesNotMatch(first.body, /synthetic-private-key|provider.invalid/);
-    assert.equal((await app.inject('/api/cocktails/search.php?s=Paper')).statusCode, 200);
+    assert.equal((await app.inject('/api/cocktails/lookup.php?i=99101')).statusCode, 200);
     assert.equal(calls, 2);
   } finally { await app.close(); }
 });
@@ -94,11 +94,21 @@ test('duplicate/extra query fields and unsupported methods never reach upstream'
   let calls = 0;
   const app = buildApp({ apiKey: '1', fetcher: async () => { calls++; return Response.json(source); } });
   try {
-    for (const query of ['s=a&s=b', 's=a&apiKey=override', 's=a&url=https://evil.invalid', 's=%20%20', `s=${'a'.repeat(201)}`]) {
-      assert.equal((await app.inject(`/api/cocktails/search.php?${query}`)).statusCode, 400);
+    for (const query of ['i=1&i=2', 'i=1&apiKey=override', 'i=1&url=https://evil.invalid', 'i=%20%20', `i=${'1'.repeat(21)}`]) {
+      assert.equal((await app.inject(`/api/cocktails/lookup.php?${query}`)).statusCode, 400);
     }
-    assert.equal((await app.inject({ method: 'POST', url: '/api/cocktails/search.php?s=x' })).statusCode, 404);
+    assert.equal((await app.inject({ method: 'POST', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 404);
     assert.equal(calls, 0);
+  } finally { await app.close(); }
+});
+
+test('removed client-facing routes 404', async () => {
+  const app = buildApp({ apiKey: '1', fetcher: async () => Response.json(source) });
+  try {
+    for (const url of ['/api/cocktails/search.php?s=x', '/api/cocktails/filter.php?i=x', '/api/cocktails/list.php?i=list']) {
+      assert.equal((await app.inject({ method: 'GET', url })).statusCode, 404);
+    }
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=99101' })).statusCode, 200);
   } finally { await app.close(); }
 });
 
@@ -109,11 +119,11 @@ test('browser CORS allows the configured origin and exposes cooldown, never cred
     assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:5173');
     assert.equal(response.headers['access-control-allow-credentials'], undefined);
     assert.equal(response.headers['access-control-expose-headers'], 'Retry-After');
-    const preflight = await app.inject({ method: 'OPTIONS', url: '/api/cocktails/search.php', headers: {
+    const preflight = await app.inject({ method: 'OPTIONS', url: '/api/cocktails/lookup.php', headers: {
       origin: 'http://localhost:5173', 'access-control-request-method': 'GET',
     } });
     assert.equal(preflight.statusCode, 204);
-    const denied = await app.inject({ method: 'OPTIONS', url: '/api/cocktails/search.php', headers: {
+    const denied = await app.inject({ method: 'OPTIONS', url: '/api/cocktails/lookup.php', headers: {
       origin: 'https://evil.invalid', 'access-control-request-method': 'GET',
     } });
     assert.equal(denied.statusCode, 403);

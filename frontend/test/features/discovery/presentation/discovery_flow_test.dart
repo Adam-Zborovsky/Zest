@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -9,16 +7,35 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/core/network/cocktail_api_exception.dart';
+import 'package:zest/features/catalog/application/catalog_providers.dart';
+import 'package:zest/features/catalog/application/catalog_update_controller.dart';
+import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
+import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/catalog_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
 import '../../../support/load_fonts.dart';
 
 Finder keyed(String value) => find.byKey(ValueKey(value));
+
+/// `discovery-query`'s key is on the outer `ZestSuggestionField` now; this
+/// descends to the actual `TextFormField` it wraps.
+String queryFieldText(WidgetTester tester) => tester
+    .widget<TextFormField>(
+      find.descendant(
+        of: keyed('discovery-query'),
+        matching: find.byType(TextFormField),
+      ),
+    )
+    .controller!
+    .text;
 
 Future<void> openDiscovery(
   WidgetTester tester, {
@@ -29,6 +46,11 @@ Future<void> openDiscovery(
   Size size = const Size(900, 1200),
   Future<bool> Function(Uri)? launchSource,
   DateTime Function()? now,
+  // Discover's results and suggestions read the local catalog now
+  // (docs/M11.md "Surfaces"); seed it for tests exercising local
+  // name/ingredient/letter matching. Left empty, `recipeById` misses and
+  // `respond` above serves the `lookup.php` fallback.
+  List<Recipe> catalogRecipes = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -40,10 +62,17 @@ Future<void> openDiscovery(
     client.close();
     transport.close();
   });
+  final database = openInMemoryCatalog();
+  addTearDown(database.close);
+  final repository = CatalogRepository(database: database);
+  if (catalogRecipes.isNotEmpty) {
+    await repository.applySnapshot(catalogSnapshotFixture(drinks: catalogRecipes));
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         cocktailDbClientProvider.overrideWithValue(client),
+        catalogRepositoryProvider.overrideWithValue(repository),
         if (launchSource != null)
           sourceLauncherProvider.overrideWithValue(launchSource),
         if (now != null) nowProvider.overrideWithValue(now),
@@ -78,6 +107,11 @@ Future<void> activate(WidgetTester tester, Finder target) async {
 Future<void> search(WidgetTester tester, String query) async {
   await tester.ensureVisible(keyed('discovery-query'));
   await tester.enterText(keyed('discovery-query'), query);
+  await tester.pump();
+  // Close the suggestion panel the query now opens (docs/M11.md "Discover")
+  // — otherwise it can sit over the submit button and swallow the tap.
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump();
   await activate(tester, keyed('search-submit'));
 }
 
@@ -129,24 +163,23 @@ void main() {
         tester,
         respond: (request) async {
           requests.add(request.url);
-          if (request.url.path.endsWith('lookup.php')) {
-            final id = request.url.queryParameters['i']!;
-            return discoveryResponse([
-              discoveryRecipe(id: id, name: 'Paper Garden 8'),
-            ]);
-          }
-          return discoveryResponse(discoveryRecipes());
+          return discoveryResponse(null);
         },
+        catalogRecipes: [
+          for (final record in discoveryRecipes())
+            Recipe.fromJson(record),
+        ],
       );
       await search(tester, 'Paper Garden');
-      expect(requests.single.queryParameters, {'s': 'Paper Garden'});
       expect(keyed('recipe-99001'), findsOneWidget);
       expect(keyed('recipe-99007'), findsNothing);
       await activate(tester, keyed('see-all-results'));
       expect(router(tester).state.uri.path, '/discover/results');
       await activate(tester, keyed('recipe-99008'));
       expect(router(tester).state.uri.path, '/discover/recipe/99008');
-      expect(requests.last.queryParameters, {'i': '99008'});
+      // Local-first detail (docs/M11.md "Recipe detail"): this id is in the
+      // seeded catalog, so no network request is made at all.
+      expect(requests, isEmpty);
       expect(find.text('1 1/2 oz'), findsOneWidget);
       expect(find.text('a small splash'), findsOneWidget);
       expect(find.text('Imaginary leaf syrup'), findsOneWidget);
@@ -177,45 +210,39 @@ void main() {
         'q': 'Paper Garden',
       });
       expect(
-        tester.widget<TextFormField>(keyed('discovery-query')).controller!.text,
+        queryFieldText(tester),
         'Paper Garden',
       );
-      expect(requests, hasLength(2));
+      expect(requests, isEmpty);
       expectReadable(tester);
     },
   );
 
-  testWidgets('ingredient and letter modes use their distinct API endpoints', (
-    tester,
-  ) async {
-    final requests = <Uri>[];
-    await openDiscovery(
-      tester,
-      respond: (request) async {
-        requests.add(request.url);
-        final recipes = discoveryRecipes(1);
-        return discoveryResponse(
-          request.url.path.endsWith('filter.php')
-              ? recipes.map(discoverySummary).toList()
-              : recipes,
-        );
-      },
-    );
-    await activate(tester, keyed('mode-ingredient'));
-    await search(tester, 'Imaginary leaf syrup');
-    expect(requests.last.path, endsWith('filter.php'));
-    expect(requests.last.queryParameters, {'i': 'Imaginary leaf syrup'});
-    expect(keyed('recipe-99001'), findsOneWidget);
-    await activate(tester, find.text('Browse A–Z'));
-    await activate(tester, keyed('letter-a'));
-    expect(requests.last.path, endsWith('search.php'));
-    expect(requests.last.queryParameters, {'f': 'a'});
-    expect(router(tester).state.uri.queryParameters, {
-      'mode': 'letter',
-      'q': 'a',
-    });
-    expect(requests, hasLength(2));
-  });
+  testWidgets(
+    'ingredient and letter modes match the local catalog, with no network call',
+    (tester) async {
+      final requests = <Uri>[];
+      await openDiscovery(
+        tester,
+        respond: (request) async {
+          requests.add(request.url);
+          return discoveryResponse(null);
+        },
+        catalogRecipes: [Recipe.fromJson(discoveryRecipes(1).single)],
+      );
+      await activate(tester, keyed('mode-ingredient'));
+      await search(tester, 'Imaginary leaf syrup');
+      expect(keyed('recipe-99001'), findsOneWidget);
+      await activate(tester, find.text('Browse A–Z'));
+      await activate(tester, keyed('letter-p'));
+      expect(keyed('recipe-99001'), findsOneWidget);
+      expect(router(tester).state.uri.queryParameters, {
+        'mode': 'letter',
+        'q': 'p',
+      });
+      expect(requests, isEmpty);
+    },
+  );
 
   testWidgets('mode changes and submitted query updates preserve field text', (
     tester,
@@ -228,24 +255,22 @@ void main() {
         return discoveryResponse(null);
       },
     );
-    String fieldValue() =>
-        tester.widget<TextFormField>(keyed('discovery-query')).controller!.text;
+    String fieldValue() => queryFieldText(tester);
     await tester.enterText(keyed('discovery-query'), 'Draft botanical');
     await activate(tester, keyed('mode-ingredient'));
     expect(fieldValue(), 'Draft botanical');
-    expect(requests, isEmpty);
     await activate(tester, keyed('search-submit'));
     expect(fieldValue(), 'Draft botanical');
-    expect(requests.single.queryParameters, {'i': 'Draft botanical'});
     await activate(tester, keyed('mode-name'));
     expect(fieldValue(), 'Draft botanical');
     await search(tester, 'Second botanical');
     expect(fieldValue(), 'Second botanical');
-    expect(requests.last.queryParameters, {'s': 'Second botanical'});
     router(tester).go('/discover?mode=name&q=Third');
     await tester.pumpAndSettle();
     expect(fieldValue(), 'Third');
-    expect(requests.last.queryParameters, {'s': 'Third'});
+    // Discover's results are local now (docs/M11.md "Surfaces"); no query
+    // ever reaches the network.
+    expect(requests, isEmpty);
   });
 
   testWidgets('keyboard search and result activation require no pointer', (
@@ -256,8 +281,9 @@ void main() {
       tester,
       respond: (request) async {
         requests.add(request.url);
-        return discoveryResponse(discoveryRecipes(1));
+        return discoveryResponse(null);
       },
+      catalogRecipes: [Recipe.fromJson(discoveryRecipes(1).single)],
     );
     for (var tab = 0; tab < 12; tab++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -268,7 +294,7 @@ void main() {
     tester.testTextInput.enterText('Paper');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
-    expect(requests.single.queryParameters, {'s': 'Paper'});
+    expect(requests, isEmpty);
     var reachedResult = false;
     for (var tab = 0; tab < 40; tab++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -299,104 +325,72 @@ void main() {
     expectReadable(tester);
   });
 
-  testWidgets('an earlier response cannot replace the newer routed query', (
-    tester,
-  ) async {
-    final earlier = Completer<http.Response>();
-    await openDiscovery(
-      tester,
-      respond: (request) async {
-        if (request.url.queryParameters['s'] == 'Earlier') {
-          return earlier.future;
-        }
-        return discoveryResponse([
-          discoveryRecipe(id: '99002', name: 'Newer Paper Garden'),
-        ]);
-      },
-    );
-    router(tester).go('/discover?mode=name&q=Earlier');
-    await tester.pump();
-    await tester.pump();
-    expect(keyed('recipe-99001'), findsNothing);
-    expect(find.text('Finding recipes…'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics &&
-            widget.properties.liveRegion == true &&
-            widget.properties.label == 'Finding recipes…',
-      ),
-      findsOneWidget,
-    );
-    router(tester).go('/discover?mode=name&q=Newer');
-    await tester.pumpAndSettle();
-    expect(keyed('recipe-99002'), findsOneWidget);
-    earlier.complete(discoveryResponse(discoveryRecipes(1)));
-    await tester.pumpAndSettle();
-    expect(keyed('recipe-99001'), findsNothing);
-    expect(keyed('recipe-99002'), findsOneWidget);
-    expect(router(tester).state.uri.queryParameters['q'], 'Newer');
-  });
+  testWidgets(
+    'navigating between two name queries always shows the latest, never a stale one',
+    (tester) async {
+      // Discover's results are a synchronous local read now (docs/M11.md
+      // "Surfaces"), so the old network-race scenario (an earlier slow
+      // response arriving after a newer one) no longer applies; this
+      // instead guards the family-keyed provider's per-query identity when
+      // routing quickly between two queries.
+      await openDiscovery(
+        tester,
+        respond: (_) async => discoveryResponse(null),
+        catalogRecipes: [
+          Recipe.fromJson(discoveryRecipe(id: '99001', name: 'Older Paper Garden')),
+          Recipe.fromJson(discoveryRecipe(id: '99002', name: 'Newer Paper Garden')),
+        ],
+      );
+      router(tester).go('/discover?mode=name&q=Older');
+      await tester.pumpAndSettle();
+      expect(keyed('recipe-99001'), findsOneWidget);
+      expect(keyed('recipe-99002'), findsNothing);
+      router(tester).go('/discover?mode=name&q=Newer');
+      await tester.pumpAndSettle();
+      expect(keyed('recipe-99001'), findsNothing);
+      expect(keyed('recipe-99002'), findsOneWidget);
+      expect(router(tester).state.uri.queryParameters['q'], 'Newer');
+    },
+  );
 
-  testWidgets('failed search waits for manual retry and then shows its result', (
-    tester,
-  ) async {
-    var requests = 0;
-    await openDiscovery(
-      tester,
-      location: '/discover?mode=name&q=Paper',
-      respond: (_) async {
-        requests++;
-        return requests == 1
-            ? http.Response('Synthetic temporary failure', 503)
-            : discoveryResponse(discoveryRecipes(1));
-      },
-    );
-    expect(
-      find.text('Recipes are out of reach'),
-      findsOneWidget,
-      reason:
-          'Requests: $requests; route: ${router(tester).state.uri}; '
-          'visible text: ${tester.widgetList<Text>(find.byType(Text)).map((text) => text.data).join('|')}',
-    );
-    await tester.pump(const Duration(seconds: 20));
-    expect(requests, 1);
-    await activate(tester, find.text('Try again'));
-    expect(requests, 2);
-    expect(keyed('recipe-99001'), findsOneWidget);
-    expect(router(tester).state.uri.queryParameters['q'], 'Paper');
-  });
-
-  testWidgets('rate limit disables retry until its cooldown expires', (
-    tester,
-  ) async {
-    var requests = 0;
-    var clock = DateTime.utc(2026, 9, 11);
-    await openDiscovery(
-      tester,
-      location: '/discover?mode=name&q=Paper',
-      now: () => clock,
-      respond: (_) async {
-        requests++;
-        return requests == 1
-            ? http.Response('', 429, headers: {'retry-after': '2'})
-            : discoveryResponse(discoveryRecipes(1));
-      },
-    );
-    expect(find.text('A moment for the source'), findsOneWidget);
-    expect(find.text('Try again'), findsNothing);
-    final waiting = find.textContaining('Try again in');
-    expect(waiting, findsOneWidget);
-    await tester.ensureVisible(waiting);
-    await tester.tap(waiting);
-    await tester.pump();
-    expect(requests, 1);
-    clock = clock.add(const Duration(seconds: 3));
-    await tester.pump(const Duration(seconds: 3));
-    await activate(tester, find.text('Try again'));
-    expect(requests, 2);
-    expect(keyed('recipe-99001'), findsOneWidget);
-  });
+  testWidgets(
+    'an empty catalog shows the download state instead of empty results',
+    (tester) async {
+      // docs/M11.md "Surfaces": with no local catalog yet, results areas
+      // show the catalog download state (downloading, or failed with
+      // Retry) rather than a false "no results found".
+      final fetcher = FakeCatalogSnapshotFetcher()
+        ..enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+      final database = openInMemoryCatalog();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: [
+          ...catalogTestOverrides(database: database, fetcher: fetcher),
+          cocktailDbClientProvider.overrideWithValue(
+            CocktailDbClient(client: MockClient((_) async => discoveryResponse(null))),
+          ),
+          ...collectionTestOverrides(),
+          ...sessionTestOverrides(),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const ZestApp(initialLocation: '/discover?mode=name&q=Paper'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // No screen in this route tree triggers the launch check (that only
+      // happens from the home screen's own initState); drive it explicitly.
+      await container.read(catalogUpdateControllerProvider.notifier).checkNow();
+      await tester.pumpAndSettle();
+      expect(find.text("Couldn't download the catalog"), findsOneWidget);
+      expect(keyed('catalog-download-failed'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'empty search and missing recipe are distinct recoverable states',
@@ -405,6 +399,10 @@ void main() {
         tester,
         location: '/discover?mode=name&q=Nothing',
         respond: (_) async => discoveryResponse(null),
+        // A non-empty catalog that just doesn't match "Nothing" — a real
+        // no-results outcome, distinct from the empty-catalog download
+        // state covered above.
+        catalogRecipes: [Recipe.fromJson(discoveryRecipes(1).single)],
       );
       expect(keyed('recipe-99001'), findsNothing);
       expect(find.text('Try again'), findsNothing);
@@ -481,7 +479,8 @@ void main() {
       await openDiscovery(
         tester,
         size: const Size(320, 720),
-        respond: (_) async => discoveryResponse(discoveryRecipes(1)),
+        respond: (_) async => discoveryResponse(null),
+        catalogRecipes: [Recipe.fromJson(discoveryRecipes(1).single)],
       );
       expectReadable(tester);
       await search(tester, 'Paper Garden');

@@ -104,14 +104,13 @@ final class BarMatchNotifier extends Notifier<BarMatchState> {
       matches: List.unmodifiable(matches),
     );
 
-    final gateway = ref.read(cocktailRequestGatewayProvider);
     var offset = startAt;
     while (offset < scope.recipes.length) {
       if (_run != run) return;
       final batch = scope.recipes.skip(offset).take(batchCount).toList();
       try {
         final recipes = await Future.wait(
-          batch.map((summary) => gateway.detail(summary.id)),
+          batch.map((summary) => lookupRecipeLocalFirst(ref, summary.id)),
         );
         if (_run != run) return;
         for (final recipe in recipes) {

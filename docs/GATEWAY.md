@@ -12,15 +12,14 @@ The gateway intentionally keeps the current provider-shaped `drinks` envelope an
 
 ## API
 
+**M11 cleanup:** `search.php`, `filter.php` and `list.php` were client-facing proxy routes for Discover's per-query name/letter/ingredient search and the home-bar/list ingredient-name lookup. Since M11 the client searches the local shared-catalog snapshot instead (`docs/M11.md`, `docs/DISCOVERY.md`), so those three routes are removed — a request to any of them 404s like any other unknown path. `lookup.php` stays as the sole client-facing recipe route: saved recipes and bar-matching scopes can reference drinks that have since left the shared catalog, and detail reads fall back to it only then. The refresher still calls `RecipeGateway.get` with `search.php` directly (in-process, never over HTTP) for its 26 letter browses, so the gateway's `Endpoint` type keeps that internal support.
+
 | Local GET route | Accepted query | Purpose |
 | --- | --- | --- |
 | `/api/health` | None needed | Local liveness; does not test the provider |
-| `/api/cocktails/search.php` | Exactly `s` or `f` | Name or one ASCII first letter |
-| `/api/cocktails/filter.php` | Exactly `i` | One ingredient, summaries only |
 | `/api/cocktails/lookup.php` | Exactly numeric `i` | Full recipe or missing result |
-| `/api/cocktails/list.php` | Exactly `i=list` | Ingredient names |
 
-Search/ingredient values are trimmed, limited to 200 characters and reject control characters/blank values. Ingredient commas are rejected: multi-ingredient matching is not this contract. IDs are 1–20 digits. Duplicate/unknown query keys, mixed search modes and unsupported routes/methods are rejected. First letters normalize to lowercase. Name case is preserved in cache keys. Full recipes retain original metadata, slots, text and measures; lookup IDs/counts must match the request. Ingredient names are not treated as availability.
+IDs are 1–20 digits. Duplicate/unknown query keys and unsupported routes/methods are rejected. Full recipes retain original metadata, slots, text and measures; lookup IDs/counts must match the request.
 
 ## Failures and limits
 

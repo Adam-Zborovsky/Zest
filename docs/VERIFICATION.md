@@ -1,5 +1,17 @@
 # Verification record
 
+## M11 — Shared catalog and search suggestions — 2026-09-14
+
+Commands ran from their owning directories on the development PC:
+
+- Frontend: `flutter analyze` — no issues; `flutter test` — all **571 tests** passed.
+- Backend: `npm run typecheck` and `npm run build` — clean; `npm test` — all **95 tests** passed.
+- No Docker container, server, watcher, provider network call, key, or personal data was used.
+
+Coverage added/changed for the search-surfaces and gateway-cleanup track: `catalogSearchIndexProvider` building from the on-device catalog and rebuilding once the update controller applies a new snapshot; Discover's per-mode suggestions, local name/ingredient/letter results, a keyboard-only type → Down → Enter flow that opens a recipe, an ingredient suggestion running results, Enter with no highlight still submitting free text, and the M11 acceptance strings ("old fash", "creme", "lime jiuce") in the real screen; recipe detail and M4 bar-matching detail reads local-first with a `lookup.php` fallback and its shared cooldown, exercised via a scope whose ids were removed from the local catalog to force the fallback path; an empty local catalog showing the shared download/failed-with-Retry state instead of a false empty result; a constellation suggestion selecting the same node a tap would and keeping the live filter text; the home-bar picker's catalog options ranked by the search index for a query; a variation-editor ingredient row suggesting a catalog label while free text stays valid; and backend coverage that the removed `search.php`/`filter.php`/`list.php` routes 404 while `lookup.php` keeps working, rewriting the gateway behavior tests (caching, cooldown, CORS, timeouts) to exercise `lookup.php` instead of the removed routes. Updated goldens (`discovery-results.png`, `collection-variation-editor.png`) were visually reviewed before acceptance.
+
+Limits: no physical-device, TalkBack/VoiceOver, live browser-history, real PostgreSQL/Docker, provider-network, or deployment run was performed. Independent review of this track is still pending (`docs/ROADMAP.md`).
+
 ## M10 — Home-bar inventory and shopping list — 2026-09-14
 
 Commands ran from their owning directories on the development PC:

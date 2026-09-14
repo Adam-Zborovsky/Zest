@@ -14,6 +14,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 
+import '../../../support/catalog_wiring.dart';
 import '../../../support/discovery_fixtures.dart';
 
 RecipeSummary summary(String id, String name) =>
@@ -71,6 +72,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         cocktailDbClientProvider.overrideWithValue(client),
+        emptyCatalogRepositoryOverride(),
         stockedIngredientIdsProvider.overrideWithValue(
           AsyncData({for (final name in stocked) name.toLowerCase()}),
         ),
@@ -83,6 +85,7 @@ void main() {
     void setStocked(List<String> names) {
       container.updateOverrides([
         cocktailDbClientProvider.overrideWithValue(client),
+        emptyCatalogRepositoryOverride(),
         stockedIngredientIdsProvider.overrideWithValue(
           AsyncData({for (final name in names) name.toLowerCase()}),
         ),

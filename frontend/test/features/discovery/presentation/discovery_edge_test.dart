@@ -10,10 +10,15 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/features/catalog/application/catalog_providers.dart';
+import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
+import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/catalog_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
@@ -120,6 +125,11 @@ Future<void> _pumpApp(
   required Future<http.Response> Function(http.Request) respond,
   String? location,
   ImageProvider Function(String)? imageProvider,
+  // Discover's results now come from the local catalog (docs/M11.md
+  // "Surfaces"); seed it for tests exercising local name/ingredient
+  // matching. Tests that only exercise recipe-detail fallback leave this
+  // empty so `recipeById` misses and the gateway mock above is used.
+  List<Recipe> catalogRecipes = const [],
 }) async {
   final transport = MockClient(respond);
   final client = CocktailDbClient(client: transport);
@@ -127,10 +137,17 @@ Future<void> _pumpApp(
     client.close();
     transport.close();
   });
+  final database = openInMemoryCatalog();
+  addTearDown(database.close);
+  final repository = CatalogRepository(database: database);
+  if (catalogRecipes.isNotEmpty) {
+    await repository.applySnapshot(catalogSnapshotFixture(drinks: catalogRecipes));
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         cocktailDbClientProvider.overrideWithValue(client),
+        catalogRepositoryProvider.overrideWithValue(repository),
         if (imageProvider != null)
           recipeImageProvider.overrideWithValue(imageProvider),
         ...collectionTestOverrides(),
@@ -199,7 +216,10 @@ void main() {
         'mode': 'ingredient',
         'q': 'Imaginary leaf',
       });
-      expect(requests, hasLength(2));
+      // The underlying ingredient results are local now (docs/M11.md
+      // "Surfaces"), so returning to them makes no further network request
+      // — only the one detail lookup from opening the recipe directly.
+      expect(requests, hasLength(1));
     },
   );
 
@@ -209,7 +229,10 @@ void main() {
     await _pumpApp(
       tester,
       location: '/discover?mode=name&q=Paper',
-      respond: (_) async => discoveryResponse(discoveryRecipes(2)),
+      respond: (_) async => discoveryResponse(null),
+      catalogRecipes: [
+        for (final record in discoveryRecipes(2)) Recipe.fromJson(record),
+      ],
     );
     final semantics = tester.ensureSemantics();
     expect(
@@ -229,13 +252,14 @@ void main() {
     await _pumpApp(
       tester,
       location: '/discover?mode=name&q=Paper',
-      respond: (request) async => discoveryResponse(
-        request.url.queryParameters['s'] == 'None' ? null : discoveryRecipes(1),
-      ),
+      respond: (_) async => discoveryResponse(null),
+      catalogRecipes: [
+        for (final record in discoveryRecipes(1)) Recipe.fromJson(record),
+      ],
     );
-    expect(_liveText('1 recipe returned by TheCocktailDB.'), findsOneWidget);
+    expect(_liveText('1 recipe found in your downloaded catalog.'), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, '1 recipe returned by TheCocktailDB.'),
+      find.widgetWithText(FilledButton, '1 recipe found in your downloaded catalog.'),
       findsNothing,
     );
 

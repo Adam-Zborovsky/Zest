@@ -10,7 +10,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 void main() {
   group('CocktailDbClient', () {
     test(
-      'builds each gateway endpoint with encoded query values and no key',
+      'builds the lookup.php gateway endpoint with encoded query values and no key',
       () async {
         final urls = <Uri>[];
         final client = CocktailDbClient(
@@ -18,41 +18,16 @@ void main() {
           client: MockClient((request) async {
             urls.add(request.url);
             return _jsonResponse({
-              'drinks': request.url.path.contains('filter')
-                  ? [_summary()]
-                  : request.url.path.contains('list')
-                  ? [
-                      {'strIngredient1': 'Lime'},
-                    ]
-                  : [_full()],
+              'drinks': [_full(id: '42')],
             });
           }),
         );
 
-        await client.searchByName('  lime fizz  ');
-        await client.browseByFirstLetter(' Q ');
-        await client.filterByIngredient('Brand Rum & Lime');
-        await client.lookupRecipe('42');
-        await client.listIngredientNames();
+        await client.lookupRecipe(' 42 ');
 
-        expect(urls.map((url) => url.path), [
-          '/api/cocktails/search.php',
-          '/api/cocktails/search.php',
-          '/api/cocktails/filter.php',
-          '/api/cocktails/lookup.php',
-          '/api/cocktails/list.php',
-        ]);
-        expect(
-          urls.every((url) => url.host == 'gateway.example.invalid'),
-          isTrue,
-        );
-        expect(urls.map((url) => url.queryParameters), [
-          {'s': 'lime fizz'},
-          {'f': 'q'},
-          {'i': 'Brand Rum & Lime'},
-          {'i': '42'},
-          {'i': 'list'},
-        ]);
+        expect(urls.single.path, '/api/cocktails/lookup.php');
+        expect(urls.single.host, 'gateway.example.invalid');
+        expect(urls.single.queryParameters, {'i': '42'});
       },
     );
 
@@ -62,72 +37,20 @@ void main() {
         client: MockClient((request) async {
           url = request.url;
           return _jsonResponse({
-            'drinks': [_full()],
+            'drinks': [_full(id: '42')],
           });
         }),
       );
-      await client.searchByName('mint');
-      expect(
-        url.toString(),
-        'http://127.0.0.1:3000/api/cocktails/search.php?s=mint',
-      );
+      await client.lookupRecipe('42');
+      expect(url.toString(), 'http://127.0.0.1:3000/api/cocktails/lookup.php?i=42');
     });
 
-    test('lists ingredient names sorted, deduplicated, and cached', () async {
-      var requests = 0;
+    test('returns null when the gateway has no match', () async {
       final client = CocktailDbClient(
-        client: MockClient((request) async {
-          requests++;
-          return _jsonResponse({
-            'drinks': [
-              {'strIngredient1': 'Zest Orange'},
-              {'strIngredient1': ' apple syrup '},
-              {'strIngredient1': 'Zest Orange'},
-              {'strIngredient1': 'Apple Syrup'},
-            ],
-          });
-        }),
+        client: MockClient((_) async => _jsonResponse({'drinks': null})),
       );
-      final names = await client.listIngredientNames();
-      expect(names, ['apple syrup', 'Zest Orange']);
-      expect(requests, 1);
-      expect(await client.listIngredientNames(), same(names));
-      expect(requests, 1);
+      expect(await client.lookupRecipe('42'), isNull);
     });
-
-    test('rejects malformed ingredient list records', () async {
-      final client = CocktailDbClient(
-        client: MockClient(
-          (request) async => _jsonResponse({
-            'drinks': [
-              {'strIngredient1': 7},
-            ],
-          }),
-        ),
-      );
-      await expectLater(
-        client.listIngredientNames(),
-        _throwsKind(CocktailApiErrorKind.invalidResponse),
-      );
-    });
-
-    test(
-      'handles empty matches and only returns detail models for detail endpoints',
-      () async {
-        final client = CocktailDbClient(
-          client: MockClient((request) async {
-            if (request.url.path.contains('filter'))
-              return _jsonResponse({
-                'drinks': [_summary()],
-              });
-            return _jsonResponse({'drinks': null});
-          }),
-        );
-        expect(await client.searchByName('none'), isEmpty);
-        expect(await client.filterByIngredient('mint'), hasLength(1));
-        expect(await client.lookupRecipe('42'), isNull);
-      },
-    );
 
     test('rejects invalid input before making a request', () async {
       var calls = 0;
@@ -137,10 +60,8 @@ void main() {
           return _jsonResponse({'drinks': []});
         }),
       );
-      expect(() => client.searchByName('  '), throwsArgumentError);
-      expect(() => client.filterByIngredient(''), throwsArgumentError);
-      expect(() => client.browseByFirstLetter('12'), throwsArgumentError);
       expect(() => client.lookupRecipe('x42'), throwsArgumentError);
+      expect(() => client.lookupRecipe(''), throwsArgumentError);
       expect(calls, 0);
     });
 
@@ -177,26 +98,12 @@ void main() {
         final client = CocktailDbClient(
           client: MockClient((_) async => _jsonResponse(responses[index++])),
         );
-        await expectLater(
-          client.searchByName('one'),
-          _throwsKind(CocktailApiErrorKind.invalidResponse),
-        );
-        await expectLater(
-          client.searchByName('two'),
-          _throwsKind(CocktailApiErrorKind.invalidResponse),
-        );
-        await expectLater(
-          client.searchByName('three'),
-          _throwsKind(CocktailApiErrorKind.invalidResponse),
-        );
-        await expectLater(
-          client.lookupRecipe('42'),
-          _throwsKind(CocktailApiErrorKind.invalidResponse),
-        );
-        await expectLater(
-          client.lookupRecipe('42'),
-          _throwsKind(CocktailApiErrorKind.invalidResponse),
-        );
+        for (var i = 0; i < responses.length; i++) {
+          await expectLater(
+            client.lookupRecipe('42'),
+            _throwsKind(CocktailApiErrorKind.invalidResponse),
+          );
+        }
       },
     );
 
@@ -207,7 +114,7 @@ void main() {
           client: MockClient((_) async => http.Response('', 500)),
         );
         await expectLater(
-          httpFailure.searchByName('one'),
+          httpFailure.lookupRecipe('1'),
           _throwsKind(CocktailApiErrorKind.http),
         );
         final limited = CocktailDbClient(
@@ -216,7 +123,7 @@ void main() {
           ),
         );
         await expectLater(
-          limited.searchByName('two'),
+          limited.lookupRecipe('2'),
           throwsA(
             isA<CocktailApiException>()
                 .having(
@@ -245,11 +152,11 @@ void main() {
         ),
       );
       await expectLater(
-        network.searchByName('x'),
+        network.lookupRecipe('1'),
         _throwsKind(CocktailApiErrorKind.network),
       );
       try {
-        await network.searchByName('y');
+        await network.lookupRecipe('2');
       } catch (error) {
         expect(error.toString(), isNot(contains('secret-key')));
         expect(error.toString(), isNot(contains('syntheticsecret')));
@@ -268,7 +175,7 @@ void main() {
           }),
         );
         await expectLater(
-          client.searchByName('redirect'),
+          client.lookupRecipe('1'),
           _throwsKind(CocktailApiErrorKind.http),
         );
         expect(request.followRedirects, isFalse);
@@ -282,7 +189,7 @@ void main() {
         client: MockClient((_) async => http.Response('0123456789', 200)),
       );
       await expectLater(
-        oversized.searchByName('large'),
+        oversized.lookupRecipe('1'),
         _throwsKind(CocktailApiErrorKind.invalidResponse),
       );
       final failedStream = CocktailDbClient(
@@ -294,7 +201,7 @@ void main() {
         ),
       );
       await expectLater(
-        failedStream.searchByName('stream'),
+        failedStream.lookupRecipe('2'),
         _throwsKind(CocktailApiErrorKind.network),
       );
     });
@@ -310,46 +217,42 @@ void main() {
           now: () => clock,
           client: MockClient((request) async {
             calls++;
+            final id = request.url.queryParameters['i'];
             return _jsonResponse({
-              'drinks': request.url.queryParameters['s'] == 'empty'
-                  ? []
-                  : [_full()],
+              'drinks': id == '9' ? null : [_full(id: id!)],
             });
           }),
         );
-        await client.searchByName('a');
-        await client.searchByName('b');
-        await client.searchByName('a'); // a becomes most recently used
-        await client.searchByName('c'); // b evicted
-        await client.searchByName('b');
-        await client.searchByName('empty');
-        await client.searchByName('empty');
+        await client.lookupRecipe('1');
+        await client.lookupRecipe('2');
+        await client.lookupRecipe('1'); // 1 becomes most recently used
+        await client.lookupRecipe('3'); // 2 evicted
+        await client.lookupRecipe('2');
+        await client.lookupRecipe('9');
+        await client.lookupRecipe('9');
         expect(calls, 5);
         clock = clock.add(const Duration(minutes: 1));
-        await client.searchByName('empty');
+        await client.lookupRecipe('9');
         expect(calls, 6);
       },
     );
 
-    test(
-      'returns immutable collections and treats zero TTL as immediately expired',
-      () async {
-        var calls = 0;
-        final client = CocktailDbClient(
-          cacheTtl: Duration.zero,
-          client: MockClient((_) async {
-            calls++;
-            return _jsonResponse({
-              'drinks': [_full()],
-            });
-          }),
-        );
-        final recipes = await client.searchByName('immutable');
-        expect(() => recipes.add(recipes.single), throwsUnsupportedError);
-        await client.searchByName('immutable');
-        expect(calls, 2);
-      },
-    );
+    test('treats zero TTL as immediately expired', () async {
+      var calls = 0;
+      final client = CocktailDbClient(
+        cacheTtl: Duration.zero,
+        client: MockClient((_) async {
+          calls++;
+          return _jsonResponse({
+            'drinks': [_full(id: '1')],
+          });
+        }),
+      );
+      final recipe = await client.lookupRecipe('1');
+      expect(recipe?.id, '1');
+      await client.lookupRecipe('1');
+      expect(calls, 2);
+    });
 
     test('rejects invalid runtime settings', () {
       expect(
@@ -375,16 +278,16 @@ void main() {
             if (calls == 1) return gate.future;
             return Future.value(
               _jsonResponse({
-                'drinks': [_full()],
+                'drinks': [_full(id: '1')],
               }),
             );
           }),
         );
-        final first = client.searchByName('shared');
-        final second = client.searchByName('shared');
+        final first = client.lookupRecipe('1');
+        final second = client.lookupRecipe('1');
         gate.complete(
           _jsonResponse({
-            'drinks': [_full()],
+            'drinks': [_full(id: '1')],
           }),
         );
         await Future.wait([first, second]);
@@ -395,15 +298,15 @@ void main() {
             calls++;
             if (calls == 2) return http.Response('bad', 200);
             return _jsonResponse({
-              'drinks': [_full()],
+              'drinks': [_full(id: '2')],
             });
           }),
         );
         await expectLater(
-          failing.searchByName('retry'),
+          failing.lookupRecipe('2'),
           _throwsKind(CocktailApiErrorKind.invalidResponse),
         );
-        await failing.searchByName('retry');
+        await failing.lookupRecipe('2');
         expect(calls, 3);
       },
     );
@@ -417,19 +320,19 @@ void main() {
           requestTimeout: const Duration(milliseconds: 1),
         );
         await expectLater(
-          api.searchByName('slow'),
+          api.lookupRecipe('1'),
           _throwsKind(CocktailApiErrorKind.timeout),
         );
 
         final active = CocktailDbClient(client: client);
-        final pending = active.searchByName('active');
+        final pending = active.lookupRecipe('2');
         await Future<void>.delayed(Duration.zero);
         active.close();
         await expectLater(pending, _throwsKind(CocktailApiErrorKind.closed));
         api.close();
         expect(client.wasClosed, isFalse);
         await expectLater(
-          api.searchByName('after-close'),
+          api.lookupRecipe('3'),
           _throwsKind(CocktailApiErrorKind.closed),
         );
       },
@@ -444,18 +347,18 @@ void main() {
           requestTimeout: const Duration(milliseconds: 1),
         );
         await expectLater(
-          timeoutApi.searchByName('slow'),
+          timeoutApi.lookupRecipe('1'),
           _throwsKind(CocktailApiErrorKind.timeout),
         );
 
         final lateClient = _NonCooperativeClient();
         final lateApi = CocktailDbClient(client: lateClient);
-        final pending = lateApi.searchByName('late');
+        final pending = lateApi.lookupRecipe('2');
         await Future<void>.delayed(Duration.zero);
         lateApi.close();
         lateClient.complete(
           _jsonResponse({
-            'drinks': [_full()],
+            'drinks': [_full(id: '2')],
           }),
         );
         await expectLater(pending, _throwsKind(CocktailApiErrorKind.closed));
@@ -472,7 +375,7 @@ void main() {
         ),
       );
       await expectLater(
-        client.searchByName('stall'),
+        client.lookupRecipe('1'),
         _throwsKind(CocktailApiErrorKind.timeout),
       );
       await controller.close();
