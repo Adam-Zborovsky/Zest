@@ -77,7 +77,8 @@ final class _FakeSyncApi implements SyncApi {
     final records = _server._recordsFor(userId);
     final existing = records.entries[incoming.id];
     if (existing != null && existing.record.deleted) {
-      // Tombstones are final.
+      // Tombstones are final (`upsertEntry`: `if (existing?.deleted) return
+      // toEntryRecord(existing);`).
       return existing.record;
     }
     if (existing == null || incoming.updatedAt.isAfter(existing.record.updatedAt)) {
@@ -89,13 +90,24 @@ final class _FakeSyncApi implements SyncApi {
         source: incoming.deleted ? null : incoming.source,
         variation: incoming.deleted ? null : incoming.variation,
         day: incoming.day,
-        hasPhoto: incoming.deleted ? false : incoming.hasPhoto,
-        photoUpdatedAt: incoming.deleted ? null : incoming.photoUpdatedAt,
-        createdAt: incoming.createdAt,
+        // `upsertEntry`: photo state is server-owned on the entry route. It
+        // is carried over from the existing row (false for a brand-new
+        // entry), never taken from the incoming body, and cleared when the
+        // entry becomes a tombstone: `hasPhoto: becomingDeleted ? false :
+        // (existing?.hasPhoto ?? false)`.
+        hasPhoto: incoming.deleted ? false : (existing?.record.hasPhoto ?? false),
+        photoUpdatedAt: incoming.deleted
+            ? null
+            : existing?.record.photoUpdatedAt,
+        // `upsertEntry`: `createdAt: existing?.createdAt ?? params.body.createdAt`
+        // — the first-seen `createdAt` is kept for the life of the entry.
+        createdAt: existing?.record.createdAt ?? incoming.createdAt,
         updatedAt: incoming.updatedAt,
         deleted: incoming.deleted,
         revision: records.revision,
       );
+      // `upsertEntry` also removes the photo file when the entry becomes a
+      // tombstone (`if (becomingDeleted && existing?.hasPhoto) { ... }`).
       final photo = incoming.deleted ? null : existing?.photo;
       records.entries[incoming.id] = _StoredEntry(stored, photo);
       return stored;
@@ -115,6 +127,8 @@ final class _FakeSyncApi implements SyncApi {
     if (existing == null || existing.record.deleted) {
       throw const SyncApiException(404, 'not_found');
     }
+    // `setEntryPhoto`: last-edit-wins on `photoUpdatedAt`, mirrored the same
+    // way as an entry PUT's `updatedAt`.
     final currentPhotoUpdatedAt = existing.record.photoUpdatedAt;
     if (currentPhotoUpdatedAt == null || updatedAt.isAfter(currentPhotoUpdatedAt)) {
       records.revision += 1;
@@ -146,7 +160,9 @@ final class _FakeSyncApi implements SyncApi {
       existing.record = _withPhoto(
         existing.record,
         hasPhoto: false,
-        photoUpdatedAt: null,
+        // `clearEntryPhoto`: `photoUpdatedAt: params.updatedAt` — the clear
+        // stamps the *request's* updatedAt, not null.
+        photoUpdatedAt: updatedAt,
         revision: records.revision,
       );
       existing.photo = null;

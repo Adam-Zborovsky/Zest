@@ -86,6 +86,8 @@ Every body is JSON with camelCase fields, unless stated otherwise. Errors keep t
 
 A tombstone (`deleted: true`) keeps `id`, `kind`, `sourceRecipeId`, `day`, `createdAt`, and `updatedAt`. It sets `source` and `variation` to `null`, `hasPhoto` to `false`, and `photoUpdatedAt` to `null`.
 
+On an entry PUT, the server ignores the client's `hasPhoto`, `photoUpdatedAt`, and `createdAt`: photo state changes only through the photo routes, the first `createdAt` is kept for the life of the entry, and clearing a photo stamps `photoUpdatedAt` with the request's `updatedAt` (not `null`).
+
 | Route | Body | Result |
 | --- | --- | --- |
 | `GET /api/sync/entries?since=<int≥0>&limit=<1..500, default 200>` | none | `200 { entries: [EntryRecord], revision, hasMore }` |

@@ -214,8 +214,9 @@ final class SyncEngine implements CollectionSync {
 
   /// True when [returned] reflects [sent] having taken effect on the
   /// server: strictly newer (a real later edit exists), or an equal
-  /// timestamp with identical content (this push applied, or an idempotent
-  /// retry of it). See [_pushEntry] for the tie this distinguishes from.
+  /// timestamp with identical *client-authoritative* content (this push
+  /// applied, or an idempotent retry of it). See [_pushEntry] for the tie
+  /// this distinguishes from.
   bool _appliesTo(EntryRecord sent, EntryRecord returned) {
     // Tombstones are final (docs/ACCOUNTS.md sync rule 3): once an entry is
     // deleted, the server returns the tombstone unconditionally, even for a
@@ -227,7 +228,22 @@ final class SyncEngine implements CollectionSync {
     if (returned.deleted) return true;
     if (returned.updatedAt.isAfter(sent.updatedAt)) return true;
     if (returned.updatedAt.isAtSameMomentAs(sent.updatedAt)) {
-      return _deepEquals(sent.toJson(), returned.toJson());
+      // Only compare fields the entry PUT actually lets the client set.
+      // `upsertEntry` in `backend/src/accounts/repository.ts` treats photo
+      // state (`hasPhoto`, `photoUpdatedAt`) and `createdAt` as server-owned
+      // on this route: it carries them over from the existing row (or
+      // false/null/the incoming value for a brand-new row) regardless of
+      // what was sent, and `revision` is never sent at all. Comparing those
+      // fields here would read an *expected* mismatch — this device's local
+      // photo state hasn't reached the server through the photo routes yet
+      // — as a rejected tie, forcing a pointless re-stamp-and-retry on every
+      // push whose local photo state differs from the server's.
+      return sent.kind == returned.kind &&
+          sent.sourceRecipeId == returned.sourceRecipeId &&
+          _deepEquals(sent.source, returned.source) &&
+          _deepEquals(sent.variation, returned.variation) &&
+          sent.day == returned.day &&
+          sent.deleted == returned.deleted;
     }
     return false;
   }
@@ -248,6 +264,13 @@ final class SyncEngine implements CollectionSync {
   /// own write is what the server applied or echoed back. A tie with the
   /// other `hasPhoto` value is unambiguously a foreign write and is
   /// rejected the same way as the entry path: re-stamp and retry once.
+  ///
+  /// A successful delete is classified as applied here without further
+  /// change: `clearEntryPhoto` in `backend/src/accounts/repository.ts`
+  /// stamps `photoUpdatedAt` with the request's own `updatedAt` (not
+  /// `null`), so a delete that actually took effect ties `sentAt` with a
+  /// non-null `returnedAt` and `result.hasPhoto == false == intendedHasPhoto`
+  /// — the same tie branch a photo set uses.
   Future<void> _pushPhoto(LocalSyncRecord record, {bool retried = false}) async {
     final local = await _store.photoForSync(record.id);
     final sentAt = local?.updatedAt ?? record.updatedAt;

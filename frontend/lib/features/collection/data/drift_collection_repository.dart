@@ -392,6 +392,23 @@ final class DriftCollectionRepository
     bool clearPhotoDirty = false,
   }) {
     return _database.transaction(() async {
+      final existing = await _entryRow(record.id);
+      // A local photo change not yet pushed (`photoDirty`) must survive an
+      // apply that is not itself the photo push's own resolution. `record`
+      // here can come from an entry PUT response or a pull, and on the real
+      // server photo state is not client-authoritative on the entry route:
+      // `upsertEntry` in `backend/src/accounts/repository.ts` carries
+      // `hasPhoto`/`photoUpdatedAt` over from the existing row regardless of
+      // what was sent. Adopting `record.hasPhoto == false` here while a
+      // local photo add is still queued would delete the not-yet-pushed
+      // photo bytes and misreport the entry as photo-less before
+      // `_pushPhoto` ever runs. Only `_pushPhoto`'s own success
+      // (`clearPhotoDirty: true`) or a tombstone (which removes the photo
+      // unconditionally, per `docs/ACCOUNTS.md`) may touch the local photo
+      // state here.
+      final keepLocalPhoto =
+          !clearPhotoDirty && !record.deleted && (existing?.photoDirty ?? false);
+
       await _database
           .into(_database.entries)
           .insertOnConflictUpdate(
@@ -404,7 +421,9 @@ final class DriftCollectionRepository
                   ? const Value.absent()
                   : Value(jsonEncode(record.variation)),
               day: Value(record.day),
-              hasPhoto: Value(record.hasPhoto),
+              hasPhoto: keepLocalPhoto
+                  ? Value(existing!.hasPhoto)
+                  : Value(record.hasPhoto),
               createdAt: record.createdAt,
               updatedAt: record.updatedAt,
               deleted: Value(record.deleted),
@@ -425,7 +444,7 @@ final class DriftCollectionRepository
           const EntriesCompanion(variationJson: Value(null)),
         );
       }
-      if (!record.hasPhoto) {
+      if (!record.hasPhoto && !keepLocalPhoto) {
         await (_database.delete(
           _database.photos,
         )..where((t) => t.entryId.equals(record.id))).go();

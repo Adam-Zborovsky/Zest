@@ -126,29 +126,111 @@ void main() {
       expect(local.updatedAt.isAtSameMomentAs(DateTime(2026, 9, 13, 10)), isTrue);
     });
 
-    test('applyServerRecord removes the local photo when the server has none', () async {
-      final entry = await repository.saveRecipe(recipe());
-      await repository.setPhoto(entry.id, validTinyPng());
+    test(
+      'applyServerRecord removes the local photo when the server has none '
+      'and no local photo change is pending',
+      () async {
+        final entry = await repository.saveRecipe(recipe());
+        await repository.setPhoto(entry.id, validTinyPng());
+        // Settle the photo push so photoDirty is false, as it would be by
+        // the time a later pull's server-authoritative record (e.g. another
+        // device removed the photo) arrives.
+        final afterSet = (await repository.localRecord(entry.id))!;
+        await repository.applyServerRecord(
+          afterSet.toEntryRecord(),
+          clearPhotoDirty: true,
+        );
 
-      await repository.applyServerRecord(
-        EntryRecord(
-          id: entry.id,
-          kind: CollectionEntryKind.saved,
-          sourceRecipeId: entry.sourceRecipeId,
-          source: entry.source.toJson(),
-          variation: null,
-          day: '2026-09-12',
-          hasPhoto: false,
-          photoUpdatedAt: null,
-          createdAt: entry.createdAt,
-          updatedAt: DateTime(2026, 9, 13, 11),
-          deleted: false,
-          revision: 2,
-        ),
-      );
+        await repository.applyServerRecord(
+          EntryRecord(
+            id: entry.id,
+            kind: CollectionEntryKind.saved,
+            sourceRecipeId: entry.sourceRecipeId,
+            source: entry.source.toJson(),
+            variation: null,
+            day: '2026-09-12',
+            hasPhoto: false,
+            photoUpdatedAt: null,
+            createdAt: entry.createdAt,
+            updatedAt: DateTime(2026, 9, 13, 11),
+            deleted: false,
+            revision: 2,
+          ),
+        );
 
-      expect(await repository.photo(entry.id), isNull);
-    });
+        expect(await repository.photo(entry.id), isNull);
+      },
+    );
+
+    test(
+      'applyServerRecord keeps a not-yet-pushed local photo instead of '
+      'deleting it when the record carries a stale hasPhoto: false '
+      '(M8 fix: entry PUT does not own photo state)',
+      () async {
+        final entry = await repository.saveRecipe(recipe());
+        await repository.setPhoto(entry.id, validTinyPng());
+        final afterSet = (await repository.localRecord(entry.id))!;
+        expect(afterSet.photoDirty, isTrue);
+
+        // Simulates the response to an entry PUT (or a pull) that has not
+        // observed this device's still-unpushed photo: hasPhoto: false,
+        // clearPhotoDirty not set. This must not delete the local photo
+        // bytes or misreport the entry as photo-less before the photo push
+        // runs.
+        await repository.applyServerRecord(
+          EntryRecord(
+            id: entry.id,
+            kind: CollectionEntryKind.saved,
+            sourceRecipeId: entry.sourceRecipeId,
+            source: entry.source.toJson(),
+            variation: null,
+            day: afterSet.day,
+            hasPhoto: false,
+            photoUpdatedAt: null,
+            createdAt: entry.createdAt,
+            updatedAt: DateTime(2026, 9, 13, 11),
+            deleted: false,
+            revision: 2,
+          ),
+        );
+
+        expect(await repository.photo(entry.id), isNotNull);
+        final local = await repository.localRecord(entry.id);
+        expect(local!.hasPhoto, isTrue);
+        expect(local.photoDirty, isTrue);
+        // The entry-level fields still adopt the server record.
+        expect(local.dirty, isFalse);
+        expect(local.day, afterSet.day);
+      },
+    );
+
+    test(
+      'applyServerRecord removes the local photo for a tombstone even with '
+      'a photo change pending',
+      () async {
+        final entry = await repository.saveRecipe(recipe());
+        await repository.setPhoto(entry.id, validTinyPng());
+
+        await repository.applyServerRecord(
+          EntryRecord(
+            id: entry.id,
+            kind: CollectionEntryKind.saved,
+            sourceRecipeId: entry.sourceRecipeId,
+            source: null,
+            variation: null,
+            day: '2026-09-12',
+            hasPhoto: false,
+            photoUpdatedAt: null,
+            createdAt: entry.createdAt,
+            updatedAt: DateTime(2026, 9, 13, 11),
+            deleted: true,
+            revision: 2,
+          ),
+        );
+
+        expect(await repository.photo(entry.id), isNull);
+      },
+    );
 
     test('owner id and last revision round-trip through sync state', () async {
       expect(await repository.ownerUserId(), isNull);

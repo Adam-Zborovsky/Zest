@@ -80,7 +80,13 @@ abstract interface class CollectionSyncStore {
 
   /// Adopts a server-authoritative record: upserts the entry, clears `dirty`,
   /// and, when [clearPhotoDirty] is true, also clears `photoDirty`. Removes
-  /// the local photo row when the record has no photo.
+  /// the local photo row when the record has no photo — unless a local photo
+  /// change is still queued (`photoDirty` set) and this call is not itself
+  /// the photo push's resolution (`clearPhotoDirty` false): the server's
+  /// entry PUT does not own photo state (see `upsertEntry` in
+  /// `backend/src/accounts/repository.ts`), so `record.hasPhoto` in that
+  /// case is stale, not authoritative, and must not delete not-yet-pushed
+  /// local photo bytes. A tombstone always removes the local photo.
   Future<void> applyServerRecord(EntryRecord record, {bool clearPhotoDirty = false});
 
   /// Stores photo bytes fetched from the server for [id] without marking the

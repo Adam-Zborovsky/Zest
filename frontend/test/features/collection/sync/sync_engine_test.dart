@@ -32,6 +32,7 @@ final class _TrackingSyncApi implements SyncApi {
   int maxConcurrent = 0;
   bool markerSet = false;
   int callsAfterMarker = 0;
+  final Map<String, int> _putEntryCallsById = {};
 
   Future<T> _track<T>(Future<T> Function() call) async {
     _active++;
@@ -51,13 +52,20 @@ final class _TrackingSyncApi implements SyncApi {
     }
   }
 
+  /// How many times [putEntry] was called for entry [id]. Used to assert a
+  /// push converged in a single request instead of needing a re-stamp
+  /// retry.
+  int putEntryCallsFor(String id) => _putEntryCallsById[id] ?? 0;
+
   @override
   Future<SyncPage> pull({required int since, int limit = 200}) =>
       _track(() => _inner.pull(since: since, limit: limit));
 
   @override
-  Future<EntryRecord> putEntry(EntryRecord record) =>
-      _track(() => _inner.putEntry(record));
+  Future<EntryRecord> putEntry(EntryRecord record) {
+    _putEntryCallsById.update(record.id, (n) => n + 1, ifAbsent: () => 1);
+    return _track(() => _inner.putEntry(record));
+  }
 
   @override
   Future<EntryRecord> putPhoto(
@@ -833,6 +841,145 @@ void main() {
     );
   });
 
+  group(
+    'M8 fix: entry PUT ignores client-owned photo/createdAt fields',
+    () {
+      // The real server (`upsertEntry` in
+      // `backend/src/accounts/repository.ts`) treats `hasPhoto`,
+      // `photoUpdatedAt`, and `createdAt` as server-owned on the entry PUT
+      // route: it echoes back the *existing* row's values (false/null for a
+      // brand-new row), never the client's. `FakeSyncServer` now mirrors
+      // that. Pre-fix, `_appliesTo` deep-compared the whole record
+      // including those fields, so any push whose local photo state
+      // differed from the server's misread the server's (correct) response
+      // as a rejected tie.
+
+      test(
+        '(a) a new entry saved with a photo syncs completely in one pass',
+        () async {
+          final a = device(signedInAs: account);
+          final entry = await a.repo.saveRecipe(_recipe());
+          await a.repo.setPhoto(entry.id, MemoryPhoto.fromBytes(_pngBytes));
+          final beforeSync = (await a.repo.localRecord(entry.id))!;
+
+          final tracking = _TrackingSyncApi(server.client(a.accountRepo));
+          final engine = SyncEngine(
+            api: tracking,
+            store: a.repo,
+            account: a.accountRepo,
+          );
+          addTearDown(engine.dispose);
+
+          await engine.syncNow();
+
+          final local = await a.repo.localRecord(entry.id);
+          expect(local!.dirty, isFalse);
+          expect(local.photoDirty, isFalse);
+          expect(local.hasPhoto, isTrue);
+          expect(
+            local.updatedAt.isAtSameMomentAs(beforeSync.updatedAt),
+            isTrue,
+            reason: 'no re-stamp should have been needed',
+          );
+          expect((await a.repo.photo(entry.id))!.bytes, _pngBytes);
+
+          final serverPage = await server.client(a.accountRepo).pull(since: 0);
+          final serverRecord = serverPage.entries.singleWhere(
+            (e) => e.id == entry.id,
+          );
+          expect(serverRecord.hasPhoto, isTrue);
+          expect(tracking.putEntryCallsFor(entry.id), 1);
+
+          await a.db.close();
+        },
+      );
+
+      test(
+        '(b) removing a photo from a synced entry syncs in one pass with no '
+        're-stamp, and the server reports hasPhoto false',
+        () async {
+          final a = device(signedInAs: account);
+          final entry = await a.repo.saveRecipe(_recipe());
+          await a.repo.setPhoto(entry.id, MemoryPhoto.fromBytes(_pngBytes));
+          await a.engine.syncNow();
+          expect((await a.repo.localRecord(entry.id))!.hasPhoto, isTrue);
+
+          await a.repo.removePhoto(entry.id);
+          final beforeSync = (await a.repo.localRecord(entry.id))!;
+
+          final tracking = _TrackingSyncApi(server.client(a.accountRepo));
+          final engine = SyncEngine(
+            api: tracking,
+            store: a.repo,
+            account: a.accountRepo,
+          );
+          addTearDown(engine.dispose);
+
+          await engine.syncNow();
+
+          final local = await a.repo.localRecord(entry.id);
+          expect(local!.dirty, isFalse);
+          expect(local.photoDirty, isFalse);
+          expect(local.hasPhoto, isFalse);
+          expect(
+            local.updatedAt.isAtSameMomentAs(beforeSync.updatedAt),
+            isTrue,
+            reason: 'no re-stamp should have been needed',
+          );
+
+          final serverPage = await server.client(a.accountRepo).pull(since: 0);
+          final serverRecord = serverPage.entries.singleWhere(
+            (e) => e.id == entry.id,
+          );
+          expect(serverRecord.hasPhoto, isFalse);
+          expect(tracking.putEntryCallsFor(entry.id), 1);
+
+          await a.db.close();
+        },
+      );
+
+      test('(c) replacing a photo syncs in one pass', () async {
+        final a = device(signedInAs: account);
+        final entry = await a.repo.saveRecipe(_recipe());
+        await a.repo.setPhoto(entry.id, MemoryPhoto.fromBytes(_pngBytes));
+        await a.engine.syncNow();
+
+        await a.repo.setPhoto(entry.id, MemoryPhoto.fromBytes(_pngBytes2));
+        final beforeSync = (await a.repo.localRecord(entry.id))!;
+
+        final tracking = _TrackingSyncApi(server.client(a.accountRepo));
+        final engine = SyncEngine(
+          api: tracking,
+          store: a.repo,
+          account: a.accountRepo,
+        );
+        addTearDown(engine.dispose);
+
+        await engine.syncNow();
+
+        final local = await a.repo.localRecord(entry.id);
+        expect(local!.dirty, isFalse);
+        expect(local.photoDirty, isFalse);
+        expect(local.hasPhoto, isTrue);
+        expect(
+          local.updatedAt.isAtSameMomentAs(beforeSync.updatedAt),
+          isTrue,
+          reason: 'no re-stamp should have been needed',
+        );
+        expect((await a.repo.photo(entry.id))!.bytes, _pngBytes2);
+
+        final serverPage = await server.client(a.accountRepo).pull(since: 0);
+        final serverRecord = serverPage.entries.singleWhere(
+          (e) => e.id == entry.id,
+        );
+        expect(serverRecord.hasPhoto, isTrue);
+        expect(tracking.putEntryCallsFor(entry.id), 1);
+
+        await a.db.close();
+      });
+    },
+  );
+
   group('M8 review fix: pushBeforeSignOut', () {
     test(
       'joins the in-flight pass under one single-flight guard instead of '
@@ -868,3 +1015,11 @@ void main() {
     );
   });
 }
+
+final _pngBytes = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, //
+]);
+
+final _pngBytes2 = Uint8List.fromList(const [
+  0xFF, 0xD8, 0xFF, 0, 0, 0, 0, 0, //
+]);
