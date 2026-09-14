@@ -434,6 +434,41 @@ final class DriftCollectionRepository
   }
 
   @override
+  Future<void> restampEntry(String id, DateTime updatedAt) async {
+    final row = await _entryRow(id);
+    if (row == null) return;
+    final next = updatedAt.isAfter(row.updatedAt)
+        ? updatedAt
+        : row.updatedAt.add(const Duration(milliseconds: 1));
+    await (_database.update(
+      _database.entries,
+    )..where((t) => t.id.equals(id))).write(
+      EntriesCompanion(updatedAt: Value(next), dirty: const Value(true)),
+    );
+  }
+
+  @override
+  Future<void> restampPhoto(String id, DateTime updatedAt) async {
+    final photoRow = await (_database.select(
+      _database.photos,
+    )..where((t) => t.entryId.equals(id))).getSingleOrNull();
+    if (photoRow == null) return;
+    final next = updatedAt.isAfter(photoRow.updatedAt)
+        ? updatedAt
+        : photoRow.updatedAt.add(const Duration(milliseconds: 1));
+    await (_database.update(
+      _database.photos,
+    )..where((t) => t.entryId.equals(id))).write(
+      PhotosCompanion(updatedAt: Value(next)),
+    );
+    await (_database.update(
+      _database.entries,
+    )..where((t) => t.id.equals(id))).write(
+      const EntriesCompanion(photoDirty: Value(true)),
+    );
+  }
+
+  @override
   Future<void> setServerPhoto(
     String id,
     MemoryPhoto photo,

@@ -104,6 +104,44 @@ final class _FixedPullSyncApi implements SyncApi {
       throw UnimplementedError('Not used in this test.');
 }
 
+/// A [SyncApi] whose [putEntry] always returns the same canned [response]
+/// (an empty [pull], and every photo call unimplemented). Counts calls and
+/// remembers the last sent record, for asserting how many pushes a tie
+/// retry makes and what the retried push actually sent.
+final class _FixedPutEntrySyncApi implements SyncApi {
+  _FixedPutEntrySyncApi(this.response);
+
+  final EntryRecord response;
+  int putCount = 0;
+  EntryRecord? lastSent;
+
+  @override
+  Future<SyncPage> pull({required int since, int limit = 200}) async =>
+      SyncPage(entries: const [], revision: since, hasMore: false);
+
+  @override
+  Future<EntryRecord> putEntry(EntryRecord record) async {
+    putCount++;
+    lastSent = record;
+    return response;
+  }
+
+  @override
+  Future<EntryRecord> putPhoto(
+    String entryId,
+    MemoryPhoto photo, {
+    required DateTime updatedAt,
+  }) => throw UnimplementedError('Not used in this test.');
+
+  @override
+  Future<EntryRecord> deletePhoto(String entryId, {required DateTime updatedAt}) =>
+      throw UnimplementedError('Not used in this test.');
+
+  @override
+  Future<MemoryPhoto?> getPhoto(String entryId) =>
+      throw UnimplementedError('Not used in this test.');
+}
+
 /// A [CollectionSyncStore] whose [dirtyRecords] (what push sees) and
 /// [localRecord] (what the pull's conflict check sees) can be set
 /// independently. A real store keeps these consistent; diverging them here
@@ -136,6 +174,12 @@ final class _StubSyncStore implements CollectionSyncStore {
 
   @override
   Future<void> setServerPhoto(String id, MemoryPhoto photo, DateTime updatedAt) async {}
+
+  @override
+  Future<void> restampEntry(String id, DateTime updatedAt) async {}
+
+  @override
+  Future<void> restampPhoto(String id, DateTime updatedAt) async {}
 
   @override
   Future<String?> ownerUserId() async => ownerId;
@@ -608,6 +652,183 @@ void main() {
         // Preserved sync state from schema 3.
         expect(await repo.ownerUserId(), 'user-1');
         expect(await repo.lastRevision(), 7);
+      },
+    );
+  });
+
+  group('M8 review fix: push tie resolution', () {
+    test(
+      '(a) a tie through a real push does not silently lose the losing '
+      "device's edit",
+      () async {
+        final t0 = DateTime(2026, 9, 12, 10, 0, 0);
+        final a = device(signedInAs: account, now: () => t0);
+        final entry = await a.repo.saveRecipe(_recipe());
+        await a.engine.syncNow();
+
+        final b = device(signedInAs: account, now: () => t0);
+        await b.engine.syncNow(); // Pulls a's entry, updatedAt == t0.
+
+        // Both devices edit with clocks frozen at (or behind) t0: each
+        // stamps its edit at the floored t0+1ms
+        // (DriftCollectionRepository._laterThan), so both compute the exact
+        // same updatedAt. A pushes first and applies cleanly.
+        await a.repo.moveToDay(entry.id, DateTime(2026, 8, 1));
+        await a.engine.syncNow();
+
+        // B, unaware of A's push, edits from the same starting point and
+        // computes the identical updatedAt. B's push ties.
+        await b.repo.moveToDay(entry.id, DateTime(2026, 7, 1));
+        await b.engine.syncNow();
+
+        // Pre-fix, B would have silently adopted A's record here (foreign
+        // content, cleared dirty). Post-fix, B's push is rejected as a tie,
+        // re-stamped strictly later, and retried in the same pass, so B's
+        // own edit is what ends up applied.
+        final bLocal = await b.repo.localRecord(entry.id);
+        expect(bLocal!.day, '2026-07-01');
+        // No device may report a clean row while holding content the
+        // server does not have: B's row must be clean only because its
+        // edit actually reached the server.
+        expect(bLocal.dirty, isFalse);
+        final serverPage = await server.client(b.accountRepo).pull(since: 0);
+        final serverRecord = serverPage.entries.singleWhere(
+          (e) => e.id == entry.id,
+        );
+        expect(serverRecord.day, '2026-07-01');
+
+        // A converges to B's (later) edit on its next pull.
+        await a.engine.syncNow();
+        expect((await a.repo.watchEntry(entry.id).first)!.day, DateTime(2026, 7, 1));
+
+        await a.db.close();
+        await b.db.close();
+      },
+    );
+
+    test('(b) a genuinely newer server record is adopted', () async {
+      final db = _openDb();
+      addTearDown(db.close);
+      final repo = DriftCollectionRepository(
+        database: db,
+        now: () => DateTime(2026, 9, 12, 10),
+      );
+      final accountRepo = FakeAccountRepository(current: account);
+      final entry = await repo.saveRecipe(_recipe());
+      final sent = (await repo.localRecord(entry.id))!.toEntryRecord();
+      final serverNewer = EntryRecord(
+        id: sent.id,
+        kind: sent.kind,
+        sourceRecipeId: sent.sourceRecipeId,
+        source: const {'idDrink': '98001', 'strDrink': 'Server Newer'},
+        variation: null,
+        day: '2026-09-01',
+        hasPhoto: false,
+        photoUpdatedAt: null,
+        createdAt: sent.createdAt,
+        updatedAt: sent.updatedAt.add(const Duration(milliseconds: 5)),
+        deleted: false,
+        revision: 9,
+      );
+      final api = _FixedPutEntrySyncApi(serverNewer);
+      final engine = SyncEngine(api: api, store: repo, account: accountRepo);
+      addTearDown(engine.dispose);
+
+      await engine.syncNow();
+
+      expect(api.putCount, 1);
+      final local = await repo.localRecord(entry.id);
+      expect(local!.dirty, isFalse);
+      expect(local.day, '2026-09-01');
+    });
+
+    test(
+      '(c) identical content at an equal timestamp is an idempotent retry '
+      'and clears dirty',
+      () async {
+        final db = _openDb();
+        addTearDown(db.close);
+        final repo = DriftCollectionRepository(
+          database: db,
+          now: () => DateTime(2026, 9, 12, 10),
+        );
+        final accountRepo = FakeAccountRepository(current: account);
+        final entry = await repo.saveRecipe(_recipe());
+        final sent = (await repo.localRecord(entry.id))!.toEntryRecord();
+        // The server echoes back exactly what was sent (this push already
+        // applied, or a retried request after a dropped response), with a
+        // revision assigned.
+        final echoed = EntryRecord(
+          id: sent.id,
+          kind: sent.kind,
+          sourceRecipeId: sent.sourceRecipeId,
+          source: sent.source,
+          variation: sent.variation,
+          day: sent.day,
+          hasPhoto: sent.hasPhoto,
+          photoUpdatedAt: sent.photoUpdatedAt,
+          createdAt: sent.createdAt,
+          updatedAt: sent.updatedAt,
+          deleted: sent.deleted,
+          revision: 4,
+        );
+        final api = _FixedPutEntrySyncApi(echoed);
+        final engine = SyncEngine(api: api, store: repo, account: accountRepo);
+        addTearDown(engine.dispose);
+
+        await engine.syncNow();
+
+        expect(api.putCount, 1);
+        final local = await repo.localRecord(entry.id);
+        expect(local!.dirty, isFalse);
+        expect(local.day, sent.day);
+      },
+    );
+
+    test(
+      '(d) a server that always rejects ties bounds the retry to one and '
+      'leaves the row dirty',
+      () async {
+        final db = _openDb();
+        addTearDown(db.close);
+        final repo = DriftCollectionRepository(
+          database: db,
+          now: () => DateTime(2026, 9, 12, 10),
+        );
+        final accountRepo = FakeAccountRepository(current: account);
+        final entry = await repo.saveRecipe(_recipe());
+        final sent = (await repo.localRecord(entry.id))!.toEntryRecord();
+        // A fixed foreign record, always returned regardless of what is
+        // sent: a server that never accepts this device's write.
+        final alwaysRejects = EntryRecord(
+          id: sent.id,
+          kind: sent.kind,
+          sourceRecipeId: sent.sourceRecipeId,
+          source: const {'idDrink': '98001', 'strDrink': 'Someone Else'},
+          variation: null,
+          day: sent.day,
+          hasPhoto: false,
+          photoUpdatedAt: null,
+          createdAt: sent.createdAt,
+          updatedAt: sent.updatedAt,
+          deleted: false,
+          revision: 2,
+        );
+        final api = _FixedPutEntrySyncApi(alwaysRejects);
+        final engine = SyncEngine(api: api, store: repo, account: accountRepo);
+        addTearDown(engine.dispose);
+
+        await engine.syncNow();
+
+        // Exactly one push plus one bounded retry: no infinite loop.
+        expect(api.putCount, 2);
+        expect(
+          api.lastSent!.updatedAt.isAfter(sent.updatedAt),
+          isTrue,
+          reason: 'the retried push must re-stamp strictly later',
+        );
+        final local = await repo.localRecord(entry.id);
+        expect(local!.dirty, isTrue);
       },
     );
   });
