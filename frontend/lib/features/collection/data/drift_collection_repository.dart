@@ -32,6 +32,20 @@ final class DriftCollectionRepository
   final DateTime Function() _now;
   final String Function() _newId;
 
+  /// The timestamp for a write that touches a row last stamped [previous]:
+  /// `max(now, previous + 1ms)`. Guarantees every local write strictly
+  /// advances the compared timestamp even when the clock reads the same
+  /// value twice in a row (a stopped test clock, or two writes within the
+  /// same millisecond), so the sync engine's last-edit-wins comparisons
+  /// never see a tie against a row's own history. [previous] is null for a
+  /// brand-new row, where there is nothing to advance past.
+  DateTime _laterThan(DateTime? previous) {
+    final now = _now();
+    if (previous == null) return now;
+    final floor = previous.add(const Duration(milliseconds: 1));
+    return now.isAfter(floor) ? now : floor;
+  }
+
   SimpleSelectStatement<$EntriesTable, Entry> _ordered(
     Expression<bool> Function($EntriesTable t)? filter,
   ) {
@@ -137,7 +151,7 @@ final class DriftCollectionRepository
       )..where((t) => t.id.equals(id))).write(
         EntriesCompanion(
           variationJson: Value(jsonEncode(details.toJson())),
-          updatedAt: Value(_now()),
+          updatedAt: Value(_laterThan(row.updatedAt)),
           dirty: const Value(true),
         ),
       );
@@ -155,7 +169,7 @@ final class DriftCollectionRepository
       )..where((t) => t.id.equals(id))).write(
         EntriesCompanion(
           day: Value(collectionDayKey(collectionDay(day))),
-          updatedAt: Value(_now()),
+          updatedAt: Value(_laterThan(row.updatedAt)),
           dirty: const Value(true),
         ),
       );
@@ -179,7 +193,7 @@ final class DriftCollectionRepository
           dirty: const Value(true),
           photoDirty: const Value(false),
           hasPhoto: const Value(false),
-          updatedAt: Value(_now()),
+          updatedAt: Value(_laterThan(row.updatedAt)),
         ),
       );
     });
@@ -190,7 +204,10 @@ final class DriftCollectionRepository
     return _database.transaction(() async {
       final row = await _entryRow(id);
       if (row == null) throw StateError('No collection entry $id.');
-      final now = _now();
+      final existingPhoto = await (_database.select(
+        _database.photos,
+      )..where((t) => t.entryId.equals(id))).getSingleOrNull();
+      final photoUpdatedAt = _laterThan(existingPhoto?.updatedAt);
       await _database
           .into(_database.photos)
           .insertOnConflictUpdate(
@@ -198,7 +215,7 @@ final class DriftCollectionRepository
               entryId: id,
               mimeType: photo.mimeType,
               bytes: photo.bytes,
-              updatedAt: now,
+              updatedAt: photoUpdatedAt,
             ),
           );
       await (_database.update(
@@ -206,7 +223,7 @@ final class DriftCollectionRepository
       )..where((t) => t.id.equals(id))).write(
         EntriesCompanion(
           hasPhoto: const Value(true),
-          updatedAt: Value(now),
+          updatedAt: Value(_laterThan(row.updatedAt)),
           dirty: const Value(true),
           photoDirty: const Value(true),
         ),
@@ -217,16 +234,17 @@ final class DriftCollectionRepository
   @override
   Future<void> removePhoto(String id) {
     return _database.transaction(() async {
+      final row = await _entryRow(id);
       final deletedCount = await (_database.delete(
         _database.photos,
       )..where((t) => t.entryId.equals(id))).go();
-      if (deletedCount == 0) return;
+      if (deletedCount == 0 || row == null) return;
       await (_database.update(
         _database.entries,
       )..where((t) => t.id.equals(id))).write(
         EntriesCompanion(
           hasPhoto: const Value(false),
-          updatedAt: Value(_now()),
+          updatedAt: Value(_laterThan(row.updatedAt)),
           dirty: const Value(true),
           photoDirty: const Value(true),
         ),

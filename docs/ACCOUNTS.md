@@ -141,6 +141,7 @@ Sync rules:
   - Reads hide deleted rows.
   - `delete` writes a tombstone and removes the photo bytes.
   - Every local write marks the row dirty. Photo writes also mark `photoDirty`.
+  - `createdAt`, `updatedAt`, and the photo's `updatedAt` are stored as UTC milliseconds (schema 4), not Drift's default whole-second precision, so two edits inside the same second stay distinguishable to the server's last-edit-wins rule. Every write that bumps one of these columns sets `max(now, previous + 1ms)`, so it strictly advances even when the clock reads the same instant twice (or moves backwards).
 - **Ownership.**
   - On sign-in with no `ownerUserId`, the device's data is claimed by that account and uploaded.
   - On sign-in as a different user than `ownerUserId`, the collection cache is cleared first. This includes unsynced rows; the sign-out step pushes first to minimize that loss.

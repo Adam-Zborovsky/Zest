@@ -129,6 +129,53 @@ void main() {
       },
     );
 
+    test(
+      'a bumped updatedAt is always strictly later than the row\'s own '
+      'previous value, even when the clock stands still or goes backwards '
+      '(regression, finding 1 "strictly later")',
+      () async {
+        DateTime clock = DateTime(2026, 9, 12, 10, 0, 0, 500);
+        final repo = DriftCollectionRepository(
+          database: database,
+          now: () => clock,
+        );
+        final entry = await repo.saveRecipe(recipe());
+        expect(entry.updatedAt, clock);
+
+        // The clock reads the exact same instant as the row's own previous
+        // `updatedAt`.
+        final stillMoved = await repo.moveToDay(entry.id, DateTime(2026, 8, 1));
+        expect(stillMoved.updatedAt.isAfter(entry.updatedAt), isTrue);
+        expect(
+          stillMoved.updatedAt,
+          entry.updatedAt.add(const Duration(milliseconds: 1)),
+        );
+
+        // The clock goes backwards relative to the row's own previous
+        // `updatedAt`.
+        clock = clock.subtract(const Duration(days: 1));
+        final backwardsMoved = await repo.moveToDay(entry.id, DateTime(2026, 7, 1));
+        expect(backwardsMoved.updatedAt.isAfter(stillMoved.updatedAt), isTrue);
+        expect(
+          backwardsMoved.updatedAt,
+          stillMoved.updatedAt.add(const Duration(milliseconds: 1)),
+        );
+
+        // A photo write bumps `photos.updatedAt` by the same rule,
+        // independent of the entry's own `updatedAt`. First write: no
+        // existing photo row, so it simply takes the clock reading.
+        await repo.setPhoto(entry.id, validTinyPng());
+        final firstPhoto = (await repo.localRecord(entry.id))!.photoUpdatedAt!;
+        expect(firstPhoto, clock);
+
+        // Second write, same frozen clock instant: must still strictly
+        // advance past the photo row's own previous `updatedAt`.
+        await repo.setPhoto(entry.id, validTinyPng());
+        final secondPhoto = (await repo.localRecord(entry.id))!.photoUpdatedAt!;
+        expect(secondPhoto, firstPhoto.add(const Duration(milliseconds: 1)));
+      },
+    );
+
     test('a malformed stored day surfaces as a clear error', () async {
       final entry = await repository.saveRecipe(recipe());
       await (database.update(database.entries)
