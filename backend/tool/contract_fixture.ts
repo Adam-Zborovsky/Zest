@@ -1,13 +1,12 @@
-// One-shot bridge for the Flutter contract demo. Only invented data; no listener.
+// One-shot bridge for the Flutter contract demo. Only invented data; no
+// listener. lookup.php is the only client-facing recipe route left
+// (docs/M11.md "Gateway cleanup"); this fixture only ever needs to answer it.
 import { buildApp } from '../src/app.js';
 
-const app = buildApp({ apiKey: '1', fetcher: async (url) => {
-  const endpoint = new URL(url).pathname.split('/').at(-1);
+const app = buildApp({ apiKey: '1', fetcher: async () => {
   const recipe = { idDrink: '990001', strDrink: 'Paper Orchard', strDrinkThumb: null,
     strInstructions: 'Stir the imaginary ingredients.', strIngredient1: 'Invented syrup', strMeasure1: '1 1/2 oz' };
-  return Response.json({ drinks: endpoint === 'list.php' ? [{ strIngredient1: 'Invented syrup' }]
-    : endpoint === 'filter.php' ? [{ idDrink: recipe.idDrink, strDrink: recipe.strDrink, strDrinkThumb: null }]
-    : [recipe] });
+  return Response.json({ drinks: [recipe] });
 } });
 try {
   const url = new URL(process.argv[2] ?? 'http://127.0.0.1:3000/api/health');

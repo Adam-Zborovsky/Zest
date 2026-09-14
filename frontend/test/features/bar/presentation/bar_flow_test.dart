@@ -69,13 +69,6 @@ Future<http.Response> _respond(
   http.Request request, {
   bool rateLimitOnce = false,
 }) async {
-  if (request.url.path.endsWith('list.php')) {
-    return _json({
-      'drinks': [
-        for (final name in ingredientOptions) {'strIngredient1': name},
-      ],
-    });
-  }
   if (request.url.path.endsWith('lookup.php')) {
     final id = request.url.queryParameters['i']!;
     final recipe = gardenRecipes().firstWhere(

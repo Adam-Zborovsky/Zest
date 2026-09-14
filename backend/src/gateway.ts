@@ -1,4 +1,8 @@
-export type Endpoint = 'search.php' | 'filter.php' | 'lookup.php' | 'list.php';
+// filter.php and list.php were client-only proxy routes, removed once the
+// client stopped calling them (docs/M11.md "Gateway cleanup"); search.php
+// stays for the refresher's internal letter browse and lookup.php as the
+// client-facing recipe-detail fallback.
+export type Endpoint = 'search.php' | 'lookup.php';
 export interface Operation { endpoint: Endpoint; parameter: 's' | 'f' | 'i'; value: string }
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -196,14 +200,10 @@ function validateEnvelope(value: unknown, operation: Operation): void {
   if (operation.endpoint === 'lookup.php' && drinks.length > 1) return invalid();
   for (const drink of drinks) {
     if (!record(drink)) return invalid();
-    if (operation.endpoint === 'list.php') {
-      if (typeof drink.strIngredient1 !== 'string' || !drink.strIngredient1.trim()) return invalid();
-      continue;
-    }
     if (typeof drink.idDrink !== 'string' || !/^\d+$/.test(drink.idDrink) ||
         typeof drink.strDrink !== 'string' || !drink.strDrink.trim()) return invalid();
     if (operation.endpoint === 'lookup.php' && drink.idDrink !== operation.value) return invalid();
-    if (operation.endpoint !== 'filter.php' && (!('strInstructions' in drink) || !('strIngredient1' in drink))) return invalid();
+    if (!('strInstructions' in drink) || !('strIngredient1' in drink)) return invalid();
     // Source fields remain untouched, but malformed types must not poison cache.
     for (const [key, field] of Object.entries(drink)) {
       if (key.startsWith('str') && field !== null && typeof field !== 'string') return invalid();
