@@ -39,5 +39,14 @@ final class FakeCollectionSync implements CollectionSync {
     if (callback != null) await callback();
   }
 
+  int scheduleAfterLocalWriteCalls = 0;
+  int pushBeforeSignOutCalls = 0;
+
+  @override
+  void scheduleAfterLocalWrite() => scheduleAfterLocalWriteCalls++;
+
+  @override
+  Future<void> pushBeforeSignOut() async => pushBeforeSignOutCalls++;
+
   void dispose() => _controller.close();
 }
