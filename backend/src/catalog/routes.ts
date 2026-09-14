@@ -3,7 +3,7 @@ import { gzipSync } from 'node:zlib';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { Db } from '../accounts/db.js';
-import { readCatalogRecipes, readCatalogState } from './store.js';
+import { readCatalogSnapshot } from './store.js';
 
 export const CATALOG_ATTRIBUTION = Object.freeze({ name: 'TheCocktailDB', url: 'https://www.thecocktaildb.com' });
 
@@ -53,28 +53,27 @@ export async function registerCatalogRoutes(app: FastifyInstance, opts: CatalogR
     });
 
     scope.get('/api/catalog', async (request, reply) => {
-      const state = await readCatalogState(db);
-      if (!state) {
+      const snapshot = await readCatalogSnapshot(db);
+      if (!snapshot) {
         return reply.code(503).send({ error: { code: 'catalog_unavailable', message: 'The catalog has not been published yet.' } });
       }
+      const { state, recipes } = snapshot;
       const etag = `"${state.version}"`;
       reply.header('ETag', etag);
       reply.header('Cache-Control', 'no-cache');
       reply.header('Vary', 'Accept-Encoding');
 
-      const ifNoneMatch = request.headers['if-none-match'];
-      if (ifNoneMatch === etag) {
+      if (ifNoneMatchMatches(request.headers['if-none-match'], state.version)) {
         return reply.code(304).send();
       }
 
       if (!cached || cached.version !== state.version) {
-        const rows = await readCatalogRecipes(db);
         const body = {
           version: state.version,
           publishedAt: state.publishedAt,
           recipeCount: state.recipeCount,
           attribution: CATALOG_ATTRIBUTION,
-          drinks: rows.map((row) => JSON.parse(row.source) as unknown),
+          drinks: recipes.map((row) => JSON.parse(row.source) as unknown),
         };
         const json = Buffer.from(JSON.stringify(body), 'utf-8');
         cached = { version: state.version, json, gzip: gzipSync(json) };
@@ -88,4 +87,26 @@ export async function registerCatalogRoutes(app: FastifyInstance, opts: CatalogR
       return reply.type('application/json').send(cached.json);
     });
   });
+}
+
+/**
+ * RFC 9110 §13.1.2 If-None-Match: a comma-separated list of entity-tags, each
+ * either strong (`"v"`) or weak (`W/"v"`), or the wildcard `*`. If-None-Match
+ * always uses the *weak comparison* function, so a weak tag matches a current
+ * strong ETag whose opaque-tag is equal — only the quoted value is compared,
+ * never the weak/strong indicator.
+ */
+function ifNoneMatchMatches(header: string | string[] | undefined, version: string): boolean {
+  if (header === undefined) return false;
+  const raw = Array.isArray(header) ? header.join(',') : header;
+  for (const rawTag of raw.split(',')) {
+    const tag = rawTag.trim();
+    if (tag === '') continue;
+    if (tag === '*') return true;
+    const opaque = tag.startsWith('W/') ? tag.slice(2) : tag;
+    if (opaque.length >= 2 && opaque.startsWith('"') && opaque.endsWith('"') && opaque.slice(1, -1) === version) {
+      return true;
+    }
+  }
+  return false;
 }

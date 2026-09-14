@@ -67,6 +67,64 @@ test('a matching If-None-Match gets 304 with no body', async () => {
   }
 });
 
+test('If-None-Match with a comma-separated list of tags matches when any listed tag equals the current version', async () => {
+  const harness = await createTestApp();
+  try {
+    const version = 'b1'.padEnd(64, '1');
+    await seedCatalog(harness.db, { version, publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog',
+      headers: { 'if-none-match': `"${'d'.repeat(64)}", "${version}", "${'e'.repeat(64)}"` },
+    });
+    assert.equal(response.statusCode, 304);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('If-None-Match accepts a weak validator (W/"...") under weak comparison', async () => {
+  const harness = await createTestApp();
+  try {
+    const version = 'b2'.padEnd(64, '2');
+    await seedCatalog(harness.db, { version, publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog', headers: { 'if-none-match': `W/"${version}"` },
+    });
+    assert.equal(response.statusCode, 304);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('If-None-Match: * always matches the current representation', async () => {
+  const harness = await createTestApp();
+  try {
+    const version = 'b3'.padEnd(64, '3');
+    await seedCatalog(harness.db, { version, publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog', headers: { 'if-none-match': '*' },
+    });
+    assert.equal(response.statusCode, 304);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('If-None-Match with a list of only non-matching tags still gets 200', async () => {
+  const harness = await createTestApp();
+  try {
+    const version = 'b4'.padEnd(64, '4');
+    await seedCatalog(harness.db, { version, publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog',
+      headers: { 'if-none-match': `"${'d'.repeat(64)}", W/"${'e'.repeat(64)}"` },
+    });
+    assert.equal(response.statusCode, 200);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test('a stale If-None-Match still gets 200 with the current version', async () => {
   const harness = await createTestApp();
   try {
@@ -138,6 +196,30 @@ test('the catalog route is rate limited independently of the accounts limiter', 
     assert.equal(second.statusCode, 200);
     assert.equal(third.statusCode, 429);
     assert.equal(third.json().error.code, 'rate_limited');
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a publish landing between the state and recipes reads never serves a torn version/drinks pair', async () => {
+  const harness = await createTestApp();
+  try {
+    await seedCatalog(harness.db, { version: 'j'.repeat(64), publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+
+    const { readCatalogSnapshot } = await import('../src/catalog/store.js');
+    const snapshot = await readCatalogSnapshot(harness.db, async () => {
+      // Simulate a publish landing after the state read but before the
+      // recipes read — the exact race the torn-read fix guards against.
+      await seedCatalog(harness.db, {
+        version: 'k'.repeat(64), publishedAt: '2026-09-14T09:00:00.000Z',
+        drinks: [drink('1', 'One'), drink('2', 'Two'), drink('3', 'Three')],
+      });
+    });
+
+    assert.ok(snapshot);
+    assert.equal(snapshot!.state.version, 'k'.repeat(64));
+    assert.equal(snapshot!.recipes.length, 3);
+    assert.deepEqual(snapshot!.recipes.map((r) => r.providerId).sort(), ['1', '2', '3']);
   } finally {
     await harness.cleanup();
   }
