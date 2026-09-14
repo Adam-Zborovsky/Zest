@@ -2,11 +2,17 @@
 
 Discovery is now the normal launch screen, using the approved Botanical Play design. This milestone consumes the M2 client directly from the app; it adds no backend, ingestion job, account, matching logic or saved collection.
 
-## Flow and coverage
+## Flow and coverage (M11: local catalog and suggestions)
 
-- Submit a cocktail name or ingredient name; merely typing does not call the service. An empty submission gives a labelled field error and returns focus to the field.
-- Expand **Browse A–Z** and select a letter to request that letter's results. Ingredient browsing is a free-text filter, not a claimed complete ingredient catalog.
-- Preview up to six returned recipes. **See all N results** opens a lazily built list of that response, not a full-database crawl or invented pagination. Detail lookup supplies full recipes for ingredient-filter summaries.
+Since M11 (`docs/M11.md`), name, ingredient and letter results come from the on-device shared catalog snapshot instead of a per-query provider call: `discoveryResultsProvider` reads `CatalogSearchIndex.recipeIdsMatchingName`/`recipeIdsWithIngredient` and the repository's own recipes filtered by folded first letter, then maps ids to `RecipeSummary`. No network request is made for results, so they work offline once a catalog has been downloaded. Routes, deep links, "See all N results" and Back behavior are unchanged from the table below.
+
+The query field is a `ZestSuggestionField<CatalogSuggestion>`: name mode suggests matching recipes, ingredient mode suggests matching ingredient identities with a "N recipes" caption. Selecting a recipe suggestion opens its detail (preserving the route's current query params, like a result card); selecting an ingredient suggestion runs ingredient results for it. Free-text submit — Enter with nothing highlighted, or the **Find recipes** button — keeps working exactly as before. Keyboard: Up/Down moves the highlight, Enter commits it or, if nothing is highlighted, submits the field's text; Escape closes the panel without clearing it.
+
+When the local catalog is empty (nothing downloaded yet), the results area shows the shared `CatalogStatusCard` download state — progress copy while downloading, a branded error with Retry on failure — instead of a false "no results found". A non-empty catalog with a genuinely non-matching query still shows the ordinary "No recipes found" empty state.
+
+- Submit a cocktail name or ingredient name, or pick a suggestion; merely typing does not run a search until one of those happens. An empty submission gives a labelled field error and returns focus to the field.
+- Expand **Browse A–Z** and select a letter to see every catalog recipe whose folded name starts with it, ordered by name. Ingredient search matches the local catalog's ingredient identities (via `normalizeIngredientName`, so reviewed aliases and spelling variants collapse to one identity) — not a claimed complete ingredient catalog beyond what's downloaded.
+- Preview up to six matching recipes. **See all N results** opens a lazily built list of that response, not a full-database crawl or invented pagination. Recipe detail reads the local catalog first (see below).
 - Detail displays the source image when available, original ingredient names and readable source measures, glass/category/alcoholic metadata, and instructions. Instruction paragraphs are numbered without splitting sentences or abbreviations; existing source numbering is kept. Missing fields have explicit fallbacks, not inferred quantities or instructions.
 - **Open source recipe** opens the canonical TheCocktailDB detail URL. Original attribution notices remain visible. Launch failure offers the selectable URL. No arbitrary provider text is interpreted as executable markup or an external-launch target.
 
@@ -25,7 +31,7 @@ Result/detail navigation preserves query parameters. In-app Back returns to the 
 
 `DiscoveryQuery` is a normalized, value-equal provider-family key. Different queries have separate asynchronous states, so a slow older response cannot replace the current query. Auto-disposed query/detail providers do not close the app-scoped client. The client is closed when its owning provider scope is disposed.
 
-Riverpod's implicit retry is explicitly disabled. M2 remains the authority for TTL/LRU response caching and in-flight deduplication. A shared request gateway respects 429 cooldowns across queries and detail requests. Missing Retry-After seconds uses a conservative 30-second fallback; overlapping failures preserve the longest deadline. Errors carry that absolute deadline so the UI does not restart the wait on remount or count only foreground timer ticks. The countdown does not auto-submit or announce every second; retry remains an explicit action.
+Riverpod's implicit retry is explicitly disabled. Since M11, `discoveryResultsProvider` is a local read with no network involved, so the 429 cooldown and retry/timeout UX described here apply only to recipe detail: `recipeDetailProvider` reads the local catalog first (`CatalogRepository.recipeById`) and only falls to the gateway's `lookup.php` — through the same shared request gateway, cooldown and cache — when the id is absent locally (a saved recipe whose drink has since left the shared catalog snapshot). Missing Retry-After seconds uses a conservative 30-second fallback; overlapping failures preserve the longest deadline. Errors carry that absolute deadline so the UI does not restart the wait on remount or count only foreground timer ticks. The countdown does not auto-submit or announce every second; retry remains an explicit action.
 
 ## Accessibility and source images
 
