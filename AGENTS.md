@@ -1,6 +1,6 @@
 # Zest — agent operating instructions
 
-Zest is a personal, playful cocktail companion: a Flutter app using TheCocktailDB as its recipe source. A personal project first; open-source publication is under consideration as an open decision in `docs/PRODUCT.md`. This file is the working agreement for any coding agent (or human) contributing to this repository.
+Zest is a personal, playful cocktail companion: a Flutter app using TheCocktailDB as its recipe source. A personal project first; the repository is public and Zest's own app code is MIT licensed (`LICENSE`, `docs/SOURCES.md`). This file is the working agreement for any coding agent (or human) contributing to this repository.
 
 Read, in order:
 
@@ -14,8 +14,8 @@ Read, in order:
 - **Milestone loop:** start each milestone by proposing a short plan to Adam; implement in small, conventional commits; demo the result at the end. Do not run ahead into later milestones.
 - **Design is a feature, not a garnish.** Every screen — including loading, empty, and error states — gets the same expressive treatment defined by the design system. Accessibility (reduced motion, contrast, text scaling, logical focus order) is part of done.
 - **Dependencies:** start from the default stack below. Any addition needs a stated reason in the commit or PR. Keep the dependency list small.
-- **Secrets and personal data:** no API keys in the repository, no personal photos in the repository, no provider data dumps. Tests use synthetic fixtures that imitate API shapes, not copied provider records.
-- **TheCocktailDB terms:** Adam purchased premium access and reports confirming the provider terms. The local gateway defaults to the documented public test key; a private key belongs only in backend runtime configuration. Respect rate limits and retain attribution. Do not commit provider records/images or infer permission for additional distribution. Publication remains a separate decision.
+- **Secrets and personal data:** no API keys in the repository, no personal photos in the repository, no provider data dumps. Tests use synthetic fixtures that imitate API shapes, not copied provider records. README screenshots must not show TheCocktailDB drink photos or personal memory photos.
+- **TheCocktailDB terms:** Adam purchased premium access. The published terms, quoted and mapped to Zest's behavior, live in `docs/SOURCES.md`. The local gateway defaults to the documented public test key; a private key belongs only in backend runtime configuration. Respect rate limits and retain attribution. Do not commit provider records/images or infer permission for additional distribution.
 - **Memory photos** are stored in the app's private on-device cache and, since M8 (Adam's decision, 2026-09-13), on Zest's own backend server disk readable only by their owner. They never go in the repo or in any third-party cloud without a new decision.
 - **Author/reviewer discipline:** substantive changes get a second look — a fresh agent instance or an Adam-routed review — before being considered final.
 - **Monorepo discipline:** run Flutter commands from `frontend/` and npm commands from `backend/`. Adam explicitly authorized a local Node/TypeScript/Fastify recipe gateway before M5, superseding the old empty-until-M7 rule. For M8 (2026-09-13), Adam authorized accounts, a PostgreSQL database run with Docker Compose on the development PC, and photo files on the server disk; see `docs/ACCOUNTS.md`. Deployment, HTTPS, Nginx, and backups remain out of scope. Adam runs `npm run dev` and `docker compose up`; agents use finite tests and builds (backend tests use in-process PGlite, not Docker), never servers, watchers, or long-running containers.
