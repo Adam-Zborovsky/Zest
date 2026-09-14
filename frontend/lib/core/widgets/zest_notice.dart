@@ -196,15 +196,21 @@ OverlayEntry? _activeZestNoticeEntry;
 /// Shows a [ZestNotice] over the current screen. A notice already showing is
 /// replaced rather than stacked. Returns nothing: the notice manages its own
 /// dismissal (by the person, or by activating [actionLabel]).
+///
+/// Takes the [OverlayState] directly rather than a [BuildContext]: the app
+/// shell hosts this notice's listener above the router (finding #3/#7), so
+/// the only context it holds — the `Navigator`'s own — is an *ancestor* of
+/// the overlay, not a descendant, and `Overlay.of(context)` would search the
+/// wrong direction and throw "No Overlay widget found". Callers reach the
+/// overlay via `navigatorKey.currentState?.overlay` instead.
 void showZestNotice(
-  BuildContext context, {
+  OverlayState overlayState, {
   required String message,
   String? actionLabel,
   VoidCallback? onAction,
 }) {
-  final overlayState = Overlay.of(context, rootOverlay: true);
   _activeZestNoticeEntry?.remove();
-  final reduced = ZestMotion.reduced(context);
+  final reduced = ZestMotion.reduced(overlayState.context);
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (context) => _ZestNoticeHost(

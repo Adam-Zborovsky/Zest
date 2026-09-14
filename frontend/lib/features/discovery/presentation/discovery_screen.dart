@@ -12,8 +12,7 @@ import '../../bar/domain/recipe_scope.dart';
 import '../../bar/presentation/bar_widgets.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/domain/catalog_search_index.dart';
-import '../../constellation/presentation/constellation_widgets.dart'
-    show CatalogStatusCard;
+import '../../catalog/presentation/catalog_status_card.dart';
 import '../application/discovery_providers.dart';
 import '../domain/discovery_query.dart';
 import '../domain/recipe.dart';
@@ -102,9 +101,6 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Arms the shared search-index freshness listener: a snapshot apply
-    // rebuilds `catalogSearchIndexProvider`, which this screen reads below.
-    ref.watch(catalogSearchIndexFreshnessProvider);
     final index = ref.watch(catalogSearchIndexProvider).value ??
         CatalogSearchIndex.empty;
     final hasCatalog = ref.watch(catalogCoverageProvider).value?.hasSnapshot ??
@@ -389,6 +385,8 @@ class ResultsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasCatalog =
+        ref.watch(catalogCoverageProvider).value?.hasSnapshot ?? false;
     final results = ref.watch(discoveryResultsProvider(query));
     return DiscoveryFrame(
       back: true,
@@ -399,7 +397,12 @@ class ResultsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (results.isLoading)
+          // Same empty-catalog gate as the search screen (finding #12): a
+          // fresh-install deep link straight to /discover/results must not
+          // read as "No recipes found" — there is no catalog to search yet.
+          if (!hasCatalog)
+            const CatalogStatusCard(key: ValueKey('results-catalog-status'))
+          else if (results.isLoading)
             const ZestLoadingState()
           else if (results.hasError)
             DiscoveryFailure(

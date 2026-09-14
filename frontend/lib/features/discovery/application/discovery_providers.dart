@@ -32,9 +32,12 @@ final _discoveryRequestGatewayProvider = Provider<CocktailRequestGateway>((ref) 
 /// the same as online.
 final discoveryResultsProvider = FutureProvider.autoDispose
     .family<List<RecipeSummary>, DiscoveryQuery>((ref, query) async {
+      // Both watch the same underlying decode (`catalogRecipesProvider`), so
+      // a query never re-decodes the whole catalog's source JSON on its own
+      // (finding #20) — Riverpod caches that single `Future` across every
+      // dependent, this one included.
       final index = await ref.watch(catalogSearchIndexProvider.future);
-      final recipes = await ref.watch(catalogRepositoryProvider).allRecipes();
-      final byId = {for (final recipe in recipes) recipe.id: recipe};
+      final byId = await ref.watch(catalogRecipesByIdProvider.future);
       final List<String> ids;
       switch (query.mode) {
         case DiscoveryMode.name:
@@ -42,7 +45,7 @@ final discoveryResultsProvider = FutureProvider.autoDispose
         case DiscoveryMode.ingredient:
           ids = index.recipeIdsWithIngredient(query.value);
         case DiscoveryMode.letter:
-          final matches = recipes
+          final matches = byId.values
               .where(
                 (recipe) => foldSearchText(recipe.name).startsWith(query.value),
               )
@@ -62,10 +65,15 @@ final discoveryResultsProvider = FutureProvider.autoDispose
 /// Local catalog first, `lookup.php` only when the id is absent from the
 /// downloaded catalog (a saved recipe that has since left the shared
 /// snapshot). Shared with the M4 bar-matching detail fetches.
+///
+/// Reads rather than watches (finding #20): this runs inside another
+/// provider's one-shot build, not a `Notifier`'s own rebuildable `build()` —
+/// there is nothing here that should resubscribe this call site to future
+/// changes in the repository or the request gateway.
 Future<Recipe?> lookupRecipeLocalFirst(Ref ref, String id) async {
-  final local = await ref.watch(catalogRepositoryProvider).recipeById(id);
+  final local = await ref.read(catalogRepositoryProvider).recipeById(id);
   if (local != null) return local;
-  return ref.watch(_discoveryRequestGatewayProvider).detail(id);
+  return ref.read(_discoveryRequestGatewayProvider).detail(id);
 }
 
 final recipeDetailProvider = FutureProvider.autoDispose.family<Recipe?, String>(

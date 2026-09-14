@@ -151,6 +151,12 @@ void main() {
   group('resume', () {
     test('checked under 6 hours ago: does nothing', () async {
       final test = setup();
+      // Finding #2: the 6h resume gate only applies once there is a local
+      // catalog to protect — seed one so this exercises the gate itself
+      // rather than the empty-catalog fallthrough (covered below).
+      await test.repository.applySnapshot(
+        catalogSnapshotFixture(version: fakeCatalogVersion('kept')),
+      );
       test.fetcher.enqueueAvailable(const CatalogSnapshotUnchanged());
       final notifier = test.container.read(catalogUpdateControllerProvider.notifier);
       await notifier.checkOnLaunch(); // sets lastCheckedAt = clock
@@ -160,6 +166,68 @@ void main() {
 
       expect(test.fetcher.requests, hasLength(1)); // no second call
     });
+
+    test(
+      'a failed check with an existing catalog does not force a resume '
+      'check within 6 hours',
+      () async {
+        final test = setup();
+        await test.repository.applySnapshot(
+          catalogSnapshotFixture(version: fakeCatalogVersion('kept')),
+        );
+        test.fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+        final notifier =
+            test.container.read(catalogUpdateControllerProvider.notifier);
+        await notifier.checkOnLaunch(); // records the failed attempt's time
+
+        final failedState = test.container.read(catalogUpdateControllerProvider);
+        expect(failedState.status, CatalogUpdateStatus.failed);
+
+        clock = clock.add(const Duration(hours: 5));
+        await notifier.checkAfterResume();
+
+        expect(test.fetcher.requests, hasLength(1)); // no second call
+      },
+    );
+
+    test(
+      'offline on first launch then reconnecting on resume applies '
+      'immediately with no local catalog to protect',
+      () async {
+        final test = setup();
+        test.fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+        final notifier =
+            test.container.read(catalogUpdateControllerProvider.notifier);
+        await notifier.checkOnLaunch();
+        expect(
+          test.container.read(catalogUpdateControllerProvider).status,
+          CatalogUpdateStatus.failed,
+        );
+
+        // Reconnect moments later — well under 6h — and resume. Because the
+        // catalog is still empty, the 6h gate is skipped entirely: the
+        // person must not be left staring at an empty state until the gate
+        // clears.
+        clock = clock.add(const Duration(minutes: 1));
+        test.fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('reconnect'),
+              drinks: [catalogRecipeModel(id: '1', name: 'First Drink')],
+            ),
+          ),
+        );
+        await notifier.checkAfterResume();
+
+        final state = test.container.read(catalogUpdateControllerProvider);
+        expect(state.status, CatalogUpdateStatus.updated);
+        expect(await test.repository.recipeCount(), 1);
+      },
+    );
 
     test('checked 6+ hours ago with a new version: stages it, never applies '
         'it, and reports a non-silent diff', () async {

@@ -531,8 +531,8 @@ void main() {
     // graph count line names the pre-bound total, not the bounded list.
     expect(
       find.textContaining(
-        'The most-used ingredients in the loaded '
-        'collection get a place',
+        'The most-used ingredients in the downloaded '
+        'catalog get a place',
       ),
       findsOneWidget,
     );

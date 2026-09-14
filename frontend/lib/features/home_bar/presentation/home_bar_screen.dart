@@ -26,8 +26,6 @@ class HomeBarScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(homeBarCatalogFreshnessProvider);
-    ref.watch(catalogSearchIndexFreshnessProvider);
     final items = ref.watch(homeBarItemsProvider);
     final recipes = ref.watch(homeBarCatalogRecipesProvider);
     final coverage = ref.watch(homeBarCatalogCoverageProvider);
@@ -66,8 +64,8 @@ class HomeBarScreen extends ConsumerWidget {
               records: records.where((record) => !record.deleted).toList(),
               recipes: catalogRecipes,
               coverageText: report.publishedAt == null
-                  ? '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'} in the TheCocktailDB catalog on this device.'
-                  : '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'} in the TheCocktailDB catalog, updated '
+                  ? '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'} in TheCocktailDB catalog on this device.'
+                  : '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'} in TheCocktailDB catalog, updated '
                         '${MaterialLocalizations.of(context).formatMediumDate(report.publishedAt!.toLocal())}.',
             ),
           ),

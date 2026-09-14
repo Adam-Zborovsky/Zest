@@ -19,10 +19,12 @@ import '../features/onboarding/presentation/onboarding_screen.dart';
 GoRouter createZestRouter({
   String? initialLocation,
   required SessionController session,
+  GlobalKey<NavigatorState>? navigatorKey,
 }) {
   // Keep recipe pushes addressable on web while preserving their origin on Back.
   GoRouter.optionURLReflectsImperativeAPIs = true;
   return GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: initialLocation,
     refreshListenable: session,
     redirect: (context, state) =>

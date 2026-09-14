@@ -8,6 +8,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
@@ -59,6 +60,10 @@ void main() {
         overrides: [
           ...collectionTestOverrides(repository: repository, picker: picker),
           ...sessionTestOverrides(),
+          // The app-shell launch check (docs/M11.md finding #3) runs
+          // unconditionally, so every ZestApp pump needs a catalog
+          // repository that never touches the real on-device database.
+          emptyCatalogRepositoryOverride(),
           cocktailDbClientProvider.overrideWithValue(client),
           recipeImageProvider.overrideWithValue((url) {
             requestedUrls.add(url);
