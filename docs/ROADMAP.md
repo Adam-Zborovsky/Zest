@@ -78,13 +78,39 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Decision (2026-09-13):** Zest's own Fastify backend (not Supabase/Firebase). Account required: email and password. Offline-first sync with last edit wins per entry. Existing device data uploads on first sign-in. PostgreSQL 18 with Drizzle. Photos on server disk, owner-readable only. Local-first: Docker Compose on Adam's PC, LAN access. Email verification and password reset deferred. Opaque bearer tokens; server stores SHA-256 hash. See [docs/ACCOUNTS.md](ACCOUNTS.md).
 - **Status (2026-09-14):** Backend auth/entry/sync/photo routes, Flutter HTTP account repository with secure token storage, Drift schema 4 with sync flags, tombstones, and millisecond timestamps, sync engine with last-edit-wins and retry logic, sign in/create account UI, profile sheet with sync status and email. Two independent reviews and integrator review complete; all findings resolved. Analysis clean, 469 Flutter tests pass, 60 backend tests pass. Remaining: Adam's local Docker Postgres run with sign-up, photo, and sync check. See [docs/reviews/M8.md](reviews/M8.md).
 
-## Post-M8 (not scheduled)
+## M9 — Distribution rights, public repository, and README
 
-Deployment/publication (HTTPS, backups, email verification, password reset, account deletion), and the home-bar/shopping/hosting ideas listed in `docs/PRODUCT.md`.
+- **Decisions (Adam, 2026-09-14):**
+  - The repository goes public on GitHub, and Zest's own code is MIT licensed.
+  - Zest does not ask TheCocktailDB for written permission. Instead, the published terms are documented and Zest stays within them.
+  - The README uses real app screenshots, limited to screens without TheCocktailDB drink photos or personal memory photos. The rule against provider images in the repository stays.
+  - The two early commits that carry the owner's personal email stay as they are, with no history rewrite.
+- **Scope:**
+  - `docs/SOURCES.md`: quoted terms, each Zest behavior mapped to the clause that governs it, accepted risks, and a pre-publication checklist.
+  - `LICENSE` and a third-party content notice covering TheCocktailDB content, the OFL fonts, and dependencies.
+  - An in-app attribution audit, with fixes, covering every surface that shows provider data or images.
+  - A rewritten `README.md` with Adam's screenshots.
+  - Publication updates to `docs/PRODUCT.md` and `AGENTS.md`.
+- **Acceptance:**
+  - The full git history has been checked for secrets and personal media.
+  - Every provider image or data surface credits TheCocktailDB and links back, and this is covered by tests.
+  - The README describes current reality: M8 accounts and sync, Docker setup, phone access over Wi-Fi, tests, and credits.
+  - Adam switches repository visibility himself after reviewing the checklist.
+
+## M10 — Home-bar inventory and shopping list
+
+- Scope, storage, and sync are decided when the milestone starts, through a brainstorm with Adam.
+
+## Later (not scheduled)
+
+- Deployment: HTTPS, backups, email verification, password reset, account deletion, and a review of whether sign-up reveals which emails already have accounts.
+- The hosting ideas listed in `docs/PRODUCT.md`.
 
 ## Open decisions that gate work
 
 - **Art direction** — resolved in M1: Adam selected C — Botanical Play.
 - **Auth provider and guest/local-only mode** — resolved in M8 (2026-09-13): Zest's own backend with email/password accounts, offline-first sync, local Docker Compose. The recipe gateway is separately authorized before M5; it does not settle auth or cloud storage.
 - **Media storage and sync** — resolved in M8 (2026-09-13): photos on Zest's server disk, owner-readable only, synced with collection entries.
-- **Deployment/publication** (HTTPS, backups, email verification, password reset, account deletion, enumeration review) — after M8.
+- **Repository publication** — resolved for M9 (2026-09-14): public on GitHub, MIT for app code, content governed per `docs/SOURCES.md`.
+- **Deployment and app-store distribution** (HTTPS, backups, email verification, password reset, account deletion, enumeration review) — open.
+- **Home-bar inventory and shopping list scope and sync** — decided at the start of M10.
