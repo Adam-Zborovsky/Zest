@@ -25,13 +25,6 @@ final _discoveryRequestGatewayProvider = Provider<CocktailRequestGateway>((ref) 
   );
 });
 
-/// The application-scoped request gateway shared by discovery and bar
-/// matching. Public so M4 bar matching reuses the same conservative
-/// 429 cooldown; the client remains the authority for `lookup.php` response
-/// caching — the only recipe endpoint left calling it (`docs/M11.md`
-/// "Recipe detail").
-final cocktailRequestGatewayProvider = _discoveryRequestGatewayProvider;
-
 /// Local-catalog results per `docs/M11.md` "Surfaces": name and ingredient
 /// results come from the ranked search index, letter results are every
 /// stored recipe whose folded name starts with that letter, ordered by
