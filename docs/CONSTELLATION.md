@@ -1,29 +1,34 @@
-# Ingredient Constellation — M5
+# Ingredient Constellation — M5 / M11
 
-The M5 flagship: an on-device, source-preserving recipe catalog with resumable A–Z sync, and the ingredient co-occurrence constellation that leads the home screen. The gateway prerequisite ([GATEWAY.md](GATEWAY.md)) supplies provider access; storage, sync, graph and matching remain client-side. The data-layer contract history is in [DATA.md](DATA.md).
+The M5 flagship: an on-device recipe catalog and the ingredient co-occurrence constellation that leads the home screen. M11 replaced the client-driven A–Z browse with a single shared catalog snapshot downloaded from the backend (`docs/M11.md`); storage, update behavior, graph and matching remain client-side. The data-layer contract history is in [DATA.md](DATA.md).
 
-## Catalog storage
+## Catalog storage (schema 2)
 
 `frontend/lib/features/catalog/` holds a drift (SQLite) database opened through the documented cross-platform connection: a native file database on devices, `WasmDatabase` on web with the pinned `sqlite3.wasm` and drift worker committed to `frontend/web/` (provenance and SHA-256 in `frontend/web/README.md`). Tests inject in-memory or temp-file executors.
 
 | Table | Contents |
 | --- | --- |
-| `recipes` | One row per recipe: `providerId` (TEXT primary key — the provider id is an opaque numeric string up to 20 digits, preserved byte-for-byte), `name`, `firstLetter`, and the full source JSON. `firstLetter` records the browse that last wrote the row, not a name-derived letter; cross-letter shared recipes are last-writer-wins and cannot duplicate usages. |
-| `ingredient_usages` | One row per (recipe, normalized ingredient identity) — the prevalence basis. Written at upsert time via the reviewed alias normalization. |
-| `letter_sync` | One row per fully applied letter; absence means pending. No status column — completion is row presence. |
+| `recipes` | One row per recipe: `providerId` (TEXT primary key — the provider id is an opaque numeric string up to 20 digits, preserved byte-for-byte), `name`, and the full source JSON. |
+| `ingredient_usages` | One row per (recipe, normalized ingredient identity) — the prevalence basis. Written whenever a snapshot is applied, via the reviewed alias normalization. |
+| `catalog_snapshot` | Single row (id 1): `version` (64 lowercase hex, the SHA-256 of the canonical snapshot body), `publishedAt`, `recipeCount`, `appliedAt`. Absence means no snapshot has ever been applied. |
 
-Writes are transactional per letter: a letter's recipes, usages and completion row apply together or not at all. Re-syncing a letter replaces its stale rows without touching other letters. Reads rehydrate `Recipe` objects from the stored source JSON and round-trip exactly; `ingredientPrevalence()` and `coverage()` feed the constellation.
+The migration from schema 1 drops and recreates all three catalog tables — the catalog is re-downloadable provider data, not personal data, so schema-1 rows are never carried forward. `CatalogRepository.applySnapshot(CatalogSnapshot)` replaces `recipes`, `ingredient_usages`, and the `catalog_snapshot` row in one transaction, returning a `CatalogDiff` (added/removed/changed counts, plus added recipe names for the update notice); a failure partway through leaves the previous catalog completely intact. Reads rehydrate `Recipe` objects from the stored source JSON and round-trip exactly; `ingredientPrevalence()` and `coverage()` feed the constellation.
 
-## Sync
+## Update behavior
 
-The sync engine walks pending letters a–z through the shared request-gateway cooldown (`letterRecipes()` — an additive method on `CocktailRequestGateway`; there is no second cooldown). Letters apply transactionally, so progress is durable: a fresh session resumes from the store's pending letters, never re-requesting synced ones. Rapid `start()` calls are settled by a run token that abandons the losing loop without corrupting partial state.
+`CatalogSnapshotClient` (`catalog/data/catalog_snapshot_client.dart`) does a conditional `GET` against the backend's `/api/catalog` (resolved from `ZEST_API_BASE_URL` the same way the account/sync base is, via `resolveCatalogSnapshotUrl`), sending `If-None-Match` with the locally applied version. It validates the envelope and every drink record (64-hex version, `recipeCount == drinks.length`, numeric `idDrink`, non-empty `strDrink`, every `str*` field string-or-null, no duplicate ids) before ever handing back a `CatalogSnapshot`; invalid, oversized (>8 MB decompressed), rate-limited, unavailable, offline, or timed-out responses all surface as typed `CocktailApiException`s, never a partial snapshot.
 
-Behavior contract:
+`CatalogUpdateController` (Riverpod `Notifier`, `catalog/application/catalog_update_controller.dart`) drives the whole lifecycle per the states `idle`, `checking`, `downloading`, `upToDate`, `updated`, `staged`, `failed`:
 
-- Pacing: a conservative pause between letter browses (injectable; tests run at zero).
-- A provider rate limit pauses with the reported remaining seconds; other errors pause resumably. There is **no automatic retry** — resume is always explicit.
-- Store failures during start/resume land in the same resumable paused state instead of escaping as unhandled exceptions.
-- Coverage counts loaded letters and recipes. Completed A–Z browse is **not** proof of full-catalog completeness, and no surface claims it is.
+| Moment | Behavior |
+| --- | --- |
+| Launch, empty catalog | `checkOnLaunch()` downloads and applies automatically; the home card shows progress in place of a manual action, and a failure there shows the branded error with Retry. |
+| Launch, catalog exists | The same `checkOnLaunch()` checks in the background; a new version is downloaded and applied automatically, then a notice reports the measured diff ("Catalog updated · N new recipes"). |
+| App resumed 6+ hours after the last check | `checkAfterResume()` checks and downloads, but **stages** rather than applies a found update, and the notice carries an **Update** action; tapping calls `applyStaged()`, otherwise the next full launch re-downloads and applies it automatically. |
+| Manual | `checkNow()` (the profile sheet's "Check for catalog updates" row) always applies immediately, returning a `CatalogUpdateOutcome` (`CatalogUpdateUpToDate` / `CatalogUpdateApplied` / `CatalogUpdateStaged` / `CatalogUpdateFailed`) for that row's own inline wording. |
+| 304 / identical version, or any failure with an existing catalog | Silent: no notice, and (fpr a failure) the previous catalog keeps working; only the profile sheet's own status reflects it. |
+
+A run token (`_run`) makes concurrent triggers coalesce into the one in-flight run and lets a stale run — abandoned when a watched dependency rebuilds the controller — return without ever overwriting fresher state; there is no automatic retry loop. After every apply, `catalogFreshnessProvider` (constellation) and `homeBarCatalogFreshnessProvider` (home bar) invalidate the providers that read the catalog, so both screens refresh. The update notice itself is `ZestNotice` (`core/widgets/zest_notice.dart`): a dismissable, screen-reader-announced Botanical Play card shown via the nearest `Overlay`, with a keyboard-reachable action and no animation under reduced motion.
 
 ## Constellation
 
@@ -37,7 +42,7 @@ Behavior contract:
 
 Home (`/`) leads with the canvas. Node taps select and highlight a neighborhood with a prevalence phrase tied to the analyzed collection; edge taps open a sheet of shared recipes linking to the existing detail route; a search filter narrows visible nodes. The canvas settles once with the standard ease-out entrance token and then stays still. A semantic list view carries the same prevalence and connection information without the graph; the canvas itself is excluded from semantics. Under either reduced-motion flag no animation controller exists and the final layout renders immediately. Core tasks never depend on the graph: discovery and bar routes are unchanged and directly reachable.
 
-Coverage wording everywhere identifies the analyzed collection (letters loaded, recipe count) and states that counts describe the loaded collection, not the full provider catalog.
+Coverage wording everywhere identifies the source and recency ("TheCocktailDB catalog, N recipes, updated <date>") and states that counts describe the downloaded catalog, not a proven-complete provider dump.
 
 ## Platform and verification notes
 
