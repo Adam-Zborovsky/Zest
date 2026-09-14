@@ -44,6 +44,41 @@ export async function readCatalogRecipes(db: Db): Promise<CatalogRecipeRow[]> {
   return rows.map((row) => ({ ...row, updatedAt: toIso(row.updatedAt) }));
 }
 
+export interface CatalogSnapshotRead {
+  state: CatalogStateRow;
+  recipes: CatalogRecipeRow[];
+}
+
+/**
+ * Reads state and recipes as one consistent pair, guarding against a publish
+ * landing between the two separate statements (state and recipes are read
+ * with two different queries, not one join, so a torn read is otherwise
+ * possible). If the version moved between the state read and the recipes
+ * read, retries once with the fresher state.
+ *
+ * `afterStateRead` is a test-only seam: tests use it to publish a new
+ * snapshot between the state read and the recipes read, to exercise the
+ * retry deterministically.
+ */
+export async function readCatalogSnapshot(
+  db: Db,
+  afterStateRead?: () => Promise<void> | void,
+): Promise<CatalogSnapshotRead | undefined> {
+  let state = await readCatalogState(db);
+  if (!state) return undefined;
+  await afterStateRead?.();
+
+  let recipes = await readCatalogRecipes(db);
+  const after = await readCatalogState(db);
+  if (after && after.version !== state.version) {
+    // A publish committed while we were reading: retry once with the
+    // now-current state so the pair we return is internally consistent.
+    state = after;
+    recipes = await readCatalogRecipes(db);
+  }
+  return { state, recipes };
+}
+
 export interface PublishInput {
   version: string;
   recipeCount: number;

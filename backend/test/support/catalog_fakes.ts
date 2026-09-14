@@ -5,27 +5,21 @@ import type { CatalogGateway, CatalogTimers } from '../../src/catalog/refresher.
 
 export interface FakeTimers {
   timers: CatalogTimers;
-  /** Synchronously invokes every currently pending interval callback. */
-  fireIntervals(): void;
   /** Synchronously invokes and clears every currently pending timeout callback. */
   fireTimeouts(): void;
   pendingTimeouts(): number;
-  pendingIntervals(): number;
+  /** The delay (ms) passed to the most recent setTimeout call, if any. */
+  lastDelay(): number | undefined;
 }
 
 export function createFakeTimers(): FakeTimers {
   let nextId = 1;
-  const intervals = new Map<number, () => void>();
+  let lastDelay: number | undefined;
   const timeouts = new Map<number, () => void>();
   const timers: CatalogTimers = {
-    setInterval: (handler) => {
+    setTimeout: (handler, ms) => {
       const id = nextId++;
-      intervals.set(id, handler);
-      return id as unknown as NodeJS.Timeout;
-    },
-    clearInterval: (handle) => { intervals.delete(handle as unknown as number); },
-    setTimeout: (handler) => {
-      const id = nextId++;
+      lastDelay = ms;
       timeouts.set(id, handler);
       return id as unknown as NodeJS.Timeout;
     },
@@ -33,14 +27,13 @@ export function createFakeTimers(): FakeTimers {
   };
   return {
     timers,
-    fireIntervals: () => { for (const handler of [...intervals.values()]) handler(); },
     fireTimeouts: () => {
       const due = [...timeouts.values()];
       timeouts.clear();
       for (const handler of due) handler();
     },
     pendingTimeouts: () => timeouts.size,
-    pendingIntervals: () => intervals.size,
+    lastDelay: () => lastDelay,
   };
 }
 
