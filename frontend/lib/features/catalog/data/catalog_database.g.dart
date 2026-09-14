@@ -28,21 +28,6 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _firstLetterMeta = const VerificationMeta(
-    'firstLetter',
-  );
-  @override
-  late final GeneratedColumn<String> firstLetter = GeneratedColumn<String>(
-    'first_letter',
-    aliasedName,
-    false,
-    additionalChecks: GeneratedColumn.checkTextLength(
-      minTextLength: 1,
-      maxTextLength: 1,
-    ),
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
   static const VerificationMeta _sourceJsonMeta = const VerificationMeta(
     'sourceJson',
   );
@@ -69,7 +54,6 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
   List<GeneratedColumn> get $columns => [
     providerId,
     name,
-    firstLetter,
     sourceJson,
     updatedAt,
   ];
@@ -100,17 +84,6 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
-    }
-    if (data.containsKey('first_letter')) {
-      context.handle(
-        _firstLetterMeta,
-        firstLetter.isAcceptableOrUnknown(
-          data['first_letter']!,
-          _firstLetterMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_firstLetterMeta);
     }
     if (data.containsKey('source_json')) {
       context.handle(
@@ -145,10 +118,6 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
-      firstLetter: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}first_letter'],
-      )!,
       sourceJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source_json'],
@@ -169,20 +138,11 @@ class $RecipesTable extends Recipes with TableInfo<$RecipesTable, RecipeRow> {
 class RecipeRow extends DataClass implements Insertable<RecipeRow> {
   final String providerId;
   final String name;
-
-  /// The browse that last wrote this row — never a letter derived from the
-  /// recipe name. A recipe returned by two different letter browses is
-  /// last-writer-wins: [CatalogRepository.upsertLetter] replaces the row
-  /// (and its ingredient usages, which are primary-keyed on
-  /// (recipeId, identity) and so cannot duplicate) with the newest browse's
-  /// copy and stamps this column with that letter.
-  final String firstLetter;
   final String sourceJson;
   final DateTime updatedAt;
   const RecipeRow({
     required this.providerId,
     required this.name,
-    required this.firstLetter,
     required this.sourceJson,
     required this.updatedAt,
   });
@@ -191,7 +151,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
     final map = <String, Expression>{};
     map['provider_id'] = Variable<String>(providerId);
     map['name'] = Variable<String>(name);
-    map['first_letter'] = Variable<String>(firstLetter);
     map['source_json'] = Variable<String>(sourceJson);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -201,7 +160,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
     return RecipesCompanion(
       providerId: Value(providerId),
       name: Value(name),
-      firstLetter: Value(firstLetter),
       sourceJson: Value(sourceJson),
       updatedAt: Value(updatedAt),
     );
@@ -215,7 +173,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
     return RecipeRow(
       providerId: serializer.fromJson<String>(json['providerId']),
       name: serializer.fromJson<String>(json['name']),
-      firstLetter: serializer.fromJson<String>(json['firstLetter']),
       sourceJson: serializer.fromJson<String>(json['sourceJson']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -226,7 +183,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
     return <String, dynamic>{
       'providerId': serializer.toJson<String>(providerId),
       'name': serializer.toJson<String>(name),
-      'firstLetter': serializer.toJson<String>(firstLetter),
       'sourceJson': serializer.toJson<String>(sourceJson),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -235,13 +191,11 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
   RecipeRow copyWith({
     String? providerId,
     String? name,
-    String? firstLetter,
     String? sourceJson,
     DateTime? updatedAt,
   }) => RecipeRow(
     providerId: providerId ?? this.providerId,
     name: name ?? this.name,
-    firstLetter: firstLetter ?? this.firstLetter,
     sourceJson: sourceJson ?? this.sourceJson,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -251,9 +205,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
           ? data.providerId.value
           : this.providerId,
       name: data.name.present ? data.name.value : this.name,
-      firstLetter: data.firstLetter.present
-          ? data.firstLetter.value
-          : this.firstLetter,
       sourceJson: data.sourceJson.present
           ? data.sourceJson.value
           : this.sourceJson,
@@ -266,7 +217,6 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
     return (StringBuffer('RecipeRow(')
           ..write('providerId: $providerId, ')
           ..write('name: $name, ')
-          ..write('firstLetter: $firstLetter, ')
           ..write('sourceJson: $sourceJson, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -274,15 +224,13 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(providerId, name, firstLetter, sourceJson, updatedAt);
+  int get hashCode => Object.hash(providerId, name, sourceJson, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is RecipeRow &&
           other.providerId == this.providerId &&
           other.name == this.name &&
-          other.firstLetter == this.firstLetter &&
           other.sourceJson == this.sourceJson &&
           other.updatedAt == this.updatedAt);
 }
@@ -290,14 +238,12 @@ class RecipeRow extends DataClass implements Insertable<RecipeRow> {
 class RecipesCompanion extends UpdateCompanion<RecipeRow> {
   final Value<String> providerId;
   final Value<String> name;
-  final Value<String> firstLetter;
   final Value<String> sourceJson;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const RecipesCompanion({
     this.providerId = const Value.absent(),
     this.name = const Value.absent(),
-    this.firstLetter = const Value.absent(),
     this.sourceJson = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -305,19 +251,16 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
   RecipesCompanion.insert({
     required String providerId,
     required String name,
-    required String firstLetter,
     required String sourceJson,
     required DateTime updatedAt,
     this.rowid = const Value.absent(),
   }) : providerId = Value(providerId),
        name = Value(name),
-       firstLetter = Value(firstLetter),
        sourceJson = Value(sourceJson),
        updatedAt = Value(updatedAt);
   static Insertable<RecipeRow> custom({
     Expression<String>? providerId,
     Expression<String>? name,
-    Expression<String>? firstLetter,
     Expression<String>? sourceJson,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -325,7 +268,6 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
     return RawValuesInsertable({
       if (providerId != null) 'provider_id': providerId,
       if (name != null) 'name': name,
-      if (firstLetter != null) 'first_letter': firstLetter,
       if (sourceJson != null) 'source_json': sourceJson,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -335,7 +277,6 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
   RecipesCompanion copyWith({
     Value<String>? providerId,
     Value<String>? name,
-    Value<String>? firstLetter,
     Value<String>? sourceJson,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -343,7 +284,6 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
     return RecipesCompanion(
       providerId: providerId ?? this.providerId,
       name: name ?? this.name,
-      firstLetter: firstLetter ?? this.firstLetter,
       sourceJson: sourceJson ?? this.sourceJson,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -358,9 +298,6 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
-    }
-    if (firstLetter.present) {
-      map['first_letter'] = Variable<String>(firstLetter.value);
     }
     if (sourceJson.present) {
       map['source_json'] = Variable<String>(sourceJson.value);
@@ -379,7 +316,6 @@ class RecipesCompanion extends UpdateCompanion<RecipeRow> {
     return (StringBuffer('RecipesCompanion(')
           ..write('providerId: $providerId, ')
           ..write('name: $name, ')
-          ..write('firstLetter: $firstLetter, ')
           ..write('sourceJson: $sourceJson, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -622,35 +558,43 @@ class IngredientUsagesCompanion extends UpdateCompanion<IngredientUsageRow> {
   }
 }
 
-class $LetterSyncTable extends LetterSync
-    with TableInfo<$LetterSyncTable, LetterSyncRow> {
+class $CatalogSnapshotTableTable extends CatalogSnapshotTable
+    with TableInfo<$CatalogSnapshotTableTable, CatalogSnapshotRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $LetterSyncTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _letterMeta = const VerificationMeta('letter');
+  $CatalogSnapshotTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<String> letter = GeneratedColumn<String>(
-    'letter',
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
     aliasedName,
     false,
-    additionalChecks: GeneratedColumn.checkTextLength(
-      minTextLength: 1,
-      maxTextLength: 1,
-    ),
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<String> version = GeneratedColumn<String>(
+    'version',
+    aliasedName,
+    false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _completedAtMeta = const VerificationMeta(
-    'completedAt',
+  static const VerificationMeta _publishedAtMeta = const VerificationMeta(
+    'publishedAt',
   );
   @override
-  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
-    'completed_at',
+  late final GeneratedColumn<DateTime> publishedAt = GeneratedColumn<DateTime>(
+    'published_at',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _recipeCountMeta = const VerificationMeta(
     'recipeCount',
@@ -663,36 +607,58 @@ class $LetterSyncTable extends LetterSync
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _appliedAtMeta = const VerificationMeta(
+    'appliedAt',
+  );
   @override
-  List<GeneratedColumn> get $columns => [letter, completedAt, recipeCount];
+  late final GeneratedColumn<DateTime> appliedAt = GeneratedColumn<DateTime>(
+    'applied_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    version,
+    publishedAt,
+    recipeCount,
+    appliedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'letter_sync';
+  static const String $name = 'catalog_snapshot';
   @override
   VerificationContext validateIntegrity(
-    Insertable<LetterSyncRow> instance, {
+    Insertable<CatalogSnapshotRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('letter')) {
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('version')) {
       context.handle(
-        _letterMeta,
-        letter.isAcceptableOrUnknown(data['letter']!, _letterMeta),
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
       );
     } else if (isInserting) {
-      context.missing(_letterMeta);
+      context.missing(_versionMeta);
     }
-    if (data.containsKey('completed_at')) {
+    if (data.containsKey('published_at')) {
       context.handle(
-        _completedAtMeta,
-        completedAt.isAcceptableOrUnknown(
-          data['completed_at']!,
-          _completedAtMeta,
+        _publishedAtMeta,
+        publishedAt.isAcceptableOrUnknown(
+          data['published_at']!,
+          _publishedAtMeta,
         ),
       );
+    } else if (isInserting) {
+      context.missing(_publishedAtMeta);
     }
     if (data.containsKey('recipe_count')) {
       context.handle(
@@ -705,200 +671,250 @@ class $LetterSyncTable extends LetterSync
     } else if (isInserting) {
       context.missing(_recipeCountMeta);
     }
+    if (data.containsKey('applied_at')) {
+      context.handle(
+        _appliedAtMeta,
+        appliedAt.isAcceptableOrUnknown(data['applied_at']!, _appliedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_appliedAtMeta);
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {letter};
+  Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  LetterSyncRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+  CatalogSnapshotRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return LetterSyncRow(
-      letter: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}letter'],
+    return CatalogSnapshotRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
       )!,
-      completedAt: attachedDatabase.typeMapping.read(
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version'],
+      )!,
+      publishedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}completed_at'],
-      ),
+        data['${effectivePrefix}published_at'],
+      )!,
       recipeCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}recipe_count'],
       )!,
+      appliedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}applied_at'],
+      )!,
     );
   }
 
   @override
-  $LetterSyncTable createAlias(String alias) {
-    return $LetterSyncTable(attachedDatabase, alias);
+  $CatalogSnapshotTableTable createAlias(String alias) {
+    return $CatalogSnapshotTableTable(attachedDatabase, alias);
   }
 }
 
-class LetterSyncRow extends DataClass implements Insertable<LetterSyncRow> {
-  final String letter;
-  final DateTime? completedAt;
+class CatalogSnapshotRow extends DataClass
+    implements Insertable<CatalogSnapshotRow> {
+  final int id;
+  final String version;
+  final DateTime publishedAt;
   final int recipeCount;
-  const LetterSyncRow({
-    required this.letter,
-    this.completedAt,
+  final DateTime appliedAt;
+  const CatalogSnapshotRow({
+    required this.id,
+    required this.version,
+    required this.publishedAt,
     required this.recipeCount,
+    required this.appliedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['letter'] = Variable<String>(letter);
-    if (!nullToAbsent || completedAt != null) {
-      map['completed_at'] = Variable<DateTime>(completedAt);
-    }
+    map['id'] = Variable<int>(id);
+    map['version'] = Variable<String>(version);
+    map['published_at'] = Variable<DateTime>(publishedAt);
     map['recipe_count'] = Variable<int>(recipeCount);
+    map['applied_at'] = Variable<DateTime>(appliedAt);
     return map;
   }
 
-  LetterSyncCompanion toCompanion(bool nullToAbsent) {
-    return LetterSyncCompanion(
-      letter: Value(letter),
-      completedAt: completedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(completedAt),
+  CatalogSnapshotTableCompanion toCompanion(bool nullToAbsent) {
+    return CatalogSnapshotTableCompanion(
+      id: Value(id),
+      version: Value(version),
+      publishedAt: Value(publishedAt),
       recipeCount: Value(recipeCount),
+      appliedAt: Value(appliedAt),
     );
   }
 
-  factory LetterSyncRow.fromJson(
+  factory CatalogSnapshotRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return LetterSyncRow(
-      letter: serializer.fromJson<String>(json['letter']),
-      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+    return CatalogSnapshotRow(
+      id: serializer.fromJson<int>(json['id']),
+      version: serializer.fromJson<String>(json['version']),
+      publishedAt: serializer.fromJson<DateTime>(json['publishedAt']),
       recipeCount: serializer.fromJson<int>(json['recipeCount']),
+      appliedAt: serializer.fromJson<DateTime>(json['appliedAt']),
     );
   }
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'letter': serializer.toJson<String>(letter),
-      'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'id': serializer.toJson<int>(id),
+      'version': serializer.toJson<String>(version),
+      'publishedAt': serializer.toJson<DateTime>(publishedAt),
       'recipeCount': serializer.toJson<int>(recipeCount),
+      'appliedAt': serializer.toJson<DateTime>(appliedAt),
     };
   }
 
-  LetterSyncRow copyWith({
-    String? letter,
-    Value<DateTime?> completedAt = const Value.absent(),
+  CatalogSnapshotRow copyWith({
+    int? id,
+    String? version,
+    DateTime? publishedAt,
     int? recipeCount,
-  }) => LetterSyncRow(
-    letter: letter ?? this.letter,
-    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    DateTime? appliedAt,
+  }) => CatalogSnapshotRow(
+    id: id ?? this.id,
+    version: version ?? this.version,
+    publishedAt: publishedAt ?? this.publishedAt,
     recipeCount: recipeCount ?? this.recipeCount,
+    appliedAt: appliedAt ?? this.appliedAt,
   );
-  LetterSyncRow copyWithCompanion(LetterSyncCompanion data) {
-    return LetterSyncRow(
-      letter: data.letter.present ? data.letter.value : this.letter,
-      completedAt: data.completedAt.present
-          ? data.completedAt.value
-          : this.completedAt,
+  CatalogSnapshotRow copyWithCompanion(CatalogSnapshotTableCompanion data) {
+    return CatalogSnapshotRow(
+      id: data.id.present ? data.id.value : this.id,
+      version: data.version.present ? data.version.value : this.version,
+      publishedAt: data.publishedAt.present
+          ? data.publishedAt.value
+          : this.publishedAt,
       recipeCount: data.recipeCount.present
           ? data.recipeCount.value
           : this.recipeCount,
+      appliedAt: data.appliedAt.present ? data.appliedAt.value : this.appliedAt,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('LetterSyncRow(')
-          ..write('letter: $letter, ')
-          ..write('completedAt: $completedAt, ')
-          ..write('recipeCount: $recipeCount')
+    return (StringBuffer('CatalogSnapshotRow(')
+          ..write('id: $id, ')
+          ..write('version: $version, ')
+          ..write('publishedAt: $publishedAt, ')
+          ..write('recipeCount: $recipeCount, ')
+          ..write('appliedAt: $appliedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(letter, completedAt, recipeCount);
+  int get hashCode =>
+      Object.hash(id, version, publishedAt, recipeCount, appliedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is LetterSyncRow &&
-          other.letter == this.letter &&
-          other.completedAt == this.completedAt &&
-          other.recipeCount == this.recipeCount);
+      (other is CatalogSnapshotRow &&
+          other.id == this.id &&
+          other.version == this.version &&
+          other.publishedAt == this.publishedAt &&
+          other.recipeCount == this.recipeCount &&
+          other.appliedAt == this.appliedAt);
 }
 
-class LetterSyncCompanion extends UpdateCompanion<LetterSyncRow> {
-  final Value<String> letter;
-  final Value<DateTime?> completedAt;
+class CatalogSnapshotTableCompanion
+    extends UpdateCompanion<CatalogSnapshotRow> {
+  final Value<int> id;
+  final Value<String> version;
+  final Value<DateTime> publishedAt;
   final Value<int> recipeCount;
-  final Value<int> rowid;
-  const LetterSyncCompanion({
-    this.letter = const Value.absent(),
-    this.completedAt = const Value.absent(),
+  final Value<DateTime> appliedAt;
+  const CatalogSnapshotTableCompanion({
+    this.id = const Value.absent(),
+    this.version = const Value.absent(),
+    this.publishedAt = const Value.absent(),
     this.recipeCount = const Value.absent(),
-    this.rowid = const Value.absent(),
+    this.appliedAt = const Value.absent(),
   });
-  LetterSyncCompanion.insert({
-    required String letter,
-    this.completedAt = const Value.absent(),
+  CatalogSnapshotTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String version,
+    required DateTime publishedAt,
     required int recipeCount,
-    this.rowid = const Value.absent(),
-  }) : letter = Value(letter),
-       recipeCount = Value(recipeCount);
-  static Insertable<LetterSyncRow> custom({
-    Expression<String>? letter,
-    Expression<DateTime>? completedAt,
+    required DateTime appliedAt,
+  }) : version = Value(version),
+       publishedAt = Value(publishedAt),
+       recipeCount = Value(recipeCount),
+       appliedAt = Value(appliedAt);
+  static Insertable<CatalogSnapshotRow> custom({
+    Expression<int>? id,
+    Expression<String>? version,
+    Expression<DateTime>? publishedAt,
     Expression<int>? recipeCount,
-    Expression<int>? rowid,
+    Expression<DateTime>? appliedAt,
   }) {
     return RawValuesInsertable({
-      if (letter != null) 'letter': letter,
-      if (completedAt != null) 'completed_at': completedAt,
+      if (id != null) 'id': id,
+      if (version != null) 'version': version,
+      if (publishedAt != null) 'published_at': publishedAt,
       if (recipeCount != null) 'recipe_count': recipeCount,
-      if (rowid != null) 'rowid': rowid,
+      if (appliedAt != null) 'applied_at': appliedAt,
     });
   }
 
-  LetterSyncCompanion copyWith({
-    Value<String>? letter,
-    Value<DateTime?>? completedAt,
+  CatalogSnapshotTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? version,
+    Value<DateTime>? publishedAt,
     Value<int>? recipeCount,
-    Value<int>? rowid,
+    Value<DateTime>? appliedAt,
   }) {
-    return LetterSyncCompanion(
-      letter: letter ?? this.letter,
-      completedAt: completedAt ?? this.completedAt,
+    return CatalogSnapshotTableCompanion(
+      id: id ?? this.id,
+      version: version ?? this.version,
+      publishedAt: publishedAt ?? this.publishedAt,
       recipeCount: recipeCount ?? this.recipeCount,
-      rowid: rowid ?? this.rowid,
+      appliedAt: appliedAt ?? this.appliedAt,
     );
   }
 
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (letter.present) {
-      map['letter'] = Variable<String>(letter.value);
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
     }
-    if (completedAt.present) {
-      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    if (version.present) {
+      map['version'] = Variable<String>(version.value);
+    }
+    if (publishedAt.present) {
+      map['published_at'] = Variable<DateTime>(publishedAt.value);
     }
     if (recipeCount.present) {
       map['recipe_count'] = Variable<int>(recipeCount.value);
     }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
+    if (appliedAt.present) {
+      map['applied_at'] = Variable<DateTime>(appliedAt.value);
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('LetterSyncCompanion(')
-          ..write('letter: $letter, ')
-          ..write('completedAt: $completedAt, ')
+    return (StringBuffer('CatalogSnapshotTableCompanion(')
+          ..write('id: $id, ')
+          ..write('version: $version, ')
+          ..write('publishedAt: $publishedAt, ')
           ..write('recipeCount: $recipeCount, ')
-          ..write('rowid: $rowid')
+          ..write('appliedAt: $appliedAt')
           ..write(')'))
         .toString();
   }
@@ -911,11 +927,8 @@ abstract class _$CatalogDatabase extends GeneratedDatabase {
   late final $IngredientUsagesTable ingredientUsages = $IngredientUsagesTable(
     this,
   );
-  late final $LetterSyncTable letterSync = $LetterSyncTable(this);
-  late final Index recipesFirstLetter = Index(
-    'recipes_first_letter',
-    'CREATE INDEX recipes_first_letter ON recipes (first_letter)',
-  );
+  late final $CatalogSnapshotTableTable catalogSnapshotTable =
+      $CatalogSnapshotTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -923,8 +936,7 @@ abstract class _$CatalogDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     recipes,
     ingredientUsages,
-    letterSync,
-    recipesFirstLetter,
+    catalogSnapshotTable,
   ];
 }
 
@@ -932,7 +944,6 @@ typedef $$RecipesTableCreateCompanionBuilder =
     RecipesCompanion Function({
       required String providerId,
       required String name,
-      required String firstLetter,
       required String sourceJson,
       required DateTime updatedAt,
       Value<int> rowid,
@@ -941,7 +952,6 @@ typedef $$RecipesTableUpdateCompanionBuilder =
     RecipesCompanion Function({
       Value<String> providerId,
       Value<String> name,
-      Value<String> firstLetter,
       Value<String> sourceJson,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -963,11 +973,6 @@ class $$RecipesTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get firstLetter => $composableBuilder(
-    column: $table.firstLetter,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1001,11 +1006,6 @@ class $$RecipesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get firstLetter => $composableBuilder(
-    column: $table.firstLetter,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get sourceJson => $composableBuilder(
     column: $table.sourceJson,
     builder: (column) => ColumnOrderings(column),
@@ -1033,11 +1033,6 @@ class $$RecipesTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get firstLetter => $composableBuilder(
-    column: $table.firstLetter,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<String> get sourceJson => $composableBuilder(
     column: $table.sourceJson,
@@ -1081,14 +1076,12 @@ class $$RecipesTableTableManager
               ({
                 Value<String> providerId = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<String> firstLetter = const Value.absent(),
                 Value<String> sourceJson = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecipesCompanion(
                 providerId: providerId,
                 name: name,
-                firstLetter: firstLetter,
                 sourceJson: sourceJson,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -1097,14 +1090,12 @@ class $$RecipesTableTableManager
               ({
                 required String providerId,
                 required String name,
-                required String firstLetter,
                 required String sourceJson,
                 required DateTime updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => RecipesCompanion.insert(
                 providerId: providerId,
                 name: name,
-                firstLetter: firstLetter,
                 sourceJson: sourceJson,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -1306,37 +1297,44 @@ typedef $$IngredientUsagesTableProcessedTableManager =
       IngredientUsageRow,
       PrefetchHooks Function()
     >;
-typedef $$LetterSyncTableCreateCompanionBuilder =
-    LetterSyncCompanion Function({
-      required String letter,
-      Value<DateTime?> completedAt,
+typedef $$CatalogSnapshotTableTableCreateCompanionBuilder =
+    CatalogSnapshotTableCompanion Function({
+      Value<int> id,
+      required String version,
+      required DateTime publishedAt,
       required int recipeCount,
-      Value<int> rowid,
+      required DateTime appliedAt,
     });
-typedef $$LetterSyncTableUpdateCompanionBuilder =
-    LetterSyncCompanion Function({
-      Value<String> letter,
-      Value<DateTime?> completedAt,
+typedef $$CatalogSnapshotTableTableUpdateCompanionBuilder =
+    CatalogSnapshotTableCompanion Function({
+      Value<int> id,
+      Value<String> version,
+      Value<DateTime> publishedAt,
       Value<int> recipeCount,
-      Value<int> rowid,
+      Value<DateTime> appliedAt,
     });
 
-class $$LetterSyncTableFilterComposer
-    extends Composer<_$CatalogDatabase, $LetterSyncTable> {
-  $$LetterSyncTableFilterComposer({
+class $$CatalogSnapshotTableTableFilterComposer
+    extends Composer<_$CatalogDatabase, $CatalogSnapshotTableTable> {
+  $$CatalogSnapshotTableTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get letter => $composableBuilder(
-    column: $table.letter,
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
+  ColumnFilters<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get publishedAt => $composableBuilder(
+    column: $table.publishedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1344,24 +1342,34 @@ class $$LetterSyncTableFilterComposer
     column: $table.recipeCount,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
-class $$LetterSyncTableOrderingComposer
-    extends Composer<_$CatalogDatabase, $LetterSyncTable> {
-  $$LetterSyncTableOrderingComposer({
+class $$CatalogSnapshotTableTableOrderingComposer
+    extends Composer<_$CatalogDatabase, $CatalogSnapshotTableTable> {
+  $$CatalogSnapshotTableTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get letter => $composableBuilder(
-    column: $table.letter,
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
+  ColumnOrderings<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get publishedAt => $composableBuilder(
+    column: $table.publishedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1369,22 +1377,30 @@ class $$LetterSyncTableOrderingComposer
     column: $table.recipeCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get appliedAt => $composableBuilder(
+    column: $table.appliedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-class $$LetterSyncTableAnnotationComposer
-    extends Composer<_$CatalogDatabase, $LetterSyncTable> {
-  $$LetterSyncTableAnnotationComposer({
+class $$CatalogSnapshotTableTableAnnotationComposer
+    extends Composer<_$CatalogDatabase, $CatalogSnapshotTableTable> {
+  $$CatalogSnapshotTableTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get letter =>
-      $composableBuilder(column: $table.letter, builder: (column) => column);
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
+  GeneratedColumn<String> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get publishedAt => $composableBuilder(
+    column: $table.publishedAt,
     builder: (column) => column,
   );
 
@@ -1392,69 +1408,90 @@ class $$LetterSyncTableAnnotationComposer
     column: $table.recipeCount,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get appliedAt =>
+      $composableBuilder(column: $table.appliedAt, builder: (column) => column);
 }
 
-class $$LetterSyncTableTableManager
+class $$CatalogSnapshotTableTableTableManager
     extends
         RootTableManager<
           _$CatalogDatabase,
-          $LetterSyncTable,
-          LetterSyncRow,
-          $$LetterSyncTableFilterComposer,
-          $$LetterSyncTableOrderingComposer,
-          $$LetterSyncTableAnnotationComposer,
-          $$LetterSyncTableCreateCompanionBuilder,
-          $$LetterSyncTableUpdateCompanionBuilder,
+          $CatalogSnapshotTableTable,
+          CatalogSnapshotRow,
+          $$CatalogSnapshotTableTableFilterComposer,
+          $$CatalogSnapshotTableTableOrderingComposer,
+          $$CatalogSnapshotTableTableAnnotationComposer,
+          $$CatalogSnapshotTableTableCreateCompanionBuilder,
+          $$CatalogSnapshotTableTableUpdateCompanionBuilder,
           (
-            LetterSyncRow,
-            BaseReferences<_$CatalogDatabase, $LetterSyncTable, LetterSyncRow>,
+            CatalogSnapshotRow,
+            BaseReferences<
+              _$CatalogDatabase,
+              $CatalogSnapshotTableTable,
+              CatalogSnapshotRow
+            >,
           ),
-          LetterSyncRow,
+          CatalogSnapshotRow,
           PrefetchHooks Function()
         > {
-  $$LetterSyncTableTableManager(_$CatalogDatabase db, $LetterSyncTable table)
-    : super(
+  $$CatalogSnapshotTableTableTableManager(
+    _$CatalogDatabase db,
+    $CatalogSnapshotTableTable table,
+  ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$LetterSyncTableFilterComposer($db: db, $table: table),
+              $$CatalogSnapshotTableTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$LetterSyncTableOrderingComposer($db: db, $table: table),
+              $$CatalogSnapshotTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
           createComputedFieldComposer: () =>
-              $$LetterSyncTableAnnotationComposer($db: db, $table: table),
+              $$CatalogSnapshotTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
           updateCompanionCallback:
               ({
-                Value<String> letter = const Value.absent(),
-                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int> id = const Value.absent(),
+                Value<String> version = const Value.absent(),
+                Value<DateTime> publishedAt = const Value.absent(),
                 Value<int> recipeCount = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => LetterSyncCompanion(
-                letter: letter,
-                completedAt: completedAt,
+                Value<DateTime> appliedAt = const Value.absent(),
+              }) => CatalogSnapshotTableCompanion(
+                id: id,
+                version: version,
+                publishedAt: publishedAt,
                 recipeCount: recipeCount,
-                rowid: rowid,
+                appliedAt: appliedAt,
               ),
           createCompanionCallback:
               ({
-                required String letter,
-                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int> id = const Value.absent(),
+                required String version,
+                required DateTime publishedAt,
                 required int recipeCount,
-                Value<int> rowid = const Value.absent(),
-              }) => LetterSyncCompanion.insert(
-                letter: letter,
-                completedAt: completedAt,
+                required DateTime appliedAt,
+              }) => CatalogSnapshotTableCompanion.insert(
+                id: id,
+                version: version,
+                publishedAt: publishedAt,
                 recipeCount: recipeCount,
-                rowid: rowid,
+                appliedAt: appliedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<$LetterSyncTable, LetterSyncRow>(table),
+                  e.readTable<$CatalogSnapshotTableTable, CatalogSnapshotRow>(
+                    table,
+                  ),
                   BaseReferences<
                     _$CatalogDatabase,
-                    $LetterSyncTable,
-                    LetterSyncRow
+                    $CatalogSnapshotTableTable,
+                    CatalogSnapshotRow
                   >(db, table, e),
                 ),
               )
@@ -1464,21 +1501,25 @@ class $$LetterSyncTableTableManager
       );
 }
 
-typedef $$LetterSyncTableProcessedTableManager =
+typedef $$CatalogSnapshotTableTableProcessedTableManager =
     ProcessedTableManager<
       _$CatalogDatabase,
-      $LetterSyncTable,
-      LetterSyncRow,
-      $$LetterSyncTableFilterComposer,
-      $$LetterSyncTableOrderingComposer,
-      $$LetterSyncTableAnnotationComposer,
-      $$LetterSyncTableCreateCompanionBuilder,
-      $$LetterSyncTableUpdateCompanionBuilder,
+      $CatalogSnapshotTableTable,
+      CatalogSnapshotRow,
+      $$CatalogSnapshotTableTableFilterComposer,
+      $$CatalogSnapshotTableTableOrderingComposer,
+      $$CatalogSnapshotTableTableAnnotationComposer,
+      $$CatalogSnapshotTableTableCreateCompanionBuilder,
+      $$CatalogSnapshotTableTableUpdateCompanionBuilder,
       (
-        LetterSyncRow,
-        BaseReferences<_$CatalogDatabase, $LetterSyncTable, LetterSyncRow>,
+        CatalogSnapshotRow,
+        BaseReferences<
+          _$CatalogDatabase,
+          $CatalogSnapshotTableTable,
+          CatalogSnapshotRow
+        >,
       ),
-      LetterSyncRow,
+      CatalogSnapshotRow,
       PrefetchHooks Function()
     >;
 
@@ -1489,6 +1530,6 @@ class $CatalogDatabaseManager {
       $$RecipesTableTableManager(_db, _db.recipes);
   $$IngredientUsagesTableTableManager get ingredientUsages =>
       $$IngredientUsagesTableTableManager(_db, _db.ingredientUsages);
-  $$LetterSyncTableTableManager get letterSync =>
-      $$LetterSyncTableTableManager(_db, _db.letterSync);
+  $$CatalogSnapshotTableTableTableManager get catalogSnapshotTable =>
+      $$CatalogSnapshotTableTableTableManager(_db, _db.catalogSnapshotTable);
 }

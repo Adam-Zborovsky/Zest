@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zest/features/catalog/domain/catalog_snapshot.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 
 import 'discovery_fixtures.dart';
@@ -41,6 +42,56 @@ Recipe catalogRecipeModel({
     ('Imaginary leaf syrup', '1 1/2 oz'),
   ],
 }) => Recipe.fromJson(catalogRecipe(id: id, name: name, ingredients: ingredients));
+
+/// A deterministic, format-valid 64-lowercase-hex "version" for snapshot
+/// fixtures — not a real SHA-256, just something that satisfies the wire
+/// contract's shape so tests never need the `crypto` package.
+String fakeCatalogVersion(String seed) {
+  final buffer = StringBuffer();
+  var value = seed.codeUnits.fold<int>(7, (acc, c) => (acc * 31 + c) & 0xFFFFFFFF);
+  while (buffer.length < 64) {
+    value = (value * 1103515245 + 12345) & 0xFFFFFFFF;
+    buffer.write(value.toRadixString(16).padLeft(8, '0'));
+  }
+  return buffer.toString().substring(0, 64);
+}
+
+/// A raw `GET /api/catalog` envelope, invented provider-shaped drinks only —
+/// for the snapshot client's HTTP-level tests.
+Map<String, dynamic> catalogSnapshotEnvelope({
+  String? version,
+  DateTime? publishedAt,
+  List<Map<String, dynamic>> drinks = const [],
+  int? recipeCount,
+  String attributionName = 'TheCocktailDB',
+  String attributionUrl = 'https://www.thecocktaildb.com',
+}) => {
+  'version': version ?? fakeCatalogVersion('default'),
+  'publishedAt': (publishedAt ?? DateTime.utc(2026, 9, 14, 8)).toIso8601String(),
+  'recipeCount': recipeCount ?? drinks.length,
+  'attribution': {'name': attributionName, 'url': attributionUrl},
+  'drinks': drinks,
+};
+
+/// A parsed [CatalogSnapshot] fixture — for repository/controller tests that
+/// work above the wire format.
+CatalogSnapshot catalogSnapshotFixture({
+  String? version,
+  DateTime? publishedAt,
+  List<Recipe>? drinks,
+}) {
+  final list = drinks ?? [catalogRecipeModel()];
+  return CatalogSnapshot(
+    version: version ?? fakeCatalogVersion('default'),
+    publishedAt: publishedAt ?? DateTime.utc(2026, 9, 14, 8),
+    recipeCount: list.length,
+    attribution: CatalogAttribution(
+      name: 'TheCocktailDB',
+      url: Uri.parse('https://www.thecocktaildb.com'),
+    ),
+    drinks: list,
+  );
+}
 
 /// One invented recipe per letter, so sync tests can cover the full alphabet
 /// with distinct synthetic content. Ingredients exercise alias normalization

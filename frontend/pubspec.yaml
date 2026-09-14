@@ -39,6 +39,10 @@ dev_dependencies:
   # M7 onboarding: InMemorySharedPreferencesAsync backs the shared
   # session-store contract suite run against the prefs-backed stores.
   shared_preferences_platform_interface: ^2.4.2
+  # M11: builds a raw schema-1 catalog database file by hand, to test the
+  # 1->2 migration end to end. Already a transitive dependency of
+  # drift_flutter; pinned explicitly since a test imports it directly.
+  sqlite3: ^3.5.0
 
 flutter:
   uses-material-design: true
