@@ -35,37 +35,32 @@ test('health is local and does not call the provider', async () => {
   assert.equal(calls, 0);
 });
 
-test('allowlisted operations preserve the validated source response', async () => {
-  const payloads: Record<string, unknown> = {
-    'search.php': { drinks: [drink()] }, 'filter.php': { drinks: [{ idDrink: '42', strDrink: 'Synthetic Sour' }] },
-    'lookup.php': { drinks: [drink()] }, 'list.php': { drinks: [{ strIngredient1: 'Synthetic gin' }] },
-  };
-  for (const [endpoint, payload] of Object.entries(payloads)) {
-    const query = endpoint === 'search.php' ? 's=synthetic' : endpoint === 'lookup.php' ? 'i=42' : endpoint === 'list.php' ? 'i=list' : 'i=synthetic-gin';
-    await withApp(fetcherFor(payload), async (app) => {
-      const response = await app.inject({ method: 'GET', url: `/api/cocktails/${endpoint}?${query}` });
-      assert.equal(response.statusCode, 200);
-      assert.deepEqual(response.json(), payload);
-    });
-  }
+test('lookup.php preserves the validated source response', async () => {
+  const payload = { drinks: [drink()] };
+  await withApp(fetcherFor(payload), async (app) => {
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=42' });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), payload);
+  });
 });
 
 test('provider URL is fixed to the allowlisted authority, endpoint, parameter, and key', async () => {
   const calls: string[] = [];
   await withApp(fetcherFor({ drinks: [drink()] }, calls), async (app) => {
-    const response = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?f=M' });
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=42' });
     assert.equal(response.statusCode, 200);
   });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0], 'https://www.thecocktaildb.com/api/json/v2/synthetic-key/search.php?f=m');
+  assert.equal(calls[0], 'https://www.thecocktaildb.com/api/json/v2/synthetic-key/lookup.php?i=42');
 });
 
 test('unknown paths, parameters, duplicates, and unsafe values are rejected', async () => {
   await withApp(fetcherFor({ drinks: [drink()] }), async (app) => {
     for (const url of [
-      '/api/cocktails/search.php?s=x&f=M', '/api/cocktails/search.php?x=x',
-      '/api/cocktails/search.php?s=x%00', '/api/cocktails/filter.php?i=a,b',
-      '/api/cocktails/lookup.php?i=abc', '/api/cocktails/list.php?i=nope', '/api/nope',
+      '/api/cocktails/lookup.php?i=1&s=x', '/api/cocktails/lookup.php?x=x',
+      '/api/cocktails/lookup.php?i=x%00', '/api/cocktails/lookup.php?i=abc',
+      '/api/cocktails/search.php?s=x', '/api/cocktails/filter.php?i=x',
+      '/api/cocktails/list.php?i=list', '/api/nope',
     ]) {
       const response = await app.inject({ method: 'GET', url });
       assert.ok(response.statusCode >= 400, `${url} unexpectedly accepted`);
@@ -90,25 +85,25 @@ test('cache deduplicates concurrent calls, serves TTL entries, and evicts by LRU
   let now = 0;
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
-  const fetcher = async (url: string) => { calls.push(url); await gate; return jsonResponse({ drinks: [drink()] }); };
+  const fetcher = async (url: string) => { calls.push(url); await gate; return jsonResponse({ drinks: [drink('1')] }); };
   await withApp(fetcher, async (app) => {
-    const one = app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
-    const two = app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+    const one = app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
+    const two = app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
     release();
     assert.equal((await one).statusCode, 200); assert.equal((await two).statusCode, 200); assert.equal(calls.length, 1);
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 200);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 200);
     assert.equal(calls.length, 1);
     now = 1001;
-    const expired = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+    const expired = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
     assert.equal(expired.statusCode, 200); assert.equal(calls.length, 2);
   }, { now: () => now, ttlMs: 1000, maxEntries: 1 });
 });
 
 test('cache respects byte bound and does not cache oversized bodies', async () => {
   let calls = 0;
-  await withApp(async () => { calls++; return jsonResponse({ drinks: [drink()] }); }, async (app) => {
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 200);
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 200);
+  await withApp(async () => { calls++; return jsonResponse({ drinks: [drink('1')] }); }, async (app) => {
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 200);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 200);
   }, { maxBytes: 1 });
   assert.equal(calls, 2);
 });
@@ -116,28 +111,28 @@ test('cache respects byte bound and does not cache oversized bodies', async () =
 test('shared 429 cooldown accepts seconds and HTTP-date Retry-After', async () => {
   let now = 10_000; let calls = 0;
   await withApp(async () => { calls++; return new Response('', { status: 429, headers: { 'retry-after': '5' } }); }, async (app) => {
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 429);
-    const blocked = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=y' });
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 429);
+    const blocked = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=2' });
     assert.equal(blocked.statusCode, 429); assert.equal(blocked.json().error.code, 'rate_limited');
     now += 5000;
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=y' })).statusCode, 429);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=2' })).statusCode, 429);
   }, { now: () => now });
   assert.equal(calls, 2);
   now = Date.parse('2030-01-01T00:00:00Z');
   await withApp(async () => new Response('', { status: 429, headers: { 'retry-after': 'Tue, 01 Jan 2030 00:00:05 GMT' } }), async (app) => {
-    const response = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=date' });
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=3' });
     assert.equal(response.statusCode, 429); assert.equal(response.headers['retry-after'], '5');
   }, { now: () => now });
 });
 
 test('upstream failures are safe and retry-after is exposed', async () => {
   await withApp(async () => new Response('', { status: 429, headers: { 'retry-after': '7' } }), async (app) => {
-    const response = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
     assert.equal(response.statusCode, 429); assert.equal(response.headers['retry-after'], '7');
     assert.deepEqual(response.json().error, { code: 'rate_limited', message: 'Recipe service request failed.' });
   });
   await withApp(async () => new Response('', { status: 500 }), async (app) => {
-    const response = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
     assert.equal(response.statusCode, 502); assert.doesNotMatch(response.body, /thecocktaildb|synthetic-key|https?:\/\//i);
   });
 });
@@ -145,20 +140,20 @@ test('upstream failures are safe and retry-after is exposed', async () => {
 test('malformed, oversized, and schema-invalid upstream responses are rejected', async () => {
   for (const response of [new Response('{', { status: 200 }), jsonResponse({ nope: [] }), jsonResponse({ drinks: [{ idDrink: 'x', strDrink: 'bad' }] }), jsonResponse({ drinks: 'some other string' })]) {
     await withApp(async () => response.clone(), async (app) => {
-      const result = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+      const result = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
       assert.equal(result.statusCode, 502); assert.deepEqual(result.json().error.code, 'invalid_response');
     });
   }
   const huge = 'x'.repeat(128);
   await withApp(async () => new Response(huge), async (app) => {
-    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' })).statusCode, 502);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' })).statusCode, 502);
   }, { maxResponseBytes: 8 });
 });
 
 test('provider "no data" string shapes for drinks normalize to the valid empty result', async () => {
   for (const noData of ['None Found', 'no data found', 'NONE FOUND', '  None Found  ']) {
     await withApp(fetcherFor({ drinks: noData }), async (app) => {
-      const response = await app.inject({ method: 'GET', url: '/api/cocktails/filter.php?i=Coca' });
+      const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
       assert.equal(response.statusCode, 200);
       assert.deepEqual(response.json(), { drinks: null });
     });
@@ -170,7 +165,7 @@ test('timeout aborts the fetcher and returns a safe 504', async () => {
   await withApp(async (_url, init) => new Promise<Response>((_, reject) => {
     init.signal?.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); });
   }), async (app) => {
-    const response = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=x' });
+    const response = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
     assert.equal(response.statusCode, 504); assert.equal(response.json().error.code, 'upstream_timeout');
   }, { timeoutMs: 5 });
   assert.equal(aborted, true);
@@ -180,10 +175,10 @@ test('concurrency cap rejects excess distinct requests while allowing deduplicat
   let active = 0; let peak = 0; const resolvers: (() => void)[] = [];
   const fetcher = async () => { active++; peak = Math.max(peak, active); await new Promise<void>((resolve) => resolvers.push(resolve)); active--; return jsonResponse({ drinks: [] }); };
   await withApp(fetcher, async (app) => {
-    const a = app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=a' });
-    const b = app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=b' });
+    const a = app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=1' });
+    const b = app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=2' });
     await new Promise<void>((resolve) => setImmediate(resolve));
-    const c = await app.inject({ method: 'GET', url: '/api/cocktails/search.php?s=c' });
+    const c = await app.inject({ method: 'GET', url: '/api/cocktails/lookup.php?i=3' });
     assert.equal(c.statusCode, 503); resolvers.splice(0).forEach((resolve) => resolve()); await a; await b;
   }, { maxConcurrent: 2 });
   assert.equal(peak, 2);

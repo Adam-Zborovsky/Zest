@@ -73,24 +73,21 @@ export function buildApp(options: AppOptions) {
     }));
   }
   app.get('/api/health', async () => ({ status: 'ok' }));
-  const text = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[^\\u0000-\\u001f\\u007f]+$' };
+  // Only lookup.php remains a client-facing route (docs/GATEWAY.md "Gateway
+  // cleanup"): search.php, filter.php and list.php were client-only proxy
+  // routes, now dead since the client searches the local shared-catalog
+  // snapshot instead. The refresher still calls `RecipeGateway.get` with
+  // `search.php` directly (in-process, not through this HTTP route).
   const routes: [Endpoint, object][] = [
-    ['search.php', { oneOf: [
-      { type: 'object', additionalProperties: false, required: ['s'], properties: { s: text } },
-      { type: 'object', additionalProperties: false, required: ['f'], properties: { f: { type: 'string', pattern: '^[A-Za-z]$' } } },
-    ] }],
-    ['filter.php', { type: 'object', additionalProperties: false, required: ['i'], properties: { i: text } }],
     ['lookup.php', { type: 'object', additionalProperties: false, required: ['i'], properties: { i: { type: 'string', pattern: '^[0-9]{1,20}$' } } }],
-    ['list.php', { type: 'object', additionalProperties: false, required: ['i'], properties: { i: { type: 'string', const: 'list' } } }],
   ];
   for (const [endpoint, querystring] of routes) {
     app.get<{ Querystring: Record<string, string> }>(`/api/cocktails/${endpoint}`, { schema: { querystring } }, async (request, reply) => {
       const parameter = Object.keys(request.query)[0] as Operation['parameter'];
-      let value = request.query[parameter]!.trim();
-      if (!value || (endpoint === 'filter.php' && value.includes(','))) {
+      const value = request.query[parameter]!.trim();
+      if (!value) {
         return reply.code(400).send({ error: { code: 'invalid_request', message: 'Invalid recipe request.' } });
       }
-      if (parameter === 'f') value = value.toLowerCase();
       const body = await gateway.get({ endpoint, parameter, value });
       return reply.type('application/json').send(body);
     });
