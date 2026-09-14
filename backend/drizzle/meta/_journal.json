@@ -15,6 +15,13 @@
       "when": 1789382703286,
       "tag": "0001_legal_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789397052905,
+      "tag": "0002_messy_purple_man",
+      "breakpoints": true
     }
   ]
 }
