@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../collection/sync/sync_engine.dart';
 import '../../collection/sync/sync_providers.dart';
 import '../data/collection_repository.dart';
 import '../data/memory_photo_picker.dart';
@@ -18,10 +17,7 @@ final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
   final inner = ref.watch(driftCollectionRepositoryProvider);
   return SyncTriggeringCollectionRepository(
     inner,
-    onWrite: () {
-      final sync = ref.read(collectionSyncProvider);
-      if (sync is SyncEngine) sync.scheduleAfterLocalWrite();
-    },
+    onWrite: () => ref.read(collectionSyncProvider).scheduleAfterLocalWrite(),
   );
 });
 

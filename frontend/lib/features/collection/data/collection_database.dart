@@ -16,6 +16,35 @@ class CollectionEntryKindConverter
   String toSql(CollectionEntryKind value) => value.name;
 }
 
+/// Stores a [DateTime] as milliseconds since epoch (an absolute instant,
+/// immune to time zone or DST reinterpretation) in an [IntColumn].
+///
+/// Drift's built-in `dateTime()` column stores unix *seconds* on the native
+/// (sqlite3) backend. That is too coarse for sync: two local edits inside
+/// the same second produce an equal `updatedAt`, the server's last-edit-wins
+/// rule then no-ops the second write, and the following pull re-applies the
+/// (now stale-looking) server copy over it. This converter is used only on
+/// `Entries.createdAt`, `Entries.updatedAt`, and `Photos.updatedAt` — the
+/// columns the sync engine compares — never on the catalog database, and
+/// never as a package-wide `storeDateTimeAsText` setting.
+///
+/// [DateTime.millisecondsSinceEpoch] is the same absolute value regardless
+/// of a [DateTime]'s `isUtc` flag, so [toSql] round-trips any input exactly.
+/// [fromSql] returns a local (non-UTC) [DateTime], matching what Drift's own
+/// `dateTime()` column returns on this backend — the rest of the collection
+/// feature (repository writes, tests, domain code) already works in that
+/// local flavor, and the wire format is unaffected: [EntryRecord.toJson]
+/// converts explicitly with `.toUtc()` regardless of a value's flag.
+class UtcMillisConverter extends TypeConverter<DateTime, int> {
+  const UtcMillisConverter();
+
+  @override
+  DateTime fromSql(int fromDb) => DateTime.fromMillisecondsSinceEpoch(fromDb);
+
+  @override
+  int toSql(DateTime value) => value.millisecondsSinceEpoch;
+}
+
 /// One collection entry: a saved drink or a personal variation on one
 /// calendar day.
 ///
@@ -38,8 +67,13 @@ class Entries extends Table {
   TextColumn get variationJson => text().nullable()();
   TextColumn get day => text().withDefault(const Constant(''))();
   BoolColumn get hasPhoto => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get updatedAt => dateTime()();
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter].
+  IntColumn get createdAt => integer().map(const UtcMillisConverter())();
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter]. Compared by the
+  /// sync engine's last-edit-wins rule, so millisecond precision matters.
+  IntColumn get updatedAt => integer().map(const UtcMillisConverter())();
 
   /// Schema 3 (M8 sync). True while this row has local changes the server
   /// has not yet seen. New rows are dirty by default so an offline save
@@ -78,7 +112,10 @@ class Photos extends Table {
   TextColumn get entryId => text()();
   TextColumn get mimeType => text()();
   BlobColumn get bytes => blob()();
-  DateTimeColumn get updatedAt => dateTime()();
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter]. This is the
+  /// entry's `photoUpdatedAt` on the wire, compared by the sync engine.
+  IntColumn get updatedAt => integer().map(const UtcMillisConverter())();
 
   @override
   Set<Column> get primaryKey => {entryId};
@@ -91,7 +128,7 @@ final class CollectionDatabase extends _$CollectionDatabase {
   CollectionDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +152,20 @@ final class CollectionDatabase extends _$CollectionDatabase {
         await m.addColumn(entries, entries.deleted);
         await m.addColumn(entries, entries.photoDirty);
         await m.createTable(syncState);
+      }
+      if (from < 4) {
+        // M8 review fix: `createdAt`/`updatedAt`/`photos.updatedAt` moved
+        // from Drift's default whole-second storage to UTC milliseconds
+        // (UtcMillisConverter). The underlying SQL columns are still plain
+        // INTEGER, so existing values just need their unit converted; no
+        // column rename or table rebuild is needed.
+        await customStatement(
+          'UPDATE entries SET created_at = created_at * 1000, '
+          'updated_at = updated_at * 1000;',
+        );
+        await customStatement(
+          'UPDATE photos SET updated_at = updated_at * 1000;',
+        );
       }
       if (from < 2) {
         // Date each existing entry by the local day it was created. Done in

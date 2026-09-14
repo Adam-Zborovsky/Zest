@@ -84,28 +84,24 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     ),
     defaultValue: const Constant(false),
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($EntriesTable.$convertercreatedAt);
   @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($EntriesTable.$converterupdatedAt);
   static const VerificationMeta _dirtyMeta = const VerificationMeta('dirty');
   @override
   late final GeneratedColumn<bool> dirty = GeneratedColumn<bool>(
@@ -221,22 +217,6 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         hasPhoto.isAcceptableOrUnknown(data['has_photo']!, _hasPhotoMeta),
       );
     }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
     if (data.containsKey('dirty')) {
       context.handle(
         _dirtyMeta,
@@ -294,14 +274,18 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         DriftSqlType.bool,
         data['${effectivePrefix}has_photo'],
       )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+      createdAt: $EntriesTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $EntriesTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
       dirty: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}dirty'],
@@ -324,6 +308,10 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
 
   static TypeConverter<CollectionEntryKind, String> $converterkind =
       const CollectionEntryKindConverter();
+  static TypeConverter<DateTime, int> $convertercreatedAt =
+      const UtcMillisConverter();
+  static TypeConverter<DateTime, int> $converterupdatedAt =
+      const UtcMillisConverter();
 }
 
 class Entry extends DataClass implements Insertable<Entry> {
@@ -334,7 +322,12 @@ class Entry extends DataClass implements Insertable<Entry> {
   final String? variationJson;
   final String day;
   final bool hasPhoto;
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter].
   final DateTime createdAt;
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter]. Compared by the
+  /// sync engine's last-edit-wins rule, so millisecond precision matters.
   final DateTime updatedAt;
 
   /// Schema 3 (M8 sync). True while this row has local changes the server
@@ -377,8 +370,16 @@ class Entry extends DataClass implements Insertable<Entry> {
     }
     map['day'] = Variable<String>(day);
     map['has_photo'] = Variable<bool>(hasPhoto);
-    map['created_at'] = Variable<DateTime>(createdAt);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
+    {
+      map['created_at'] = Variable<int>(
+        $EntriesTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $EntriesTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
     map['dirty'] = Variable<bool>(dirty);
     map['deleted'] = Variable<bool>(deleted);
     map['photo_dirty'] = Variable<bool>(photoDirty);
@@ -606,8 +607,8 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Expression<String>? variationJson,
     Expression<String>? day,
     Expression<bool>? hasPhoto,
-    Expression<DateTime>? createdAt,
-    Expression<DateTime>? updatedAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
     Expression<bool>? dirty,
     Expression<bool>? deleted,
     Expression<bool>? photoDirty,
@@ -689,10 +690,14 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       map['has_photo'] = Variable<bool>(hasPhoto.value);
     }
     if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
+      map['created_at'] = Variable<int>(
+        $EntriesTable.$convertercreatedAt.toSql(createdAt.value),
+      );
     }
     if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+      map['updated_at'] = Variable<int>(
+        $EntriesTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
     }
     if (dirty.present) {
       map['dirty'] = Variable<bool>(dirty.value);
@@ -766,17 +771,15 @@ class $PhotosTable extends Photos with TableInfo<$PhotosTable, Photo> {
     type: DriftSqlType.blob,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($PhotosTable.$converterupdatedAt);
   @override
   List<GeneratedColumn> get $columns => [entryId, mimeType, bytes, updatedAt];
   @override
@@ -815,14 +818,6 @@ class $PhotosTable extends Photos with TableInfo<$PhotosTable, Photo> {
     } else if (isInserting) {
       context.missing(_bytesMeta);
     }
-    if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
     return context;
   }
 
@@ -844,10 +839,12 @@ class $PhotosTable extends Photos with TableInfo<$PhotosTable, Photo> {
         DriftSqlType.blob,
         data['${effectivePrefix}bytes'],
       )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+      updatedAt: $PhotosTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
     );
   }
 
@@ -855,12 +852,18 @@ class $PhotosTable extends Photos with TableInfo<$PhotosTable, Photo> {
   $PhotosTable createAlias(String alias) {
     return $PhotosTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<DateTime, int> $converterupdatedAt =
+      const UtcMillisConverter();
 }
 
 class Photo extends DataClass implements Insertable<Photo> {
   final String entryId;
   final String mimeType;
   final Uint8List bytes;
+
+  /// UTC milliseconds since epoch; see [UtcMillisConverter]. This is the
+  /// entry's `photoUpdatedAt` on the wire, compared by the sync engine.
   final DateTime updatedAt;
   const Photo({
     required this.entryId,
@@ -874,7 +877,11 @@ class Photo extends DataClass implements Insertable<Photo> {
     map['entry_id'] = Variable<String>(entryId);
     map['mime_type'] = Variable<String>(mimeType);
     map['bytes'] = Variable<Uint8List>(bytes);
-    map['updated_at'] = Variable<DateTime>(updatedAt);
+    {
+      map['updated_at'] = Variable<int>(
+        $PhotosTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
     return map;
   }
 
@@ -981,7 +988,7 @@ class PhotosCompanion extends UpdateCompanion<Photo> {
     Expression<String>? entryId,
     Expression<String>? mimeType,
     Expression<Uint8List>? bytes,
-    Expression<DateTime>? updatedAt,
+    Expression<int>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1022,7 +1029,9 @@ class PhotosCompanion extends UpdateCompanion<Photo> {
       map['bytes'] = Variable<Uint8List>(bytes.value);
     }
     if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+      map['updated_at'] = Variable<int>(
+        $PhotosTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -1415,15 +1424,17 @@ class $$EntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<bool> get dirty => $composableBuilder(
     column: $table.dirty,
@@ -1485,12 +1496,12 @@ class $$EntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+  ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1547,10 +1558,10 @@ class $$EntriesTableAnnotationComposer
   GeneratedColumn<bool> get hasPhoto =>
       $composableBuilder(column: $table.hasPhoto, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get updatedAt =>
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
   GeneratedColumn<bool> get dirty =>
@@ -1723,10 +1734,11 @@ class $$PhotosTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$PhotosTableOrderingComposer
@@ -1753,7 +1765,7 @@ class $$PhotosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1777,7 +1789,7 @@ class $$PhotosTableAnnotationComposer
   GeneratedColumn<Uint8List> get bytes =>
       $composableBuilder(column: $table.bytes, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get updatedAt =>
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 

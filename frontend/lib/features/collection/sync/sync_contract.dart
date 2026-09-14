@@ -215,4 +215,15 @@ abstract interface class CollectionSync {
 
   /// Runs one pass, or joins the pass already running.
   Future<void> syncNow();
+
+  /// Schedules a debounced sync pass after a local write, per
+  /// `docs/ACCOUNTS.md`'s "Sync pass" (2-second debounce). A no-op
+  /// implementation that never syncs (a [NoOpCollectionSync]) does nothing.
+  void scheduleAfterLocalWrite();
+
+  /// One final push attempt before sign-out clears the session token. Never
+  /// throws; a failure is silently accepted, since the collection cache
+  /// still keeps the unsynced local changes for the next sign-in. A no-op
+  /// implementation does nothing and returns immediately.
+  Future<void> pushBeforeSignOut();
 }
