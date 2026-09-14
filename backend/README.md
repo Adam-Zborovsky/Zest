@@ -1,6 +1,16 @@
 # Zest local recipe gateway, accounts, and personal-data sync
 
-The paid provider key stays here, not in Flutter. The service also holds accounts, sessions, each person's synced collection, and their M10 home-bar and shopping-list records — see [docs/ACCOUNTS.md](../docs/ACCOUNTS.md) and [docs/M10.md](../docs/M10.md) for the contracts. Everything below is development-only: there is no deployment, HTTPS, Nginx, or backup story yet.
+The paid provider key stays here, not in Flutter. The service also holds accounts, sessions, each person's synced collection, and their M10 home-bar and shopping-list records — see [docs/ACCOUNTS.md](../docs/ACCOUNTS.md) and [docs/M10.md](../docs/M10.md) for the contracts. It also owns the shared M11 catalog snapshot — see "Shared catalog" below and [docs/M11.md](../docs/M11.md). Everything below is development-only: there is no deployment, HTTPS, Nginx, or backup story yet.
+
+## Shared catalog (M11)
+
+`GET /api/catalog` serves one versioned snapshot of TheCocktailDB's full drink catalog to every client, so devices no longer each run their own 26-request A–Z browse. It is unauthenticated and rate-limited (30/min per IP by default), unlike the accounts routes.
+
+- **Refresh job** (`src/catalog/refresher.ts`): on startup, refreshes immediately if no snapshot has ever been published or the last check was more than 24 hours ago, then re-checks every 24 hours. It walks `search.php?f=` for all 26 letters through the same `RecipeGateway` the cocktail routes use (so it shares the 429 cooldown), pausing about a second between letters.
+- **All-or-nothing**: a new version is published only once all 26 letters have fetched and validated. Drinks are deduplicated by `idDrink`, sorted per the frozen wire contract, and hashed (SHA-256 of the canonical JSON) into `version`. A zero-drink total counts as a failure, never an empty publish. Any failure — a 429 cooldown, an upstream error, an invalid envelope, or a storage error — leaves the previously published snapshot untouched; only `checked_at` and a short `last_error_code` move. Provider keys and URLs are never logged, matching the recipe gateway.
+- **Storage**: `catalog_recipes` (one row per drink, holding the validated provider record verbatim as `source`) and a single-row `catalog_state` (`version`, `recipe_count`, `published_at`, `checked_at`, `last_error_code`) — migration `drizzle/0002_messy_purple_man.sql`. See [docs/SOURCES.md](../docs/SOURCES.md) for the persistence-rights record.
+- **Endpoint**: `200` with a strong `ETag` (the version, quoted) and `Cache-Control: no-cache` (overriding the process-wide `no-store` for this route only); `304` on a matching `If-None-Match`; `503 catalog_unavailable` before the first publish; gzip via `node:zlib` when the client sends `Accept-Encoding: gzip`, with `Vary: Accept-Encoding`. The response body is serialized once per published version and held in memory, invalidated automatically once a newer version is read back from storage.
+- Never blocks `app.listen`: the refresher starts afterwards and is closed before the database pool, in `server.ts`.
 
 ## Run locally
 

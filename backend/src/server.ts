@@ -14,9 +14,14 @@ async function main() {
   if (!isLoopbackHost(config.host)) {
     console.warn('HOST is not loopback: this process also accepts connections from other devices on the network.');
   }
+  // Never block listen: the catalog refresh runs in the background afterwards.
+  void app.catalogRefresher?.start();
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
-      void app.close().then(() => pool.end()).catch(() => { process.exitCode = 1; });
+      void app.catalogRefresher?.close()
+        .then(() => app.close())
+        .then(() => pool.end())
+        .catch(() => { process.exitCode = 1; });
     });
   }
 }

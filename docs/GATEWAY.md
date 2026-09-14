@@ -39,6 +39,15 @@ Flutter uses `ZEST_API_BASE_URL`, default `http://127.0.0.1:3000/api/cocktails/`
 
 The process binds `HOST` (default `127.0.0.1`; since M8 this can be set to `0.0.0.0` to reach the server from a phone on the LAN — see [ACCOUNTS.md](ACCOUNTS.md#configuration-and-access) and the backend README for the exposure warning that applies to this gateway too). CORS accepts explicitly configured loopback origins, default `http://localhost:5173` and `http://127.0.0.1:5173`; no wildcard or credentialed cookies. Since M8 the allowed methods and headers are widened for accounts and sync (GET/POST/PUT/DELETE; Accept/Authorization/Content-Type — see [ACCOUNTS.md](ACCOUNTS.md#configuration-and-access)), but origins remain loopback-only. The origin check precedes preflight handling. Browser clients can read `Retry-After`. Native/no-Origin requests are allowed. CORS is not authentication: trusted local processes can call this development service. Public deployment requires a separate access-control, abuse-rate-limit, TLS and secret-management review. No public deployment readiness is claimed.
 
+## Shared catalog (M11)
+
+`GET /api/catalog` is a separate, unauthenticated, rate-limited (30/min per IP by default) route that serves one shared snapshot of the full provider catalog, refreshed server-side instead of per-device. It does not proxy a caller's request the way `/api/cocktails/*` does — see `docs/M11.md` for the full plan and the frozen wire shape, and `backend/README.md` for the implementation summary.
+
+- **Refresh**: a background job walks `search.php?f=` for all 26 letters through this same gateway (so it shares the 429 cooldown above) on startup (if there is no published snapshot, or the last check was over 24 hours ago) and every 24 hours after. It never blocks server startup.
+- **All-or-nothing**: a version publishes only once every letter has fetched and validated; drinks are deduplicated by `idDrink` and sorted by the frozen rule. A zero-drink total is treated as a failure. Any failure keeps the previous snapshot and only records a check timestamp and a short error code — never a raw error, URL, or key.
+- **Response**: `200` with a quoted strong `ETag` and `Cache-Control: no-cache` (this route only; every other route keeps the process-wide `no-store`), `304` on a matching `If-None-Match`, `503 catalog_unavailable` before the first publish, and gzip when `Accept-Encoding` includes it.
+- **Persistence**: the validated provider drink records are stored server-side (`catalog_recipes`/`catalog_state`), not just cached in memory — see `docs/SOURCES.md` for the distribution-rights record this depends on.
+
 ## Dependencies and verification
 
 Approved additions: Fastify for request routing/schema validation and injected HTTP tests; `@fastify/cors` for browser protocol handling; TypeScript and Node types for strict checking; `tsx` for development/test execution. Uses Node's built-in fetch, streams, env-file loader and test runner—no HTTP client, env loader, cache service or test-framework dependency. `package-lock.json` is committed; install with `npm ci`.
