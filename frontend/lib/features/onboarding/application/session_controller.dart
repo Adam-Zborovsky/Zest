@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import '../../account/data/account_repository.dart';
 import '../../account/domain/account.dart';
 import '../../collection/sync/sync_contract.dart';
-import '../../collection/sync/sync_engine.dart';
 import '../data/session_stores.dart';
 import '../domain/launch_destination.dart';
 
@@ -69,17 +68,9 @@ class SessionController extends ChangeNotifier {
   Future<void> signOut() async {
     // One final push attempt to minimize data loss from wiping unsynced
     // rows if a different account signs in on this device next; failure is
-    // silent (see SyncEngine.pushBeforeSignOut/CollectionSync.syncNow).
-    final sync = _sync;
-    if (sync is SyncEngine) {
-      await sync.pushBeforeSignOut();
-    } else {
-      try {
-        await sync.syncNow();
-      } catch (_) {
-        // Never block sign-out on a sync failure.
-      }
-    }
+    // silent and CollectionSync.pushBeforeSignOut never throws (see its doc
+    // comment on the contract and SyncEngine's implementation).
+    await _sync.pushBeforeSignOut();
     await _account.signOut();
     notifyListeners();
   }

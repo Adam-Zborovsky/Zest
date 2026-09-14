@@ -41,6 +41,12 @@ final class NoOpCollectionSync implements CollectionSync {
 
   @override
   Future<void> syncNow() async {}
+
+  @override
+  void scheduleAfterLocalWrite() {}
+
+  @override
+  Future<void> pushBeforeSignOut() async {}
 }
 
 /// Session overrides for any test that pumps `ZestApp`. The defaults put the
