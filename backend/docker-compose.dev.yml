@@ -1,5 +1,6 @@
 # Local-only Postgres for accounts and the synced collection (M8, docs/ACCOUNTS.md).
-# Adam runs `docker compose up`; agents never start this service and use PGlite in tests.
+# Adam runs `docker compose -f docker-compose.dev.yml up -d`; agents never start this
+# service and use PGlite in tests.
 services:
   postgres:
     image: postgres:18.6-alpine
@@ -11,7 +12,9 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - zest_postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ stores data under /var/lib/postgresql/18/docker; mount the
+      # parent, not the pre-18 /var/lib/postgresql/data path.
+      - zest_postgres_data:/var/lib/postgresql
 
 volumes:
   zest_postgres_data:

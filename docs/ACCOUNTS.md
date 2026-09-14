@@ -25,7 +25,7 @@ Supersedes: the M7 local-profile login (`docs/ONBOARDING.md`), and the `AGENTS.m
 | `argon2` | 0.45.1 | Argon2id password hashing |
 | `@fastify/rate-limit` | 11.2.0 | Per-route limits on auth endpoints (Fastify 5 line) |
 | `@electric-sql/pglite` (dev) | see the backend track | In-process Postgres for tests, so tests need no Docker |
-| `postgres` image | `18.6-alpine` | Local database in `backend/compose.yaml` |
+| `postgres` image | `18.6-alpine` | Local database in `backend/docker-compose.dev.yml` |
 | `flutter_secure_storage` | 11.1.1 | Session token storage (Android Keystore; experimental WebCrypto on web, which works only on localhost or HTTPS) |
 
 ## Wire contract

@@ -17,10 +17,10 @@ Create your own ignored `.env` using `.env.example` as a template. Set `COCKTAIL
 Start the local database with Docker Compose (Adam runs this; agents never do):
 
 ```powershell
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-This runs `postgres:18.6-alpine`, bound to `127.0.0.1:5432` only, with a named volume. Credentials come from `.env` (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`), matching `DATABASE_URL`; the defaults in `.env.example` are non-secret local development values, not production secrets.
+This runs `postgres:18.6-alpine`, bound to `127.0.0.1:5432` only, with a named volume mounted at `/var/lib/postgresql`. Postgres 18 images keep data in a versioned subdirectory there; mounting the old `/var/lib/postgresql/data` path makes the container fail to start. Credentials come from `.env` (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`), matching `DATABASE_URL`; the defaults in `.env.example` are non-secret local development values, not production secrets.
 
 Apply the committed migrations once the database is up:
 
