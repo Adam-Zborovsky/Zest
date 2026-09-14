@@ -92,7 +92,8 @@ class _ProfileSheetBodyState extends ConsumerState<ProfileSheetBody> {
       children: [
         if (account != null) ...[
           Text(
-            'Signed in since ${_joinDate(context, account.createdAt)}',
+            // createdAt is when the account was made, not this sign-in.
+            'Account since ${_joinDate(context, account.createdAt)}',
             style: textTheme.bodyMedium?.copyWith(
               color: ZestPalette.secondaryInk,
             ),

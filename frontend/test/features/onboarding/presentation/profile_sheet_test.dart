@@ -86,7 +86,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('robin@example.test'), findsWidgets);
-    expect(find.textContaining('Signed in since'), findsOneWidget);
+    expect(find.textContaining('Account since'), findsOneWidget);
   });
 
   testWidgets('idle before the first sync shows "Not synced yet"', (
