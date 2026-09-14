@@ -9,8 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
-import 'package:zest/core/widgets/zest_button.dart';
 import 'package:zest/features/catalog/data/catalog_repository.dart';
+import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/constellation/domain/graph_layout.dart';
 import 'package:zest/features/constellation/domain/ingredient_graph.dart';
 import 'package:zest/features/constellation/presentation/constellation_canvas.dart';
@@ -48,12 +48,15 @@ Future<http.Response> _respond(http.Request request) async {
   return _json({'drinks': null});
 }
 
-Future<FakeCatalogLetterSource> openHome(
+/// Opens home with the full app shell. [seed] pre-loads the on-device
+/// catalog before launch; [prepareFetcher] configures what the
+/// background/launch check finds on the "server" — by default it's
+/// "nothing new", so tests that only care about the constellation never
+/// trip the update machinery.
+Future<FakeCatalogSnapshotFetcher> openHome(
   WidgetTester tester, {
-  Map<String, List<Recipe>> letters = const {},
-  Map<String, List<Recipe>> seed = const {},
-  Map<String, Object> failures = const {},
-  Set<String> gates = const {},
+  List<Recipe> seed = const [],
+  void Function(FakeCatalogSnapshotFetcher fetcher)? prepareFetcher,
   Size size = const Size(900, 1600),
   DateTime Function()? now,
   bool settle = true,
@@ -62,21 +65,23 @@ Future<FakeCatalogLetterSource> openHome(
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final source = FakeCatalogLetterSource(
-    letters: letters,
-    failures: failures,
-    gates: gates,
-  );
   final database = openInMemoryCatalog();
   addTearDown(database.close);
-  // Seed the store directly: `letters` configures the sync source, `seed`
-  // preloads the on-device catalog the graph reads.
-  final seedRepository = CatalogRepository(
-    database: database,
-    now: now ?? () => DateTime(2026, 9, 12, 10),
-  );
-  for (final entry in seed.entries) {
-    await seedRepository.upsertLetter(entry.key, entry.value);
+  final stamp = now ?? () => DateTime(2026, 9, 12, 10);
+  final seedRepository = CatalogRepository(database: database, now: stamp);
+  if (seed.isNotEmpty) {
+    await seedRepository.applySnapshot(
+      catalogSnapshotFixture(
+        version: fakeCatalogVersion('seed'),
+        drinks: seed,
+      ),
+    );
+  }
+  final fetcher = FakeCatalogSnapshotFetcher();
+  if (prepareFetcher != null) {
+    prepareFetcher(fetcher);
+  } else {
+    fetcher.enqueueAvailable(const CatalogSnapshotUnchanged());
   }
   final transport = MockClient(_respond);
   final client = CocktailDbClient(client: transport);
@@ -89,7 +94,7 @@ Future<FakeCatalogLetterSource> openHome(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...catalogTestOverrides(database: database, source: source, now: now),
+        ...catalogTestOverrides(database: database, fetcher: fetcher, now: now),
         cocktailDbClientProvider.overrideWithValue(client),
         homeBarRepositoryProvider.overrideWithValue(homeBar),
         if (now != null) nowProvider.overrideWithValue(now),
@@ -107,7 +112,7 @@ Future<FakeCatalogLetterSource> openHome(
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
-  return source;
+  return fetcher;
 }
 
 Future<void> activate(WidgetTester tester, Finder target) async {
@@ -203,11 +208,11 @@ void main() {
 
   testWidgets('home leads with the constellation and keeps the core tasks '
       'reachable without it', (tester) async {
-    await openHome(tester, seed: {'a': catalogLetterRecipes('a')});
+    await openHome(tester, seed: catalogLetterRecipes('a'));
 
     expect(find.text('The Ingredient Constellation'), findsOneWidget);
     expect(keyed('constellation-canvas'), findsOneWidget);
-    expect(find.text('Your recipe collection'), findsOneWidget);
+    expect(find.text('Your recipe catalog'), findsOneWidget);
     expect(find.text('Follow the lines.'), findsOneWidget);
     expect(keyed('home-bar'), findsOneWidget);
 
@@ -215,192 +220,112 @@ void main() {
     expect(router(tester).state.uri.path, '/discover');
   });
 
-  testWidgets('an empty catalog offers a designed empty state with a sync '
-      'CTA, never a blank graph', (tester) async {
-    await openHome(tester);
-
-    expect(find.text('The constellation is waiting'), findsOneWidget);
-    expect(
-      find.textContaining(
-        'Ingredients appear here once recipes are loaded on this device.',
-      ),
-      findsOneWidget,
-    );
-
-    // The empty state and the idle sync card both offer the CTA; starting
-    // with no recipes anywhere finishes instantly into the honest card.
-    expect(find.text('Start syncing'), findsNWidgets(2));
-    await activate(tester, find.text('Start syncing').first);
-    expect(find.text('Collection loaded'), findsOneWidget);
-    expect(
-      find.text(
-        'TheCocktailDB recipes loaded on this device '
-        '(26 of 26 letters · 0 recipes).',
-      ),
-      findsOneWidget,
-    );
-    // The finished note states the collection once; the completeness
-    // guidance lives one tap away.
-    expect(
-      find.textContaining('not a claim about the full provider catalog'),
-      findsNothing,
-    );
-    await activate(tester, keyed('collection-details'));
-    expect(
-      find.textContaining('not a claim about the full provider catalog'),
-      findsOneWidget,
-    );
-    // The finished card is informational only: a completed sync offers no
-    // re-run action, because starting again over a fully synced store
-    // fetches nothing and could only pretend to check for updates.
-    expect(find.text('Check for updates'), findsNothing);
-  });
-
-  testWidgets('syncing reports live progress; stopping keeps the partial '
-      'catalog', (tester) async {
-    final source = await openHome(
-      tester,
-      letters: everyCatalogLetter(),
-      gates: {'b'},
-    );
-
-    await activate(tester, keyed('sync-start'));
-    await tester.runAsync(() => source.waitUntilRequested('b'));
-    await tester.pump();
-
-    expect(find.text('Syncing… 1 of 26 letters · 1 recipe'), findsOneWidget);
-    expect(find.text('Browsing letter “B”.'), findsOneWidget);
-
-    await activate(tester, keyed('sync-stop'));
-    expect(find.text('Your recipe collection'), findsOneWidget);
-    expect(find.text('Continue syncing'), findsOneWidget);
-    expect(
-      find.text(
-        'TheCocktailDB recipes loaded on this device '
-        '(1 of 26 letters · 1 recipe).',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('not a claim about the full provider catalog'),
-      findsNothing,
-    );
-  });
-
-  testWidgets('a rate limit pauses with a countdown; resume continues when '
-      'it ends', (tester) async {
-    var clock = DateTime.utc(2026, 9, 12);
-    await openHome(
-      tester,
-      letters: everyCatalogLetter(),
-      failures: {
-        'a': CocktailApiException(
-          CocktailApiErrorKind.rateLimited,
-          statusCode: 429,
-          retryAfter: const Duration(seconds: 2),
-          retryAt: clock.add(const Duration(seconds: 2)),
+  group('catalog download and update (M11)', () {
+    testWidgets('an empty catalog downloads and applies automatically on '
+        'launch, with no manual action needed', (tester) async {
+      await openHome(
+        tester,
+        prepareFetcher: (fetcher) => fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('first'),
+              drinks: catalogLetterRecipes('a'),
+            ),
+          ),
         ),
-      },
-      now: () => clock,
-    );
+      );
 
-    // No pumpAndSettle while the countdown ticks — the ticker reschedules
-    // frames every fake second, so only explicit pumps are used (the
-    // discovery cooldown suite follows the same rule).
-    await tester.ensureVisible(keyed('sync-start'));
-    await tester.tap(keyed('sync-start'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Your recipe catalog'), findsOneWidget);
+      expect(find.textContaining('TheCocktailDB catalog, 1 recipe'), findsOneWidget);
+      // No leftover manual "download" affordance once a catalog exists.
+      expect(keyed('catalog-download'), findsNothing);
+    });
 
-    expect(find.text('Paused for a moment'), findsOneWidget);
-    final resume = tester.widget<ZestButton>(keyed('sync-resume'));
-    expect(resume.label, 'Resume in 2 s');
-    expect(resume.onPressed, isNull);
-
-    // The countdown follows the deadline, not the tick count.
-    clock = clock.add(const Duration(seconds: 3));
-    await tester.pump(const Duration(seconds: 1));
-    final ready = tester.widget<ZestButton>(keyed('sync-resume'));
-    expect(ready.label, 'Resume syncing');
-    expect(ready.onPressed, isNotNull);
-
-    await tester.tap(keyed('sync-resume'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pumpAndSettle();
-    expect(find.text('Collection loaded'), findsOneWidget);
-    expect(
-      find.text(
-        'TheCocktailDB recipes loaded on this device '
-        '(26 of 26 letters · 26 recipes).',
-      ),
-      findsOneWidget,
-    );
-    await activate(tester, keyed('collection-details'));
-    expect(find.text('Every A–Z browse has completed.'), findsOneWidget);
-    expect(
-      find.textContaining('does not prove the catalog is exhausted'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('a generic error pauses resumably', (tester) async {
-    await openHome(
-      tester,
-      letters: everyCatalogLetter(),
-      failures: {'a': const CocktailApiException(CocktailApiErrorKind.network)},
-    );
-
-    await activate(tester, keyed('sync-start'));
-    expect(find.text('The sync hit a problem'), findsOneWidget);
-
-    await activate(tester, find.text('Resume syncing'));
-    expect(find.text('Collection loaded'), findsOneWidget);
-  });
-
-  testWidgets('a cooldown without an absolute deadline still ticks down to '
-      'a resumable state', (tester) async {
-    var clock = DateTime.utc(2026, 9, 12);
-    await openHome(
-      tester,
-      letters: everyCatalogLetter(),
-      failures: {
-        // No Retry-After and no retryAt: the engine falls back to its
-        // 30-second cooldown with no absolute deadline on the state.
-        'a': const CocktailApiException(
-          CocktailApiErrorKind.rateLimited,
-          statusCode: 429,
+    testWidgets('a download failure with an empty catalog shows the branded '
+        'error with Retry', (tester) async {
+      final fetcher = await openHome(
+        tester,
+        prepareFetcher: (fetcher) => fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
         ),
-      },
-      now: () => clock,
-    );
+      );
 
-    await tester.ensureVisible(keyed('sync-start'));
-    await tester.tap(keyed('sync-start'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      expect(keyed('catalog-download-failed'), findsOneWidget);
+      expect(find.text("Couldn't download the catalog"), findsOneWidget);
 
-    final paused = tester.widget<ZestButton>(keyed('sync-resume'));
-    expect(paused.label, 'Resume in 30 s');
-    expect(paused.onPressed, isNull);
+      fetcher.enqueueAvailable(
+        CatalogSnapshotAvailable(
+          catalogSnapshotFixture(drinks: [catalogRecipeModel(id: '1')]),
+        ),
+      );
+      await activate(tester, find.text('Retry'));
+      expect(find.text('Your recipe catalog'), findsOneWidget);
+    });
 
-    // The card synthesizes a deadline from the remaining-seconds snapshot,
-    // so the countdown reaches zero and resume unlocks.
-    clock = clock.add(const Duration(seconds: 31));
-    await tester.pump(const Duration(seconds: 1));
-    final ready = tester.widget<ZestButton>(keyed('sync-resume'));
-    expect(ready.label, 'Resume syncing');
-    expect(ready.onPressed, isNotNull);
+    testWidgets('an existing catalog checks in the background, applies a '
+        'real change automatically, and shows the update notice', (
+      tester,
+    ) async {
+      await openHome(
+        tester,
+        seed: [catalogRecipeModel(id: '1', name: 'Old Drink')],
+        prepareFetcher: (fetcher) => fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('newer'),
+              drinks: [
+                catalogRecipeModel(id: '1', name: 'Old Drink'),
+                catalogRecipeModel(id: '2', name: 'New Drink'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.textContaining('Catalog updated · 1 new recipe'), findsOneWidget);
+      expect(keyed('zest-notice-dismiss'), findsOneWidget);
+
+      await tester.tap(keyed('zest-notice-dismiss'));
+      await tester.pumpAndSettle();
+      expect(keyed('zest-notice-dismiss'), findsNothing);
+    });
+
+    testWidgets('a 304 / unchanged background check shows no notice', (
+      tester,
+    ) async {
+      await openHome(tester, seed: [catalogRecipeModel(id: '1')]);
+
+      expect(keyed('zest-notice-dismiss'), findsNothing);
+      expect(find.textContaining('Catalog updated'), findsNothing);
+    });
+
+    testWidgets('a background failure with an existing catalog is silent — '
+        'the resting card keeps showing the existing collection', (
+      tester,
+    ) async {
+      await openHome(
+        tester,
+        seed: [catalogRecipeModel(id: '1', name: 'Kept Drink')],
+        prepareFetcher: (fetcher) => fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.timeout),
+        ),
+      );
+      // No error card, no notice; existing content intact.
+      expect(keyed('catalog-download-failed'), findsNothing);
+      expect(keyed('zest-notice-dismiss'), findsNothing);
+      expect(find.text('Your recipe catalog'), findsOneWidget);
+    });
   });
 
   testWidgets('the list view states the same prevalence and connection '
       'information without the graph', (tester) async {
     await openHome(
       tester,
-      seed: {
-        'a': catalogLetterRecipes('a'),
-        'b': catalogLetterRecipes('b'),
-        'c': catalogLetterRecipes('c'),
-      },
+      seed: [
+        ...catalogLetterRecipes('a'),
+        ...catalogLetterRecipes('b'),
+        ...catalogLetterRecipes('c'),
+      ],
     );
 
     await activate(tester, keyed('home-view-list'));
@@ -410,10 +335,6 @@ void main() {
       find.text('Appears in 3 of the 3 recipes in the analyzed collection.'),
       findsWidgets,
     );
-    // The identified collection line appears in both the list card and the
-    // sync card, and nothing claims completeness.
-    expect(find.textContaining('(3 of 26 letters'), findsNWidgets(2));
-    expect(find.textContaining('(26 of 26 letters'), findsNothing);
 
     await activate(tester, keyed('constellation-item-mint leaf'));
     expect(find.text('Strongest connections'), findsOneWidget);
@@ -445,11 +366,11 @@ void main() {
       'and returning', (tester) async {
     await openHome(
       tester,
-      seed: {
-        'a': catalogLetterRecipes('a'),
-        'b': catalogLetterRecipes('b'),
-        'c': catalogLetterRecipes('c'),
-      },
+      seed: [
+        ...catalogLetterRecipes('a'),
+        ...catalogLetterRecipes('b'),
+        ...catalogLetterRecipes('c'),
+      ],
     );
 
     void expectNothingSelected() {
@@ -490,11 +411,11 @@ void main() {
   ) async {
     await openHome(
       tester,
-      seed: {
-        'a': catalogLetterRecipes('a'),
-        'b': catalogLetterRecipes('b'),
-        'c': catalogLetterRecipes('c'),
-      },
+      seed: [
+        ...catalogLetterRecipes('a'),
+        ...catalogLetterRecipes('b'),
+        ...catalogLetterRecipes('c'),
+      ],
     );
 
     await tester.ensureVisible(keyed('constellation-canvas'));
@@ -535,11 +456,11 @@ void main() {
   testWidgets('the search filter narrows the constellation', (tester) async {
     await openHome(
       tester,
-      seed: {
-        'a': catalogLetterRecipes('a'),
-        'b': catalogLetterRecipes('b'),
-        'c': catalogLetterRecipes('c'),
-      },
+      seed: [
+        ...catalogLetterRecipes('a'),
+        ...catalogLetterRecipes('b'),
+        ...catalogLetterRecipes('c'),
+      ],
     );
 
     await tester.ensureVisible(keyed('constellation-search'));
@@ -554,7 +475,7 @@ void main() {
 
   testWidgets('a collection wider than the top-40 bound discloses the cut '
       'honestly in both views', (tester) async {
-    await openHome(tester, seed: {'a': wideGardenRecipes()});
+    await openHome(tester, seed: wideGardenRecipes());
 
     // The intro no longer claims every ingredient gets a place, and the
     // graph count line names the pre-bound total, not the bounded list.
@@ -615,11 +536,11 @@ void main() {
 
       await openHome(
         tester,
-        seed: {
-          'a': catalogLetterRecipes('a'),
-          'b': catalogLetterRecipes('b'),
-          'c': catalogLetterRecipes('c'),
-        },
+        seed: [
+          ...catalogLetterRecipes('a'),
+          ...catalogLetterRecipes('b'),
+          ...catalogLetterRecipes('c'),
+        ],
         settle: false,
       );
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -646,7 +567,7 @@ void main() {
   }
 
   testWidgets('navigation reaches the bar screen from home', (tester) async {
-    await openHome(tester, seed: {'a': catalogLetterRecipes('a')});
+    await openHome(tester, seed: catalogLetterRecipes('a'));
 
     await activate(tester, keyed('home-bar'));
     expect(router(tester).state.uri.path, '/bar');
@@ -666,22 +587,21 @@ void main() {
       );
       await openHome(
         tester,
-        seed: {
-          'a': catalogLetterRecipes('a'),
-          'b': catalogLetterRecipes('b'),
-          'c': catalogLetterRecipes('c'),
-        },
+        seed: [
+          ...catalogLetterRecipes('a'),
+          ...catalogLetterRecipes('b'),
+          ...catalogLetterRecipes('c'),
+        ],
         size: const Size(320, 720),
       );
       expectReadable(tester);
       await activate(tester, keyed('home-view-list'));
       expectReadable(tester);
-      // The sync card and its actions stay reachable at the bottom of the
+      // The catalog status card stays reachable at the bottom of the
       // page's scroll.
       await tester.ensureVisible(keyed('home-sync-card'));
       await tester.pumpAndSettle();
       expectReadable(tester);
-      expect(keyed('sync-start'), findsOneWidget);
     });
   }
 }

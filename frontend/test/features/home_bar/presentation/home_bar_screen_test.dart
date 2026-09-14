@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/catalog/domain/coverage_report.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 import 'package:zest/features/home_bar/domain/home_bar_item.dart';
 
 import '../../../support/bar_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/in_memory_home_bar_repository.dart';
@@ -26,16 +28,24 @@ Future<void> _open(
   String location = '/bar',
 }) async {
   addTearDown(repository.dispose);
+  // homeBarCatalogFreshnessProvider watches the shared catalog update
+  // controller, which otherwise pulls in the real (path_provider-backed)
+  // catalog database — never touched directly by this screen's own
+  // overrides below.
+  final catalogDatabase = openInMemoryCatalog();
+  addTearDown(catalogDatabase.close);
+  final catalogFetcher = FakeCatalogSnapshotFetcher()
+    ..enqueueAvailable(const CatalogSnapshotUnchanged());
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...catalogTestOverrides(database: catalogDatabase, fetcher: catalogFetcher),
         homeBarRepositoryProvider.overrideWithValue(repository),
         homeBarCatalogRecipesProvider.overrideWith((ref) async => recipes),
         homeBarCatalogCoverageProvider.overrideWith(
           (ref) async => CoverageReport(
-            lettersCompleted: 2,
             recipeCount: recipes.length,
-            lastCompletedAt: DateTime.utc(2026, 9, 14),
+            publishedAt: DateTime.utc(2026, 9, 14),
           ),
         ),
         homeBarCatalogIngredientOptionsProvider.overrideWith(

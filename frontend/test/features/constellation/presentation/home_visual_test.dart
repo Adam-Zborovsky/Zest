@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/features/catalog/data/catalog_repository.dart';
+import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 
 import '../../../support/catalog_fixtures.dart';
@@ -102,15 +103,20 @@ void main() {
       await CatalogRepository(
         database: database,
         now: () => DateTime(2026, 9, 12, 10),
-      ).upsertLetter('a', syntheticGardenRecipes());
+      ).applySnapshot(
+        catalogSnapshotFixture(
+          version: fakeCatalogVersion('visual'),
+          publishedAt: DateTime.utc(2026, 9, 12, 10),
+          drinks: syntheticGardenRecipes(),
+        ),
+      );
+      final fetcher = FakeCatalogSnapshotFetcher()
+        ..enqueueAvailable(const CatalogSnapshotUnchanged());
       const capture = ValueKey('home-capture');
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...catalogTestOverrides(
-              database: database,
-              source: FakeCatalogLetterSource(letters: {}),
-            ),
+            ...catalogTestOverrides(database: database, fetcher: fetcher),
             ...collectionTestOverrides(),
             ...sessionTestOverrides(),
           ],

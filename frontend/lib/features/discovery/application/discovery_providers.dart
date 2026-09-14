@@ -83,12 +83,6 @@ final class CocktailRequestGateway {
   Future<List<String>> ingredientNames() =>
       _throughCooldown(client.listIngredientNames);
 
-  /// One A–Z letter browse returning full Recipe records, through the shared
-  /// cooldown. Additive for the M5 catalog sync; existing methods are
-  /// unchanged and no second cooldown exists.
-  Future<List<Recipe>> letterRecipes(String letter) =>
-      _throughCooldown(() => client.browseByFirstLetter(letter));
-
   Future<T> _throughCooldown<T>(Future<T> Function() request) async {
     final until = _cooldownUntil;
     if (until != null) {

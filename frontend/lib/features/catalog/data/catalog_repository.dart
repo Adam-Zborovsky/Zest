@@ -3,80 +3,20 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../discovery/domain/recipe.dart';
+import '../domain/catalog_snapshot.dart';
 import '../domain/coverage_report.dart';
 import 'catalog_database.dart';
 
-/// On-device source-preserving recipe catalog. Writes are transactional per
-/// letter: a letter's recipes, ingredient usages and completion row are
-/// applied together or not at all, so re-syncing and interrupted syncs never
-/// leave duplicates or half-applied letters behind.
+/// On-device store for the shared catalog snapshot (M11). Unlike the earlier
+/// letter-by-letter sync, the whole catalog is replaced in one transaction
+/// whenever a new snapshot is applied.
 final class CatalogRepository {
   CatalogRepository({required CatalogDatabase database, DateTime Function()? now})
     : _database = database,
       _now = now ?? DateTime.now;
 
-  static const _alphabet = [
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  ];
-
   final CatalogDatabase _database;
   final DateTime Function() _now;
-
-  /// Transactionally replaces one letter's recipes, their ingredient usages
-  /// and the letter's completion row. Stale rows for the same letter are
-  /// deleted first, so re-syncing never duplicates anything; other letters'
-  /// data is untouched. The returned recipes are exactly what was stored.
-  Future<void> upsertLetter(String letter, List<Recipe> recipes) async {
-    final normalized = _normalizeLetter(letter);
-    final stamp = _now();
-    await _database.transaction(() async {
-      final stale = await (_database.select(_database.recipes)
-            ..where((tbl) => tbl.firstLetter.equals(normalized)))
-          .get();
-      final staleIds = stale.map((row) => row.providerId).toList();
-      if (staleIds.isNotEmpty) {
-        await (_database.delete(_database.ingredientUsages)
-              ..where((tbl) => tbl.recipeId.isIn(staleIds)))
-            .go();
-      }
-      await (_database.delete(_database.recipes)
-            ..where((tbl) => tbl.firstLetter.equals(normalized)))
-          .go();
-      if (recipes.isNotEmpty) {
-        await _database.batch((batch) {
-          batch.insertAllOnConflictUpdate(_database.recipes, [
-            for (final recipe in recipes)
-              RecipesCompanion.insert(
-                providerId: recipe.id,
-                name: recipe.name,
-                firstLetter: normalized,
-                sourceJson: jsonEncode(recipe.toJson()),
-                updatedAt: stamp,
-              ),
-          ]);
-          batch.insertAllOnConflictUpdate(_database.ingredientUsages, [
-            for (final recipe in recipes)
-              for (final identity
-                  in recipe.ingredients.map((i) => i.normalizedName).toSet())
-                IngredientUsagesCompanion.insert(
-                  recipeId: recipe.id,
-                  normalizedIngredient: identity,
-                ),
-          ]);
-        });
-      }
-      await _database
-          .into(_database.letterSync)
-          .insertOnConflictUpdate(
-            LetterSyncCompanion.insert(
-              letter: normalized,
-              completedAt: Value(stamp),
-              recipeCount: recipes.length,
-            ),
-          );
-    });
-  }
 
   /// Every stored recipe, rehydrated from its source JSON: what went in as a
   /// `Recipe` comes back out as an equal `Recipe`.
@@ -89,6 +29,17 @@ final class CatalogRepository {
     );
   }
 
+  /// One stored recipe by provider id, or null when it is not in the
+  /// on-device catalog (the caller falls back to `lookup.php`).
+  Future<Recipe?> recipeById(String providerId) async {
+    final row =
+        await (_database.select(_database.recipes)
+              ..where((tbl) => tbl.providerId.equals(providerId)))
+            .getSingleOrNull();
+    if (row == null) return null;
+    return Recipe.fromJson(jsonDecode(row.sourceJson));
+  }
+
   Future<int> recipeCount() async {
     final count = _database.recipes.providerId.count();
     final query = _database.selectOnly(_database.recipes)..addColumns([count]);
@@ -97,8 +48,7 @@ final class CatalogRepository {
   }
 
   /// Distinct recipe count per normalized ingredient identity — the
-  /// collection-prevalence basis for the constellation graph. Only identities
-  /// with at least one loaded recipe appear.
+  /// prevalence basis for the constellation graph.
   Future<Map<String, int>> ingredientPrevalence() async {
     final identity = _database.ingredientUsages.normalizedIngredient;
     final count = _database.ingredientUsages.recipeId.count(distinct: true);
@@ -112,51 +62,123 @@ final class CatalogRepository {
     };
   }
 
-  /// The stored completion record per synced letter, keyed by letter.
-  /// Letters of the alphabet absent from the map are still pending.
-  Future<Map<String, CatalogLetterStatus>> letterStatuses() async {
-    final rows = await _database.select(_database.letterSync).get();
-    return {
-      for (final row in rows)
-        row.letter: CatalogLetterStatus(
-          letter: row.letter,
-          completedAt: row.completedAt,
-          recipeCount: row.recipeCount,
-        ),
-    };
-  }
-
-  /// The pending letters, in A–Z order — the sync engine's resume point.
-  Future<List<String>> pendingLetters() async {
-    final statuses = await letterStatuses();
-    return [
-      for (final letter in _alphabet)
-        if (!statuses.containsKey(letter)) letter,
-    ];
-  }
-
-  Future<CoverageReport> coverage() async {
-    final statuses = await letterStatuses();
-    final completed = statuses.values
-        .where((status) => status.completedAt != null)
-        .toList(growable: false);
-    DateTime? last;
-    for (final status in completed) {
-      final stamp = status.completedAt;
-      if (stamp != null && (last == null || stamp.isAfter(last))) last = stamp;
-    }
-    return CoverageReport(
-      lettersCompleted: completed.length,
-      recipeCount: await recipeCount(),
-      lastCompletedAt: last,
+  /// The last applied snapshot's bookkeeping, or null before any snapshot
+  /// has ever been applied.
+  Future<CatalogSnapshotInfo?> currentSnapshot() async {
+    final row = await (_database.select(
+      _database.catalogSnapshotTable,
+    )..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
+    if (row == null) return null;
+    return CatalogSnapshotInfo(
+      version: row.version,
+      publishedAt: row.publishedAt,
+      recipeCount: row.recipeCount,
+      appliedAt: row.appliedAt,
     );
   }
 
-  String _normalizeLetter(String letter) {
-    final trimmed = letter.trim().toLowerCase();
-    if (trimmed.length != 1 || !RegExp(r'^[a-z]$').hasMatch(trimmed)) {
-      throw ArgumentError.value(letter, 'letter', 'Must be one ASCII letter.');
+  Future<CoverageReport> coverage() async {
+    final snapshot = await currentSnapshot();
+    return CoverageReport(
+      recipeCount: snapshot?.recipeCount ?? await recipeCount(),
+      publishedAt: snapshot?.publishedAt,
+      version: snapshot?.version,
+    );
+  }
+
+  /// The diff applying [snapshot] would measure, without writing anything —
+  /// used to preview a staged download (`docs/M11.md`: "do not swap data
+  /// under the person"). [applySnapshot] recomputes and applies it for real.
+  Future<CatalogDiff> previewDiff(CatalogSnapshot snapshot) async {
+    final existing = await _database.select(_database.recipes).get();
+    return _diffAgainst(existing, snapshot);
+  }
+
+  CatalogDiff _diffAgainst(List<RecipeRow> existing, CatalogSnapshot snapshot) {
+    final existingById = {
+      for (final row in existing) row.providerId: row.sourceJson,
+    };
+    var added = 0;
+    var changed = 0;
+    final addedNames = <String>[];
+    final newIds = <String>{};
+    for (final recipe in snapshot.drinks) {
+      newIds.add(recipe.id);
+      final sourceJson = jsonEncode(recipe.toJson());
+      final previous = existingById[recipe.id];
+      if (previous == null) {
+        added++;
+        addedNames.add(recipe.name);
+      } else if (previous != sourceJson) {
+        changed++;
+      }
     }
-    return trimmed;
+    final removed = existingById.keys
+        .where((id) => !newIds.contains(id))
+        .length;
+    return CatalogDiff(
+      added: added,
+      removed: removed,
+      changed: changed,
+      addedRecipeNames: List.unmodifiable(addedNames),
+    );
+  }
+
+  /// Replaces the entire on-device catalog (recipes, ingredient usages, and
+  /// the snapshot record) with [snapshot] in one transaction: either every
+  /// table lands in its new state, or none of them change. Returns the diff
+  /// this replacement measured, for the update notice's wording.
+  ///
+  /// "Changed" means the same provider id with a different stored source
+  /// JSON; a recipe whose source JSON is byte-identical to what was already
+  /// stored counts as neither added nor changed.
+  Future<CatalogDiff> applySnapshot(CatalogSnapshot snapshot) async {
+    final stamp = _now();
+    return _database.transaction(() async {
+      final existing = await _database.select(_database.recipes).get();
+      final diff = _diffAgainst(existing, snapshot);
+
+      await _database.delete(_database.ingredientUsages).go();
+      await _database.delete(_database.recipes).go();
+
+      if (snapshot.drinks.isNotEmpty) {
+        await _database.batch((batch) {
+          batch.insertAll(_database.recipes, [
+            for (final recipe in snapshot.drinks)
+              RecipesCompanion.insert(
+                providerId: recipe.id,
+                name: recipe.name,
+                sourceJson: jsonEncode(recipe.toJson()),
+                updatedAt: stamp,
+              ),
+          ]);
+        });
+        await _database.batch((batch) {
+          batch.insertAll(_database.ingredientUsages, [
+            for (final recipe in snapshot.drinks)
+              for (final identity
+                  in recipe.ingredients.map((i) => i.normalizedName).toSet())
+                IngredientUsagesCompanion.insert(
+                  recipeId: recipe.id,
+                  normalizedIngredient: identity,
+                ),
+          ]);
+        });
+      }
+
+      await _database
+          .into(_database.catalogSnapshotTable)
+          .insertOnConflictUpdate(
+            CatalogSnapshotTableCompanion.insert(
+              id: const Value(1),
+              version: snapshot.version,
+              publishedAt: snapshot.publishedAt,
+              recipeCount: snapshot.recipeCount,
+              appliedAt: stamp,
+            ),
+          );
+
+      return diff;
+    });
   }
 }

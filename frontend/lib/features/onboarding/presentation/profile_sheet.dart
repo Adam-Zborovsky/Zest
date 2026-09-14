@@ -8,6 +8,8 @@ import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../account/domain/account.dart';
+import '../../catalog/application/catalog_update_controller.dart';
+import '../../catalog/domain/catalog_update_state.dart';
 import '../../collection/sync/sync_contract.dart';
 import '../../collection/sync/sync_providers.dart';
 import '../application/session_controller.dart';
@@ -169,6 +171,8 @@ class _ProfileSheetBodyState extends ConsumerState<ProfileSheetBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SyncStatusStrip(status: statusAsync),
+        const SizedBox(height: ZestSpace.xl),
+        const _CatalogUpdateRow(),
         const SizedBox(height: ZestSpace.xl),
         Align(
           alignment: Alignment.centerLeft,
@@ -352,5 +356,73 @@ class _SyncStatusStripState extends ConsumerState<_SyncStatusStrip>
     }
     final d = diff.inDays;
     return '$d day${d == 1 ? '' : 's'} ago';
+  }
+}
+
+/// "Check for catalog updates" (`docs/M11.md` "Update behavior" — manual
+/// trigger): reports up to date, updated, or failed inline, independent of
+/// the home screen's own notice.
+class _CatalogUpdateRow extends ConsumerStatefulWidget {
+  const _CatalogUpdateRow();
+
+  @override
+  ConsumerState<_CatalogUpdateRow> createState() => _CatalogUpdateRowState();
+}
+
+class _CatalogUpdateRowState extends ConsumerState<_CatalogUpdateRow> {
+  bool _checking = false;
+  String? _result;
+
+  Future<void> _check() async {
+    if (_checking) return;
+    setState(() {
+      _checking = true;
+      _result = null;
+    });
+    final outcome = await ref
+        .read(catalogUpdateControllerProvider.notifier)
+        .checkNow();
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _result = switch (outcome) {
+        CatalogUpdateUpToDate() => 'Your catalog is up to date.',
+        CatalogUpdateApplied(:final diff) => catalogUpdateNoticeText(diff),
+        CatalogUpdateStaged(:final diff) => catalogUpdateNoticeText(diff),
+        CatalogUpdateFailed() => "Couldn't check for updates. Try again.",
+      };
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ZestButton(
+            key: const ValueKey('profile-check-catalog-updates'),
+            label: _checking ? 'Checking…' : 'Check for catalog updates',
+            kind: ZestButtonKind.secondary,
+            expand: false,
+            onPressed: _checking ? null : _check,
+          ),
+        ),
+        if (_result != null) ...[
+          const SizedBox(height: ZestSpace.xs),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _result!,
+              style: textTheme.bodySmall?.copyWith(
+                color: ZestPalette.secondaryInk,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

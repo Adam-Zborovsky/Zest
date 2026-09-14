@@ -9,8 +9,11 @@ import '../../../core/widgets/zest_action_tile.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_chip.dart';
+import '../../../core/widgets/zest_notice.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/application/catalog_update_controller.dart';
+import '../../catalog/domain/catalog_update_state.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/constellation_providers.dart';
 import '../domain/ingredient_graph.dart';
@@ -65,6 +68,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _search = TextEditingController()..addListener(() => setState(() {}));
+    // Launch check per docs/M11.md "Update behavior": after the first
+    // frame, an empty catalog downloads automatically; an existing one is
+    // checked in the background.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(catalogUpdateControllerProvider.notifier).checkOnLaunch();
+    });
   }
 
   @override
@@ -90,16 +100,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Arms the one-place freshness wiring: sync state changes invalidate the
-    // stored coverage and the graph (see catalogFreshnessProvider).
+    // Arms the one-place freshness wiring: an applied snapshot invalidates
+    // the stored coverage and the graph (see catalogFreshnessProvider).
     ref.watch(catalogFreshnessProvider);
+    // The update notice: shown only on a real, non-silent version change —
+    // never for a 304/no-op, and never for the first automatic download.
+    ref.listen(catalogUpdateControllerProvider, (previous, next) {
+      if (next.silent || next.diff == null || next.diff!.isNoOp) return;
+      if (next.status == CatalogUpdateStatus.updated &&
+          previous?.status != CatalogUpdateStatus.updated) {
+        showZestNotice(context, message: catalogUpdateNoticeText(next.diff!));
+      } else if (next.status == CatalogUpdateStatus.staged &&
+          previous?.status != CatalogUpdateStatus.staged) {
+        showZestNotice(
+          context,
+          message: catalogUpdateNoticeText(next.diff!),
+          actionLabel: 'Update',
+          onAction: () =>
+              ref.read(catalogUpdateControllerProvider.notifier).applyStaged(),
+        );
+      }
+    });
     final graphAsync = ref.watch(constellationGraphProvider);
     final coverage = ref.watch(catalogCoverageProvider).value;
-    final coverageLabel = coverage == null
-        ? 'Counts describe the recipes loaded on this device — not the full '
-              'provider catalog.'
-        : '${coverageLine(coverage)} Counts describe the loaded collection — '
-              'not the full provider catalog.';
+    final coverageLabel = coverage == null || !coverage.hasSnapshot
+        ? 'Counts describe the recipes downloaded to this device — not the '
+              'full provider catalog.'
+        : '${coverageLine(context, coverage)} Counts describe the '
+              'downloaded catalog — not the full provider catalog.';
 
     // A refresh shows the loading state rather than a stale graph.
     final settled = !graphAsync.isLoading;
@@ -136,10 +164,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               announce: true,
               title: 'The constellation is waiting',
               message:
-                  'Ingredients appear here once recipes are loaded on this '
-                  'device. Start the sync and watch it grow.',
-              actionLabel: 'Start syncing',
-              onAction: () => ref.read(catalogSyncProvider.notifier).start(),
+                  'Ingredients appear here once the recipe catalog is '
+                  'downloaded to this device.',
+              actionLabel: 'Download catalog',
+              onAction: () => ref
+                  .read(catalogUpdateControllerProvider.notifier)
+                  .checkNow(),
             )
           else if (_listView)
             _listContentView(context, graph, coverageLabel)
@@ -148,7 +178,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: ZestSpace.xxl),
           _ActionTiles(onLeave: _clearSelection),
           const SizedBox(height: ZestSpace.xxl),
-          const CatalogSyncCard(key: ValueKey('home-sync-card')),
+          const CatalogStatusCard(key: ValueKey('home-sync-card')),
           const SizedBox(height: ZestSpace.xl),
           Text(
             'Recipe data and imagery: TheCocktailDB',

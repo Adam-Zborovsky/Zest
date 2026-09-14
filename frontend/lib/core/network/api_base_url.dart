@@ -56,3 +56,9 @@ bool isPrivateIPv4(String host) {
 /// Resolves the account/sync base from the catalog gateway base, per
 /// `docs/ACCOUNTS.md`: `http://host/api/cocktails/` becomes `http://host/api/`.
 Uri resolveAccountBaseUrl(Uri catalogBase) => catalogBase.resolve('../');
+
+/// Resolves the shared-catalog snapshot endpoint from the catalog gateway
+/// base, per `docs/M11.md`: `http://host/api/cocktails/` becomes
+/// `http://host/api/catalog`.
+Uri resolveCatalogSnapshotUrl(Uri catalogBase) =>
+    resolveAccountBaseUrl(catalogBase).resolve('catalog');
