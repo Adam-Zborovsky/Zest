@@ -153,6 +153,7 @@ Sync rules:
   4. Clear the dirty flags only for records the server returned as applied.
 
   The pass runs on sign-in, at app start, after local writes (debounced by 2 seconds), and from "Sync now". Status is exposed as `SyncStatus` (idle, syncing, offline, failed) for the profile sheet. It never blocks the collection screens.
+  - **Push ties.** A push whose returned record ties the sent `updatedAt` (or `photoUpdatedAt`) but carries different content is a server-side rejection, not a success: the client leaves it dirty, re-stamps its local `updatedAt` strictly past what was sent, and retries once in the same pass before giving up to the next pass, instead of adopting the foreign record and clearing `dirty`. Nothing bounds a clock running backwards: last-edit-wins orders by the timestamps devices assign, not by when the edits actually happened, so concurrent edits from devices with wrong clocks resolve deterministically but not necessarily in human order.
 
 ## Contract (committed before the tracks start)
 

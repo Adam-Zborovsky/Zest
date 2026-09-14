@@ -162,26 +162,127 @@ final class SyncEngine implements CollectionSync {
   Future<void> _push() async {
     final dirty = await _store.dirtyRecords();
     for (final record in dirty.where((r) => r.dirty)) {
-      final pushed = await _api.putEntry(record.toEntryRecord());
-      await _store.applyServerRecord(pushed);
+      await _pushEntry(record.toEntryRecord());
     }
     for (final record in dirty.where((r) => r.photoDirty && !r.deleted)) {
-      final local = await _store.photoForSync(record.id);
-      final EntryRecord result;
-      if (local == null) {
-        result = await _api.deletePhoto(record.id, updatedAt: record.updatedAt);
-      } else {
-        result = await _api.putPhoto(
-          record.id,
-          local.photo,
-          updatedAt: local.updatedAt,
-        );
-      }
+      await _pushPhoto(record);
+    }
+  }
+
+  /// Pushes one entry body and resolves what the server sends back.
+  ///
+  /// The server's rule (`backend/src/accounts/repository.ts` `upsertEntry`,
+  /// `docs/ACCOUNTS.md` sync rule 2) is: an incoming `updatedAt` strictly
+  /// later than the stored one applies; an equal or earlier one is a no-op
+  /// that returns the *stored* record unchanged. That stored record is not
+  /// always this push: when two devices last synced the same `updatedAt`
+  /// and both then stamp their independent edit at the same floored
+  /// `previous + 1ms` (`DriftCollectionRepository._laterThan`), their pushes
+  /// tie, and whichever pushes second gets back a foreign record — applying
+  /// it unconditionally would adopt someone else's content and clear this
+  /// device's own `dirty` flag, silently discarding the edit.
+  ///
+  /// So [returned] is only ever applied when it demonstrably reflects this
+  /// push having taken effect:
+  /// - **Server newer** (`returned.updatedAt` after [sent]'s): a genuine
+  ///   later edit exists server-side; last-edit-wins says adopt it.
+  /// - **Identical content at an equal timestamp:** this push applied, or
+  ///   this is an idempotent retry of the same push. Apply it (to record
+  ///   the new `revision`) and clear `dirty`.
+  ///
+  /// Anything else — an equal timestamp with different content, or (per the
+  /// server contract, which should never happen) an *earlier* returned
+  /// timestamp — means the server kept a different version: a rejected tie.
+  /// The local row is re-stamped strictly later than what was sent and
+  /// retried once in this same pass, so it is not left silently believing
+  /// it is in sync with content the server does not have. A retry that
+  /// still does not apply leaves the row dirty for the next pass, rather
+  /// than looping.
+  Future<void> _pushEntry(EntryRecord sent, {bool retried = false}) async {
+    final returned = await _api.putEntry(sent);
+    if (_appliesTo(sent, returned)) {
+      await _store.applyServerRecord(returned);
+      return;
+    }
+    final restamped = sent.updatedAt.add(const Duration(milliseconds: 1));
+    await _store.restampEntry(sent.id, restamped);
+    if (retried) return;
+    final refreshed = await _store.localRecord(sent.id);
+    if (refreshed == null) return;
+    await _pushEntry(refreshed.toEntryRecord(), retried: true);
+  }
+
+  /// True when [returned] reflects [sent] having taken effect on the
+  /// server: strictly newer (a real later edit exists), or an equal
+  /// timestamp with identical content (this push applied, or an idempotent
+  /// retry of it). See [_pushEntry] for the tie this distinguishes from.
+  bool _appliesTo(EntryRecord sent, EntryRecord returned) {
+    // Tombstones are final (docs/ACCOUNTS.md sync rule 3): once an entry is
+    // deleted, the server returns the tombstone unconditionally, even for a
+    // non-deleted PUT with a *later* `updatedAt` — deliberately breaking
+    // last-edit-wins so a stale device cannot resurrect a deleted drink.
+    // That is not the timestamp-tie bug this method otherwise guards
+    // against, so a returned tombstone is always adopted regardless of how
+    // its `updatedAt` compares to what was sent.
+    if (returned.deleted) return true;
+    if (returned.updatedAt.isAfter(sent.updatedAt)) return true;
+    if (returned.updatedAt.isAtSameMomentAs(sent.updatedAt)) {
+      return _deepEquals(sent.toJson(), returned.toJson());
+    }
+    return false;
+  }
+
+  /// The photo-push analogue of [_pushEntry], against the same server rule
+  /// applied to `photoUpdatedAt` (`setEntryPhoto`/`clearEntryPhoto` in
+  /// `backend/src/accounts/repository.ts`): a strictly later incoming
+  /// `photoUpdatedAt` applies; an equal or earlier one no-ops and returns
+  /// the stored record. The same unconditional-apply bug existed here: two
+  /// devices setting or clearing a photo at a tied `photoUpdatedAt` could
+  /// have the losing device adopt the winner's `hasPhoto` state and clear
+  /// its own `photoDirty`, losing its photo change.
+  ///
+  /// There is no cheap way to compare photo *bytes* against what the server
+  /// now holds, so "identical" here is approximated by whether the returned
+  /// `hasPhoto` matches what this push intended (present for a set, absent
+  /// for a delete) at a tied timestamp — true exactly when this device's
+  /// own write is what the server applied or echoed back. A tie with the
+  /// other `hasPhoto` value is unambiguously a foreign write and is
+  /// rejected the same way as the entry path: re-stamp and retry once.
+  Future<void> _pushPhoto(LocalSyncRecord record, {bool retried = false}) async {
+    final local = await _store.photoForSync(record.id);
+    final sentAt = local?.updatedAt ?? record.updatedAt;
+    final intendedHasPhoto = local != null;
+    final EntryRecord result;
+    if (local == null) {
+      result = await _api.deletePhoto(record.id, updatedAt: sentAt);
+    } else {
+      result = await _api.putPhoto(record.id, local.photo, updatedAt: sentAt);
+    }
+    final returnedAt = result.photoUpdatedAt;
+    final applied =
+        returnedAt != null &&
+        (returnedAt.isAfter(sentAt) ||
+            (returnedAt.isAtSameMomentAs(sentAt) &&
+                result.hasPhoto == intendedHasPhoto));
+    if (applied) {
       // The photo bytes locally already match what was just pushed (or were
       // already absent); applyServerRecord only touches the entry row and
       // photoDirty, and leaves an existing local photo row untouched.
       await _store.applyServerRecord(result, clearPhotoDirty: true);
+      return;
     }
+    final restamped = sentAt.add(const Duration(milliseconds: 1));
+    if (local == null) {
+      // A rejected photo-delete's timestamp is the entry's own `updatedAt`
+      // (there is no local photo row to re-stamp).
+      await _store.restampEntry(record.id, restamped);
+    } else {
+      await _store.restampPhoto(record.id, restamped);
+    }
+    if (retried) return;
+    final refreshed = await _store.localRecord(record.id);
+    if (refreshed == null || !refreshed.photoDirty) return;
+    await _pushPhoto(refreshed, retried: true);
   }
 
   Future<void> _pull() async {
@@ -236,4 +337,27 @@ final class SyncEngine implements CollectionSync {
     _debounceTimer?.cancel();
     unawaited(_statusController.close());
   }
+}
+
+/// Structural equality over decoded JSON values (the nested `Map`/`List`
+/// trees `EntryRecord.toJson()` produces), which `==` does not give `Map`
+/// or `List` by default. Used to tell an idempotent push echo apart from a
+/// foreign record that happens to share a timestamp.
+bool _deepEquals(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key) || !_deepEquals(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_deepEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
 }

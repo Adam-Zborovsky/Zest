@@ -87,6 +87,21 @@ abstract interface class CollectionSyncStore {
   /// row dirty.
   Future<void> setServerPhoto(String id, MemoryPhoto photo, DateTime updatedAt);
 
+  /// Re-stamps entry [id]'s `updatedAt` to [updatedAt] (floored to strictly
+  /// later than the row's current value, per [DriftCollectionRepository]'s
+  /// `_laterThan` rule) without otherwise touching the row; `dirty` stays
+  /// set. Used after a push's timestamp tie is rejected by the server (see
+  /// `SyncEngine._push`), so the retried push strictly outraces the foreign
+  /// write it tied with.
+  Future<void> restampEntry(String id, DateTime updatedAt);
+
+  /// The same re-stamp as [restampEntry], but for entry [id]'s photo row's
+  /// `updatedAt`; `photoDirty` stays set. A no-op when the entry currently
+  /// has no local photo row (the pending change was a photo delete, whose
+  /// push timestamp is the entry's own `updatedAt` and is re-stamped via
+  /// [restampEntry] instead).
+  Future<void> restampPhoto(String id, DateTime updatedAt);
+
   Future<String?> ownerUserId();
 
   Future<void> setOwnerUserId(String? userId);
