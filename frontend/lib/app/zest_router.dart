@@ -10,6 +10,7 @@ import '../features/constellation/presentation/home_screen.dart';
 import '../features/discovery/domain/discovery_query.dart';
 import '../features/discovery/presentation/discovery_screen.dart';
 import '../features/discovery/presentation/recipe_detail_screen.dart';
+import '../features/home_bar/presentation/home_bar_screen.dart';
 import '../features/onboarding/application/session_controller.dart';
 import '../features/onboarding/domain/launch_destination.dart';
 import '../features/onboarding/presentation/login_screen.dart';
@@ -46,6 +47,13 @@ GoRouter createZestRouter({
         path: '/bar',
         pageBuilder: (context, state) =>
             _page(context, state, const BarScreen()),
+        routes: [
+          GoRoute(
+            path: 'shopping',
+            pageBuilder: (context, state) =>
+                _page(context, state, const HomeBarScreen(shopping: true)),
+          ),
+        ],
       ),
       GoRoute(
         path: '/discover',

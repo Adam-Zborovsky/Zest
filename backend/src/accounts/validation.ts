@@ -1,6 +1,6 @@
 // Shared validation for the accounts and sync contract. See docs/ACCOUNTS.md.
 import { AccountLimits } from './contract.js';
-import type { EntryPutBody, VariationRecord } from './contract.js';
+import type { EntryPutBody, HomeBarItemPutBody, VariationRecord } from './contract.js';
 
 export class ValidationError extends Error {}
 
@@ -150,4 +150,66 @@ export function validateLimit(value: unknown): number {
     throw new ValidationError('Invalid limit.');
   }
   return limit;
+}
+
+const INGREDIENT_ALIASES: Readonly<Record<string, string>> = {
+  'dark rums': 'dark rum',
+  'light rums': 'light rum',
+  'white rums': 'white rum',
+  'mint leaves': 'mint leaf',
+  'ice cubes': 'ice cube',
+};
+
+/** Mirrors Flutter's `normalizeIngredientName` identity rules. */
+export function normalizeIngredientId(value: unknown): string {
+  if (typeof value !== 'string') throw new ValidationError('Invalid ingredient id.');
+  if (/[\u0000-\u001f\u007f]/u.test(value)) throw new ValidationError('Invalid ingredient id.');
+  const normalized = value.trim().toLowerCase().replace(/\s+/gu, ' ');
+  if (!normalized || normalized.length > AccountLimits.maxHomeBarDisplayNameLength) {
+    throw new ValidationError('Invalid ingredient id.');
+  }
+  return INGREDIENT_ALIASES[normalized] ?? normalized;
+}
+
+export function validateIngredientId(value: unknown): string {
+  const normalized = normalizeIngredientId(value);
+  if (value !== normalized) throw new ValidationError('Ingredient id must be normalized.');
+  return normalized;
+}
+
+function validateHomeBarDisplayName(value: unknown): string {
+  if (typeof value !== 'string') throw new ValidationError('Invalid displayName.');
+  if (/[\u0000-\u001f\u007f]/u.test(value)) throw new ValidationError('Invalid displayName.');
+  const displayName = value.trim();
+  if (!displayName || displayName.length > AccountLimits.maxHomeBarDisplayNameLength) {
+    throw new ValidationError('Invalid displayName.');
+  }
+  return displayName;
+}
+
+export interface ValidatedHomeBarItem extends HomeBarItemPutBody {}
+
+/** Strictly validates an M10 home-bar PUT body and its decoded route identity. */
+export function validateHomeBarItemBody(value: unknown, pathIngredientId: string, now: number): ValidatedHomeBarItem {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ValidationError('Invalid home-bar item body.');
+  }
+  const record = value as Record<string, unknown>;
+  const allowedKeys = ['ingredientId', 'displayName', 'location', 'updatedAt', 'deleted'];
+  if (Object.keys(record).some((key) => !allowedKeys.includes(key)) ||
+      allowedKeys.some((key) => !(key in record))) {
+    throw new ValidationError('Invalid home-bar item body.');
+  }
+  const ingredientId = validateIngredientId(record.ingredientId);
+  if (ingredientId !== pathIngredientId) throw new ValidationError('Ingredient id must match the path.');
+  const displayName = validateHomeBarDisplayName(record.displayName);
+  if (record.location !== 'stocked' && record.location !== 'shopping') {
+    throw new ValidationError('Invalid home-bar location.');
+  }
+  if (!isIsoTimestamp(record.updatedAt)) throw new ValidationError('Invalid updatedAt.');
+  if (Date.parse(record.updatedAt) - now > AccountLimits.maxClockSkewMs) {
+    throw new ValidationError('updatedAt is too far in the future.');
+  }
+  if (typeof record.deleted !== 'boolean') throw new ValidationError('Invalid deleted flag.');
+  return { ingredientId, displayName, location: record.location, updatedAt: record.updatedAt, deleted: record.deleted };
 }

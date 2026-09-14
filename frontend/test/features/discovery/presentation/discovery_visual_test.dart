@@ -5,10 +5,12 @@ import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
+import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 
 import '../../../support/collection_test_overrides.dart';
-import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
+import '../../../support/in_memory_home_bar_repository.dart';
+import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
 void main() {
@@ -40,15 +42,18 @@ void main() {
         (_) async => discoveryResponse(discoveryRecipes(1)),
       );
       final client = CocktailDbClient(client: transport);
+      final homeBar = InMemoryHomeBarRepository();
       addTearDown(() {
         client.close();
         transport.close();
       });
+      addTearDown(homeBar.dispose);
       const capture = ValueKey('m3-capture');
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             cocktailDbClientProvider.overrideWithValue(client),
+            homeBarRepositoryProvider.overrideWithValue(homeBar),
             ...collectionTestOverrides(),
             ...sessionTestOverrides(),
           ],

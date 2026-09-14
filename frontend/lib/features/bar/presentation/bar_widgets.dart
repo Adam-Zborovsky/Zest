@@ -5,21 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
-import '../../../core/widgets/zest_chip.dart';
-import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/bar_providers.dart';
 import '../domain/bar_match.dart';
-import '../domain/ingredient_classification.dart';
 import '../domain/recipe_scope.dart';
-
-/// Opens the ingredient picker sheet.
-Future<void> showIngredientPicker(BuildContext context) => showZestSheet<void>(
-  context: context,
-  title: 'Choose your ingredients',
-  child: const IngredientPickerSheet(),
-);
 
 /// Sets the match scope and opens the bar screen. The single entry point
 /// discovery screens use; keeps scope state ownership inside the bar feature.
@@ -58,186 +48,9 @@ class BarScopeCard extends StatelessWidget {
   );
 }
 
-class IngredientSelectionCard extends ConsumerWidget {
-  const IngredientSelectionCard({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selection = ref.watch(barSelectionProvider);
-    final names = selection.toList()..sort();
-    return ZestCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              'Ingredients you have',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          const SizedBox(height: ZestSpace.sm),
-          if (names.isEmpty)
-            const Text(
-              'Nothing selected yet. Add a few bottles — there is no pantry '
-              'setup and nothing is assumed.',
-            )
-          else
-            Wrap(
-              spacing: ZestSpace.sm,
-              runSpacing: ZestSpace.sm,
-              children: [
-                for (final name in names)
-                  ZestChip(
-                    key: ValueKey('bar-remove-$name'),
-                    label: _display(name),
-                    selected: true,
-                    onSelected: (_) =>
-                        ref.read(barSelectionProvider.notifier).toggle(name),
-                  ),
-              ],
-            ),
-          const SizedBox(height: ZestSpace.lg),
-          ZestButton(
-            key: const ValueKey('bar-add-ingredients'),
-            label: 'Add ingredients',
-            icon: Icons.add_rounded,
-            kind: ZestButtonKind.secondary,
-            onPressed: () => showIngredientPicker(context),
-          ),
-          if (names.isNotEmpty) ...[
-            const SizedBox(height: ZestSpace.sm),
-            ZestButton(
-              key: const ValueKey('bar-clear-selection'),
-              label: 'Clear all',
-              kind: ZestButtonKind.quiet,
-              onPressed: () => ref.read(barSelectionProvider.notifier).clear(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 String _display(String identity) => identity.isEmpty
     ? identity
     : identity[0].toUpperCase() + identity.substring(1);
-
-class IngredientPickerSheet extends ConsumerStatefulWidget {
-  const IngredientPickerSheet({super.key});
-
-  @override
-  ConsumerState<IngredientPickerSheet> createState() =>
-      _IngredientPickerSheetState();
-}
-
-class _IngredientPickerSheetState extends ConsumerState<IngredientPickerSheet> {
-  final _search = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _search.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final options = ref.watch(ingredientOptionsProvider);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          label: 'Search ingredients',
-          child: TextFormField(
-            key: const ValueKey('ingredient-search'),
-            controller: _search,
-            textInputAction: TextInputAction.search,
-            textCapitalization: TextCapitalization.none,
-            decoration: const InputDecoration(
-              hintText: 'Search ingredients',
-              hintMaxLines: 3,
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
-          ),
-        ),
-        const SizedBox(height: ZestSpace.md),
-        options.when(
-          skipLoadingOnRefresh: false,
-          data: (names) => _optionList(context, names),
-          loading: () => const ZestLoadingState(label: 'Finding ingredients…'),
-          error: (error, stackTrace) => ZestErrorState(
-            title: 'Ingredients are out of reach',
-            message: 'The ingredient list could not load. Try again.',
-            onRetry: () => ref.invalidate(ingredientOptionsProvider),
-          ),
-        ),
-        const SizedBox(height: ZestSpace.lg),
-        ZestButton(
-          key: const ValueKey('picker-done'),
-          label: 'Done',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
-    );
-  }
-
-  Widget _optionList(BuildContext context, List<String> names) {
-    final query = _search.text.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? names
-        : names.where((name) => name.toLowerCase().contains(query)).toList();
-    final selection = ref.watch(barSelectionProvider);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          liveRegion: true,
-          child: Text(
-            'Showing ${filtered.length} of ${names.length} ingredients.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-        const SizedBox(height: ZestSpace.sm),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 420),
-          child: filtered.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: ZestSpace.lg),
-                  child: Text(
-                    "No ingredient matches “${_search.text.trim()}”. Try a shorter name.",
-                  ),
-                )
-              : Scrollbar(
-                  child: ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final name = filtered[index];
-                      return CheckboxListTile(
-                        key: ValueKey('ingredient-option-$name'),
-                        value: selection.contains(normalizeSelection(name)),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: Text(name),
-                        onChanged: (_) => ref
-                            .read(barSelectionProvider.notifier)
-                            .toggle(name),
-                      );
-                    },
-                  ),
-                ),
-        ),
-      ],
-    );
-  }
-}
 
 class MatchResultCard extends StatelessWidget {
   const MatchResultCard({super.key, required this.match});

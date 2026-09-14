@@ -74,6 +74,33 @@ export interface SyncPageResponse {
   hasMore: boolean;
 }
 
+/** The two mutually exclusive places an ingredient can appear in a home bar. */
+export type HomeBarLocation = 'stocked' | 'shopping';
+
+/** A user-owned home-bar record keyed by a normalized ingredient identity. */
+export interface HomeBarItemRecord {
+  /** Deterministic normalizeIngredientName result. */
+  ingredientId: string;
+  /** Catalog spelling selected by the user; retained in tombstones as user data. */
+  displayName: string;
+  location: HomeBarLocation;
+  /** ISO-8601 UTC last-edit-wins key. */
+  updatedAt: string;
+  deleted: boolean;
+  /** Server-assigned per-user home-bar revision. Absent on PUT bodies. */
+  revision?: number;
+}
+
+export type HomeBarItemPutBody = Omit<HomeBarItemRecord, 'revision'>;
+
+export interface HomeBarSyncPageResponse {
+  /** Ascending, independent home-bar revision order. */
+  items: HomeBarItemRecord[];
+  /** Last revision included, or requested `since` when empty. */
+  revision: number;
+  hasMore: boolean;
+}
+
 export type ErrorCode =
   | 'invalid_request'
   | 'invalid_credentials'
@@ -101,4 +128,8 @@ export const AccountLimits = {
   maxClockSkewMs: 24 * 60 * 60 * 1000,
   defaultPullLimit: 200,
   maxPullLimit: 500,
+  /** Catalog display spellings must fit this limit after trimming. */
+  maxHomeBarDisplayNameLength: 120,
+  /** Caps an M10 PUT body independently of Fastify's global gateway limit. */
+  maxHomeBarItemBodyBytes: 16 * 1024,
 } as const;

@@ -10,12 +10,13 @@ import {
 } from './errors.js';
 import {
   clearEntryPhoto, createSession, createUser, EmailTakenError, findActiveSession, findEntry, findUserByEmail, findUserById,
-  getPhotoMime, pullEntries, revokeSession, setEntryPhoto, touchSession, upsertEntry,
+  getPhotoMime, pullEntries, pullHomeBarItems, revokeSession, setEntryPhoto, touchSession, upsertEntry, upsertHomeBarItem,
 } from './repository.js';
 import { commitTempFile, discardTempFile, photoPath, readPhotoFile, removePhotoFile, sniffPhotoType, writeTempFile } from './photos.js';
 import { defaultTokenGenerator, hashToken } from './tokens.js';
 import {
-  normalizeEmail, validateEntryBody, validateEntryId, validateLimit, validatePassword, validatePhotoUpdatedAt, validateSince,
+  normalizeEmail, validateEntryBody, validateEntryId, validateHomeBarItemBody, validateIngredientId, validateLimit,
+  validatePassword, validatePhotoUpdatedAt, validateSince,
   ValidationError,
 } from './validation.js';
 
@@ -192,11 +193,35 @@ export async function registerAccountsRoutes(app: FastifyInstance, opts: Account
     return reply.send(result);
   });
 
+  app.get('/api/sync/bar-items', {
+    schema: { querystring: {
+      type: 'object', additionalProperties: false, required: ['since'],
+      properties: { since: { type: 'string' }, limit: { type: 'string' } },
+    } },
+  }, async (request, reply) => {
+    const userId = await requireSession(request);
+    const query = request.query as { since: string; limit?: string };
+    const since = validateSince(query.since);
+    const limit = validateLimit(query.limit);
+    const result = await pullHomeBarItems(db, { userId, since, limit });
+    return reply.send(result);
+  });
+
   app.put('/api/entries/:id', { bodyLimit: 128 * 1024 }, async (request, reply) => {
     const userId = await requireSession(request);
     const entryId = validateEntryId((request.params as { id: string }).id);
     const body = validateEntryBody(request.body, entryId, clock().getTime());
     const result = await upsertEntry(db, { userId, photoDir, body });
+    return reply.send(result);
+  });
+
+  app.put('/api/bar-items/:ingredientId', { bodyLimit: AccountLimits.maxHomeBarItemBodyBytes }, async (request, reply) => {
+    const userId = await requireSession(request);
+    // Fastify exposes decoded route parameters, so an encoded route identity
+    // receives the same normalization check as its body counterpart.
+    const ingredientId = validateIngredientId((request.params as { ingredientId: string }).ingredientId);
+    const body = validateHomeBarItemBody(request.body, ingredientId, clock().getTime());
+    const result = await upsertHomeBarItem(db, { userId, body });
     return reply.send(result);
   });
 

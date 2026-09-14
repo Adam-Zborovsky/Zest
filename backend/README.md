@@ -1,6 +1,6 @@
-# Zest local recipe gateway, accounts, and synced collection
+# Zest local recipe gateway, accounts, and personal-data sync
 
-The paid provider key stays here, not in Flutter. Since M8 (2026-09-13), this service also holds accounts, sessions, and each person's synced collection — see [docs/ACCOUNTS.md](../docs/ACCOUNTS.md) for the full contract. Everything below is development-only: there is no deployment, HTTPS, Nginx, or backup story yet.
+The paid provider key stays here, not in Flutter. The service also holds accounts, sessions, each person's synced collection, and their M10 home-bar and shopping-list records — see [docs/ACCOUNTS.md](../docs/ACCOUNTS.md) and [docs/M10.md](../docs/M10.md) for the contracts. Everything below is development-only: there is no deployment, HTTPS, Nginx, or backup story yet.
 
 ## Run locally
 
@@ -12,7 +12,7 @@ npm ci
 
 Create your own ignored `.env` using `.env.example` as a template. Set `COCKTAIL_DB_API_KEY` there to your paid key. Do not paste it into chat, source files, frontend defines or terminal commands that could be logged. Without an override the documented public test key `1` is used; an empty/invalid override fails startup.
 
-### Postgres (accounts and the synced collection)
+### Postgres (accounts, collection, home bar, and shopping list)
 
 Start the local database with Docker Compose (Adam runs this; agents never do):
 
@@ -84,4 +84,4 @@ dart run tool/gateway_demo.dart
 
 Both demos use synthetic upstream data. Neither starts a listening server nor uses a real provider key or database. The cross-language demo requires backend dependencies installed.
 
-See [GATEWAY.md](../docs/GATEWAY.md) for the recipe gateway's endpoints, limits and security boundaries, and [ACCOUNTS.md](../docs/ACCOUNTS.md) for accounts, sync and photos. Deployment and public-access hardening are future work, not implied by a successful local build.
+See [GATEWAY.md](../docs/GATEWAY.md) for the recipe gateway's endpoints, limits and security boundaries, [ACCOUNTS.md](../docs/ACCOUNTS.md) for accounts, collection sync, and photos, and [M10.md](../docs/M10.md) for the home-bar wire and sync rules. Deployment and public-access hardening are future work, not implied by a successful local build.

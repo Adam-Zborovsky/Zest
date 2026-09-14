@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../discovery/application/discovery_providers.dart';
+import '../../home_bar/application/home_bar_providers.dart';
 import '../domain/bar_match.dart';
-import '../domain/ingredient_classification.dart';
 import '../domain/recipe_scope.dart';
 
 /// How a match run stands. A run checks the scope's recipes in explicit
@@ -30,29 +30,6 @@ final class BarMatchState {
   final Object? error;
 }
 
-/// Session-only ingredient selection. Nothing is preselected and there is no
-/// pantry setup; identities are normalized ingredient names. Unselected is
-/// not available — matching counts only what is selected here.
-final barSelectionProvider = NotifierProvider<BarSelectionNotifier, Set<String>>(
-  BarSelectionNotifier.new,
-);
-
-final class BarSelectionNotifier extends Notifier<Set<String>> {
-  @override
-  Set<String> build() => const {};
-
-  /// Toggles one ingredient by its written name, normalizing the identity.
-  /// Throws [FormatException] on a blank name.
-  void toggle(String name) {
-    final identity = normalizeSelection(name);
-    state = state.contains(identity)
-        ? ({...state}..remove(identity))
-        : {...state, identity};
-  }
-
-  void clear() => state = const {};
-}
-
 /// The recipe pool bar matching covers: the discovery results the user chose.
 /// Null until a results screen supplies one.
 final recipeScopeProvider = NotifierProvider<RecipeScopeNotifier, RecipeScope?>(
@@ -68,14 +45,8 @@ final class RecipeScopeNotifier extends Notifier<RecipeScope?> {
   void clear() => state = null;
 }
 
-/// The provider's ingredient filter names for the selection sheet.
-final ingredientOptionsProvider = FutureProvider<List<String>>(
-  (ref) => ref.watch(cocktailRequestGatewayProvider).ingredientNames(),
-  retry: (retryCount, error) => null,
-);
-
-/// Runs matching over the current scope with the current selection. Any
-/// change to the scope or selection resets a finished or paused run.
+/// Runs matching over the current scope with the persistent stocked shelf.
+/// Any change to the scope or inventory resets a finished or paused run.
 final barMatchProvider = NotifierProvider<BarMatchNotifier, BarMatchState>(
   BarMatchNotifier.new,
 );
@@ -96,7 +67,7 @@ final class BarMatchNotifier extends Notifier<BarMatchState> {
     // if a future version recreates the instance, the fresh `_run` still
     // never equals an older loop's captured token, so abandonment holds.
     ref.watch(recipeScopeProvider);
-    ref.watch(barSelectionProvider);
+    ref.watch(stockedIngredientIdsProvider);
     _run++;
     return const BarMatchState();
   }
@@ -112,7 +83,9 @@ final class BarMatchNotifier extends Notifier<BarMatchState> {
   Future<void> _runFrom(int startAt, {required bool keepPartialResults}) async {
     final scope = ref.read(recipeScopeProvider);
     if (scope == null) return;
-    final selection = ref.read(barSelectionProvider);
+    final selection =
+        ref.read(stockedIngredientIdsProvider).asData?.value ??
+        const <String>{};
     if (selection.isEmpty) return;
 
     final run = ++_run;

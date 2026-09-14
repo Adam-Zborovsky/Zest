@@ -1315,12 +1315,710 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
   }
 }
 
+class $HomeBarItemsTable extends HomeBarItems
+    with TableInfo<$HomeBarItemsTable, HomeBarItemRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HomeBarItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _ingredientIdMeta = const VerificationMeta(
+    'ingredientId',
+  );
+  @override
+  late final GeneratedColumn<String> ingredientId = GeneratedColumn<String>(
+    'ingredient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($HomeBarItemsTable.$converterupdatedAt);
+  static const VerificationMeta _deletedMeta = const VerificationMeta(
+    'deleted',
+  );
+  @override
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _dirtyMeta = const VerificationMeta('dirty');
+  @override
+  late final GeneratedColumn<bool> dirty = GeneratedColumn<bool>(
+    'dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    ingredientId,
+    displayName,
+    location,
+    updatedAt,
+    deleted,
+    dirty,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'home_bar_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HomeBarItemRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('ingredient_id')) {
+      context.handle(
+        _ingredientIdMeta,
+        ingredientId.isAcceptableOrUnknown(
+          data['ingredient_id']!,
+          _ingredientIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ingredientIdMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_locationMeta);
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(
+        _deletedMeta,
+        deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta),
+      );
+    }
+    if (data.containsKey('dirty')) {
+      context.handle(
+        _dirtyMeta,
+        dirty.isAcceptableOrUnknown(data['dirty']!, _dirtyMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {ingredientId};
+  @override
+  HomeBarItemRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HomeBarItemRow(
+      ingredientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ingredient_id'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      )!,
+      updatedAt: $HomeBarItemsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      deleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}deleted'],
+      )!,
+      dirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dirty'],
+      )!,
+    );
+  }
+
+  @override
+  $HomeBarItemsTable createAlias(String alias) {
+    return $HomeBarItemsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $converterupdatedAt =
+      const UtcMillisConverter();
+}
+
+class HomeBarItemRow extends DataClass implements Insertable<HomeBarItemRow> {
+  final String ingredientId;
+  final String displayName;
+  final String location;
+  final DateTime updatedAt;
+  final bool deleted;
+  final bool dirty;
+  const HomeBarItemRow({
+    required this.ingredientId,
+    required this.displayName,
+    required this.location,
+    required this.updatedAt,
+    required this.deleted,
+    required this.dirty,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['ingredient_id'] = Variable<String>(ingredientId);
+    map['display_name'] = Variable<String>(displayName);
+    map['location'] = Variable<String>(location);
+    {
+      map['updated_at'] = Variable<int>(
+        $HomeBarItemsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['deleted'] = Variable<bool>(deleted);
+    map['dirty'] = Variable<bool>(dirty);
+    return map;
+  }
+
+  HomeBarItemsCompanion toCompanion(bool nullToAbsent) {
+    return HomeBarItemsCompanion(
+      ingredientId: Value(ingredientId),
+      displayName: Value(displayName),
+      location: Value(location),
+      updatedAt: Value(updatedAt),
+      deleted: Value(deleted),
+      dirty: Value(dirty),
+    );
+  }
+
+  factory HomeBarItemRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HomeBarItemRow(
+      ingredientId: serializer.fromJson<String>(json['ingredientId']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      location: serializer.fromJson<String>(json['location']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      dirty: serializer.fromJson<bool>(json['dirty']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'ingredientId': serializer.toJson<String>(ingredientId),
+      'displayName': serializer.toJson<String>(displayName),
+      'location': serializer.toJson<String>(location),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deleted': serializer.toJson<bool>(deleted),
+      'dirty': serializer.toJson<bool>(dirty),
+    };
+  }
+
+  HomeBarItemRow copyWith({
+    String? ingredientId,
+    String? displayName,
+    String? location,
+    DateTime? updatedAt,
+    bool? deleted,
+    bool? dirty,
+  }) => HomeBarItemRow(
+    ingredientId: ingredientId ?? this.ingredientId,
+    displayName: displayName ?? this.displayName,
+    location: location ?? this.location,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deleted: deleted ?? this.deleted,
+    dirty: dirty ?? this.dirty,
+  );
+  HomeBarItemRow copyWithCompanion(HomeBarItemsCompanion data) {
+    return HomeBarItemRow(
+      ingredientId: data.ingredientId.present
+          ? data.ingredientId.value
+          : this.ingredientId,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      location: data.location.present ? data.location.value : this.location,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      dirty: data.dirty.present ? data.dirty.value : this.dirty,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeBarItemRow(')
+          ..write('ingredientId: $ingredientId, ')
+          ..write('displayName: $displayName, ')
+          ..write('location: $location, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deleted: $deleted, ')
+          ..write('dirty: $dirty')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    ingredientId,
+    displayName,
+    location,
+    updatedAt,
+    deleted,
+    dirty,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HomeBarItemRow &&
+          other.ingredientId == this.ingredientId &&
+          other.displayName == this.displayName &&
+          other.location == this.location &&
+          other.updatedAt == this.updatedAt &&
+          other.deleted == this.deleted &&
+          other.dirty == this.dirty);
+}
+
+class HomeBarItemsCompanion extends UpdateCompanion<HomeBarItemRow> {
+  final Value<String> ingredientId;
+  final Value<String> displayName;
+  final Value<String> location;
+  final Value<DateTime> updatedAt;
+  final Value<bool> deleted;
+  final Value<bool> dirty;
+  final Value<int> rowid;
+  const HomeBarItemsCompanion({
+    this.ingredientId = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.location = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.dirty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HomeBarItemsCompanion.insert({
+    required String ingredientId,
+    required String displayName,
+    required String location,
+    required DateTime updatedAt,
+    this.deleted = const Value.absent(),
+    this.dirty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : ingredientId = Value(ingredientId),
+       displayName = Value(displayName),
+       location = Value(location),
+       updatedAt = Value(updatedAt);
+  static Insertable<HomeBarItemRow> custom({
+    Expression<String>? ingredientId,
+    Expression<String>? displayName,
+    Expression<String>? location,
+    Expression<int>? updatedAt,
+    Expression<bool>? deleted,
+    Expression<bool>? dirty,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (ingredientId != null) 'ingredient_id': ingredientId,
+      if (displayName != null) 'display_name': displayName,
+      if (location != null) 'location': location,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deleted != null) 'deleted': deleted,
+      if (dirty != null) 'dirty': dirty,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HomeBarItemsCompanion copyWith({
+    Value<String>? ingredientId,
+    Value<String>? displayName,
+    Value<String>? location,
+    Value<DateTime>? updatedAt,
+    Value<bool>? deleted,
+    Value<bool>? dirty,
+    Value<int>? rowid,
+  }) {
+    return HomeBarItemsCompanion(
+      ingredientId: ingredientId ?? this.ingredientId,
+      displayName: displayName ?? this.displayName,
+      location: location ?? this.location,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deleted: deleted ?? this.deleted,
+      dirty: dirty ?? this.dirty,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (ingredientId.present) {
+      map['ingredient_id'] = Variable<String>(ingredientId.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $HomeBarItemsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (dirty.present) {
+      map['dirty'] = Variable<bool>(dirty.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeBarItemsCompanion(')
+          ..write('ingredientId: $ingredientId, ')
+          ..write('displayName: $displayName, ')
+          ..write('location: $location, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deleted: $deleted, ')
+          ..write('dirty: $dirty, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HomeBarSyncStateTable extends HomeBarSyncState
+    with TableInfo<$HomeBarSyncStateTable, HomeBarSyncStateData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HomeBarSyncStateTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ownerUserIdMeta = const VerificationMeta(
+    'ownerUserId',
+  );
+  @override
+  late final GeneratedColumn<String> ownerUserId = GeneratedColumn<String>(
+    'owner_user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastRevisionMeta = const VerificationMeta(
+    'lastRevision',
+  );
+  @override
+  late final GeneratedColumn<int> lastRevision = GeneratedColumn<int>(
+    'last_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, ownerUserId, lastRevision];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'home_bar_sync_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HomeBarSyncStateData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('owner_user_id')) {
+      context.handle(
+        _ownerUserIdMeta,
+        ownerUserId.isAcceptableOrUnknown(
+          data['owner_user_id']!,
+          _ownerUserIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_revision')) {
+      context.handle(
+        _lastRevisionMeta,
+        lastRevision.isAcceptableOrUnknown(
+          data['last_revision']!,
+          _lastRevisionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HomeBarSyncStateData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HomeBarSyncStateData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      ownerUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_user_id'],
+      ),
+      lastRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_revision'],
+      )!,
+    );
+  }
+
+  @override
+  $HomeBarSyncStateTable createAlias(String alias) {
+    return $HomeBarSyncStateTable(attachedDatabase, alias);
+  }
+}
+
+class HomeBarSyncStateData extends DataClass
+    implements Insertable<HomeBarSyncStateData> {
+  final int id;
+  final String? ownerUserId;
+  final int lastRevision;
+  const HomeBarSyncStateData({
+    required this.id,
+    this.ownerUserId,
+    required this.lastRevision,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || ownerUserId != null) {
+      map['owner_user_id'] = Variable<String>(ownerUserId);
+    }
+    map['last_revision'] = Variable<int>(lastRevision);
+    return map;
+  }
+
+  HomeBarSyncStateCompanion toCompanion(bool nullToAbsent) {
+    return HomeBarSyncStateCompanion(
+      id: Value(id),
+      ownerUserId: ownerUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerUserId),
+      lastRevision: Value(lastRevision),
+    );
+  }
+
+  factory HomeBarSyncStateData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HomeBarSyncStateData(
+      id: serializer.fromJson<int>(json['id']),
+      ownerUserId: serializer.fromJson<String?>(json['ownerUserId']),
+      lastRevision: serializer.fromJson<int>(json['lastRevision']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'ownerUserId': serializer.toJson<String?>(ownerUserId),
+      'lastRevision': serializer.toJson<int>(lastRevision),
+    };
+  }
+
+  HomeBarSyncStateData copyWith({
+    int? id,
+    Value<String?> ownerUserId = const Value.absent(),
+    int? lastRevision,
+  }) => HomeBarSyncStateData(
+    id: id ?? this.id,
+    ownerUserId: ownerUserId.present ? ownerUserId.value : this.ownerUserId,
+    lastRevision: lastRevision ?? this.lastRevision,
+  );
+  HomeBarSyncStateData copyWithCompanion(HomeBarSyncStateCompanion data) {
+    return HomeBarSyncStateData(
+      id: data.id.present ? data.id.value : this.id,
+      ownerUserId: data.ownerUserId.present
+          ? data.ownerUserId.value
+          : this.ownerUserId,
+      lastRevision: data.lastRevision.present
+          ? data.lastRevision.value
+          : this.lastRevision,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeBarSyncStateData(')
+          ..write('id: $id, ')
+          ..write('ownerUserId: $ownerUserId, ')
+          ..write('lastRevision: $lastRevision')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, ownerUserId, lastRevision);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HomeBarSyncStateData &&
+          other.id == this.id &&
+          other.ownerUserId == this.ownerUserId &&
+          other.lastRevision == this.lastRevision);
+}
+
+class HomeBarSyncStateCompanion extends UpdateCompanion<HomeBarSyncStateData> {
+  final Value<int> id;
+  final Value<String?> ownerUserId;
+  final Value<int> lastRevision;
+  const HomeBarSyncStateCompanion({
+    this.id = const Value.absent(),
+    this.ownerUserId = const Value.absent(),
+    this.lastRevision = const Value.absent(),
+  });
+  HomeBarSyncStateCompanion.insert({
+    this.id = const Value.absent(),
+    this.ownerUserId = const Value.absent(),
+    this.lastRevision = const Value.absent(),
+  });
+  static Insertable<HomeBarSyncStateData> custom({
+    Expression<int>? id,
+    Expression<String>? ownerUserId,
+    Expression<int>? lastRevision,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (ownerUserId != null) 'owner_user_id': ownerUserId,
+      if (lastRevision != null) 'last_revision': lastRevision,
+    });
+  }
+
+  HomeBarSyncStateCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? ownerUserId,
+    Value<int>? lastRevision,
+  }) {
+    return HomeBarSyncStateCompanion(
+      id: id ?? this.id,
+      ownerUserId: ownerUserId ?? this.ownerUserId,
+      lastRevision: lastRevision ?? this.lastRevision,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (ownerUserId.present) {
+      map['owner_user_id'] = Variable<String>(ownerUserId.value);
+    }
+    if (lastRevision.present) {
+      map['last_revision'] = Variable<int>(lastRevision.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HomeBarSyncStateCompanion(')
+          ..write('id: $id, ')
+          ..write('ownerUserId: $ownerUserId, ')
+          ..write('lastRevision: $lastRevision')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$CollectionDatabase extends GeneratedDatabase {
   _$CollectionDatabase(QueryExecutor e) : super(e);
   $CollectionDatabaseManager get managers => $CollectionDatabaseManager(this);
   late final $EntriesTable entries = $EntriesTable(this);
   late final $PhotosTable photos = $PhotosTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
+  late final $HomeBarItemsTable homeBarItems = $HomeBarItemsTable(this);
+  late final $HomeBarSyncStateTable homeBarSyncState = $HomeBarSyncStateTable(
+    this,
+  );
   late final Index entriesSourceRecipeId = Index(
     'entries_source_recipe_id',
     'CREATE INDEX entries_source_recipe_id ON entries (source_recipe_id)',
@@ -1337,6 +2035,8 @@ abstract class _$CollectionDatabase extends GeneratedDatabase {
     entries,
     photos,
     syncState,
+    homeBarItems,
+    homeBarSyncState,
     entriesSourceRecipeId,
     entriesDay,
   ];
@@ -2051,6 +2751,430 @@ typedef $$SyncStateTableProcessedTableManager =
       SyncStateData,
       PrefetchHooks Function()
     >;
+typedef $$HomeBarItemsTableCreateCompanionBuilder =
+    HomeBarItemsCompanion Function({
+      required String ingredientId,
+      required String displayName,
+      required String location,
+      required DateTime updatedAt,
+      Value<bool> deleted,
+      Value<bool> dirty,
+      Value<int> rowid,
+    });
+typedef $$HomeBarItemsTableUpdateCompanionBuilder =
+    HomeBarItemsCompanion Function({
+      Value<String> ingredientId,
+      Value<String> displayName,
+      Value<String> location,
+      Value<DateTime> updatedAt,
+      Value<bool> deleted,
+      Value<bool> dirty,
+      Value<int> rowid,
+    });
+
+class $$HomeBarItemsTableFilterComposer
+    extends Composer<_$CollectionDatabase, $HomeBarItemsTable> {
+  $$HomeBarItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get ingredientId => $composableBuilder(
+    column: $table.ingredientId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HomeBarItemsTableOrderingComposer
+    extends Composer<_$CollectionDatabase, $HomeBarItemsTable> {
+  $$HomeBarItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get ingredientId => $composableBuilder(
+    column: $table.ingredientId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get deleted => $composableBuilder(
+    column: $table.deleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dirty => $composableBuilder(
+    column: $table.dirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HomeBarItemsTableAnnotationComposer
+    extends Composer<_$CollectionDatabase, $HomeBarItemsTable> {
+  $$HomeBarItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get ingredientId => $composableBuilder(
+    column: $table.ingredientId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => column);
+
+  GeneratedColumn<bool> get dirty =>
+      $composableBuilder(column: $table.dirty, builder: (column) => column);
+}
+
+class $$HomeBarItemsTableTableManager
+    extends
+        RootTableManager<
+          _$CollectionDatabase,
+          $HomeBarItemsTable,
+          HomeBarItemRow,
+          $$HomeBarItemsTableFilterComposer,
+          $$HomeBarItemsTableOrderingComposer,
+          $$HomeBarItemsTableAnnotationComposer,
+          $$HomeBarItemsTableCreateCompanionBuilder,
+          $$HomeBarItemsTableUpdateCompanionBuilder,
+          (
+            HomeBarItemRow,
+            BaseReferences<
+              _$CollectionDatabase,
+              $HomeBarItemsTable,
+              HomeBarItemRow
+            >,
+          ),
+          HomeBarItemRow,
+          PrefetchHooks Function()
+        > {
+  $$HomeBarItemsTableTableManager(
+    _$CollectionDatabase db,
+    $HomeBarItemsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HomeBarItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HomeBarItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HomeBarItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> ingredientId = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HomeBarItemsCompanion(
+                ingredientId: ingredientId,
+                displayName: displayName,
+                location: location,
+                updatedAt: updatedAt,
+                deleted: deleted,
+                dirty: dirty,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String ingredientId,
+                required String displayName,
+                required String location,
+                required DateTime updatedAt,
+                Value<bool> deleted = const Value.absent(),
+                Value<bool> dirty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HomeBarItemsCompanion.insert(
+                ingredientId: ingredientId,
+                displayName: displayName,
+                location: location,
+                updatedAt: updatedAt,
+                deleted: deleted,
+                dirty: dirty,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HomeBarItemsTable, HomeBarItemRow>(table),
+                  BaseReferences<
+                    _$CollectionDatabase,
+                    $HomeBarItemsTable,
+                    HomeBarItemRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HomeBarItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CollectionDatabase,
+      $HomeBarItemsTable,
+      HomeBarItemRow,
+      $$HomeBarItemsTableFilterComposer,
+      $$HomeBarItemsTableOrderingComposer,
+      $$HomeBarItemsTableAnnotationComposer,
+      $$HomeBarItemsTableCreateCompanionBuilder,
+      $$HomeBarItemsTableUpdateCompanionBuilder,
+      (
+        HomeBarItemRow,
+        BaseReferences<
+          _$CollectionDatabase,
+          $HomeBarItemsTable,
+          HomeBarItemRow
+        >,
+      ),
+      HomeBarItemRow,
+      PrefetchHooks Function()
+    >;
+typedef $$HomeBarSyncStateTableCreateCompanionBuilder =
+    HomeBarSyncStateCompanion Function({
+      Value<int> id,
+      Value<String?> ownerUserId,
+      Value<int> lastRevision,
+    });
+typedef $$HomeBarSyncStateTableUpdateCompanionBuilder =
+    HomeBarSyncStateCompanion Function({
+      Value<int> id,
+      Value<String?> ownerUserId,
+      Value<int> lastRevision,
+    });
+
+class $$HomeBarSyncStateTableFilterComposer
+    extends Composer<_$CollectionDatabase, $HomeBarSyncStateTable> {
+  $$HomeBarSyncStateTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HomeBarSyncStateTableOrderingComposer
+    extends Composer<_$CollectionDatabase, $HomeBarSyncStateTable> {
+  $$HomeBarSyncStateTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HomeBarSyncStateTableAnnotationComposer
+    extends Composer<_$CollectionDatabase, $HomeBarSyncStateTable> {
+  $$HomeBarSyncStateTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerUserId => $composableBuilder(
+    column: $table.ownerUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastRevision => $composableBuilder(
+    column: $table.lastRevision,
+    builder: (column) => column,
+  );
+}
+
+class $$HomeBarSyncStateTableTableManager
+    extends
+        RootTableManager<
+          _$CollectionDatabase,
+          $HomeBarSyncStateTable,
+          HomeBarSyncStateData,
+          $$HomeBarSyncStateTableFilterComposer,
+          $$HomeBarSyncStateTableOrderingComposer,
+          $$HomeBarSyncStateTableAnnotationComposer,
+          $$HomeBarSyncStateTableCreateCompanionBuilder,
+          $$HomeBarSyncStateTableUpdateCompanionBuilder,
+          (
+            HomeBarSyncStateData,
+            BaseReferences<
+              _$CollectionDatabase,
+              $HomeBarSyncStateTable,
+              HomeBarSyncStateData
+            >,
+          ),
+          HomeBarSyncStateData,
+          PrefetchHooks Function()
+        > {
+  $$HomeBarSyncStateTableTableManager(
+    _$CollectionDatabase db,
+    $HomeBarSyncStateTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HomeBarSyncStateTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HomeBarSyncStateTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HomeBarSyncStateTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> ownerUserId = const Value.absent(),
+                Value<int> lastRevision = const Value.absent(),
+              }) => HomeBarSyncStateCompanion(
+                id: id,
+                ownerUserId: ownerUserId,
+                lastRevision: lastRevision,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> ownerUserId = const Value.absent(),
+                Value<int> lastRevision = const Value.absent(),
+              }) => HomeBarSyncStateCompanion.insert(
+                id: id,
+                ownerUserId: ownerUserId,
+                lastRevision: lastRevision,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HomeBarSyncStateTable, HomeBarSyncStateData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CollectionDatabase,
+                    $HomeBarSyncStateTable,
+                    HomeBarSyncStateData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HomeBarSyncStateTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CollectionDatabase,
+      $HomeBarSyncStateTable,
+      HomeBarSyncStateData,
+      $$HomeBarSyncStateTableFilterComposer,
+      $$HomeBarSyncStateTableOrderingComposer,
+      $$HomeBarSyncStateTableAnnotationComposer,
+      $$HomeBarSyncStateTableCreateCompanionBuilder,
+      $$HomeBarSyncStateTableUpdateCompanionBuilder,
+      (
+        HomeBarSyncStateData,
+        BaseReferences<
+          _$CollectionDatabase,
+          $HomeBarSyncStateTable,
+          HomeBarSyncStateData
+        >,
+      ),
+      HomeBarSyncStateData,
+      PrefetchHooks Function()
+    >;
 
 class $CollectionDatabaseManager {
   final _$CollectionDatabase _db;
@@ -2061,4 +3185,8 @@ class $CollectionDatabaseManager {
       $$PhotosTableTableManager(_db, _db.photos);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
+  $$HomeBarItemsTableTableManager get homeBarItems =>
+      $$HomeBarItemsTableTableManager(_db, _db.homeBarItems);
+  $$HomeBarSyncStateTableTableManager get homeBarSyncState =>
+      $$HomeBarSyncStateTableTableManager(_db, _db.homeBarSyncState);
 }

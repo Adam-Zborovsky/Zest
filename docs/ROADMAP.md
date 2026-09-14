@@ -98,9 +98,11 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
   - Adam switches repository visibility himself after reviewing the checklist.
 - **Status (2026-09-14):** Acceptance is complete in the working tree. The repository is public with `Development` as its default branch; the history and committed media were audited; licensing, notices, source-rights analysis, and publication boundaries are documented. The README now describes the M8 system and uses two provider-free screenshots. The final in-app audit added conditional calendar-image attribution and source attribution to both variation-editor paths; the profile sheet received its pending responsive polish. Analysis is clean and all 472 Flutter tests pass. Repository description and topics remain optional GitHub metadata. See [docs/reviews/M9.md](reviews/M9.md).
 
-## M10 — Home-bar inventory and shopping list
+## M10 — Home-bar inventory and shopping list — DONE (2026-09-14)
 
-- Scope, storage, and sync are decided when the milestone starts, through a brainstorm with Adam.
+- **Decision (Adam, 2026-09-14):** persistent binary inventory of normalized catalog ingredients; local-catalog matching into ready, reviewed-substitution, and missing-essential groups; a manual and recipe-fed shopping list; one-action moves between shopping and stocked; offline-first account sync. Quantities, brands, prices, expiry, barcode scanning, party planning, shared bars, automatic ordering, and “buy next” ranking are deferred. See [M10.md](M10.md).
+- **Implementation:** Drift schema 5 stores stocked/shopping rows and an isolated sync cursor; the backend stores owner-scoped rows with a separate monotonic `bar_revision`; the account sync coordinator runs collection and home-bar passes together. `/bar` is the durable catalog-backed shelf, `/bar/shopping` is route-backed, and discovery-scoped matching reads the same persistent shelf. Recipe and match actions add missing essentials without optional garnishes or implicit substitutions.
+- **Verification:** Flutter analysis is clean and all 493 tests pass. Backend typecheck, all 66 tests, and build pass. Tests cover migration, local writes, restoration, account isolation, paging, timestamp ties, an edit during an in-flight PUT with its automatic trailing pass, offline/session-expiry behavior, scoped and catalog matching, shopping actions, route-backed Back behavior, keyboard flow, 320-pixel/2× text, and reviewed goldens. Independent review found and blocked on the in-flight-write race; the atomic compare-and-apply and trailing-pass fixes were re-reviewed with no blocking or major findings. See [reviews/M10.md](reviews/M10.md).
 
 ## Later (not scheduled)
 
@@ -114,4 +116,4 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Media storage and sync** — resolved in M8 (2026-09-13): photos on Zest's server disk, owner-readable only, synced with collection entries.
 - **Repository publication** — resolved for M9 (2026-09-14): public on GitHub, MIT for app code, content governed per `docs/SOURCES.md`.
 - **Deployment and app-store distribution** (HTTPS, backups, email verification, password reset, account deletion, enumeration review) — open.
-- **Home-bar inventory and shopping list scope and sync** — decided at the start of M10.
+- **Home-bar inventory and shopping list scope and sync** — resolved in M10 (2026-09-14); see [M10.md](M10.md).

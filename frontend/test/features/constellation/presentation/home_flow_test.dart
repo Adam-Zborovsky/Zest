@@ -19,10 +19,12 @@ import 'package:zest/features/constellation/presentation/constellation_widgets.d
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
+import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 
 import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
+import '../../../support/in_memory_home_bar_repository.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
@@ -78,15 +80,18 @@ Future<FakeCatalogLetterSource> openHome(
   }
   final transport = MockClient(_respond);
   final client = CocktailDbClient(client: transport);
+  final homeBar = InMemoryHomeBarRepository();
   addTearDown(() {
     client.close();
     transport.close();
   });
+  addTearDown(homeBar.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         ...catalogTestOverrides(database: database, source: source, now: now),
         cocktailDbClientProvider.overrideWithValue(client),
+        homeBarRepositoryProvider.overrideWithValue(homeBar),
         if (now != null) nowProvider.overrideWithValue(now),
         ...collectionTestOverrides(),
         ...sessionTestOverrides(),
@@ -645,7 +650,7 @@ void main() {
 
     await activate(tester, keyed('home-bar'));
     expect(router(tester).state.uri.path, '/bar');
-    expect(find.text('What can I make?'), findsOneWidget);
+    expect(find.text('Your botanical shelf'), findsOneWidget);
   });
 
   for (final scale in [1.0, 2.0]) {

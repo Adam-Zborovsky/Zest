@@ -2,7 +2,7 @@
 
 Zest is a personal cocktail companion built around the ingredients you have and the drinks you want to remember. Its home screen is an ingredient constellation: a visual map of which ingredients appear together across the locally loaded recipe collection.
 
-The app combines recipe discovery, practical bar matching, a dated drink collection, personal variations, memory photos, and account-backed sync. The interface uses Zest's Botanical Play and Night Garden design system rather than stock Material styling.
+The app combines recipe discovery, a persistent home bar and shopping list, practical matching, a dated drink collection, personal variations, memory photos, and account-backed sync. The interface uses Zest's Botanical Play and Night Garden design system rather than stock Material styling.
 
 <p align="center">
   <img src="docs/screenshots/home-constellation.png" width="47%" alt="Zest home screen showing the ingredient constellation with Gin selected">
@@ -14,10 +14,10 @@ The app combines recipe discovery, practical bar matching, a dated drink collect
 
 - Explores ingredient relationships through a bounded co-occurrence graph, with an accessible list alternative.
 - Searches and browses TheCocktailDB recipes by name, ingredient, and first letter.
-- Sorts selected recipes into ready to make, possible with a reviewed substitution, and missing essentials.
+- Keeps catalog ingredients in a synced home bar or shopping list, and sorts local or selected recipes into ready to make, possible with a reviewed substitution, and missing essentials.
 - Saves drinks to a calendar and keeps personal variations distinct from their source recipes.
 - Attaches one private memory photo to a saved drink or variation.
-- Works from an on-device Drift database and syncs collection entries and photos through Zest's own account backend.
+- Works from on-device Drift databases and syncs collection entries, home-bar items, shopping items, and photos through Zest's own account backend.
 - Handles loading, empty, error, reduced-motion, large-text, and keyboard-access paths as part of each feature.
 
 ## Architecture
@@ -31,7 +31,7 @@ flowchart LR
     API --> Photos[Private photo directory]
 ```
 
-The Flutter app remains usable offline from its local collection. The backend holds the recipe-provider key, authenticates users, resolves collection synchronization, stores account data in PostgreSQL, and keeps photo files on server disk. It currently targets local development on a trusted computer or home network; public deployment is not configured.
+The Flutter app remains usable offline from its local collection and home bar. The backend holds the recipe-provider key, authenticates users, resolves collection and home-bar synchronization, stores account data in PostgreSQL, and keeps photo files on server disk. It currently targets local development on a trusted computer or home network; public deployment is not configured.
 
 ## Repository layout
 

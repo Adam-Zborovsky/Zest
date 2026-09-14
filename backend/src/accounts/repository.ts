@@ -4,9 +4,9 @@
 // per docs/ACCOUNTS.md.
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import type { Db } from './db.js';
-import { entries, sessions, users } from './schema.js';
-import type { EntryRecord, VariationRecord } from './contract.js';
-import type { ValidatedEntry } from './validation.js';
+import { barItems, entries, sessions, users } from './schema.js';
+import type { EntryRecord, HomeBarItemRecord, VariationRecord } from './contract.js';
+import type { ValidatedEntry, ValidatedHomeBarItem } from './validation.js';
 import { photoPath, removePhotoFile } from './photos.js';
 
 export class EmailTakenError extends Error {}
@@ -271,4 +271,85 @@ export async function clearEntryPhoto(db: Db, params: { userId: string; entryId:
     await tx.update(entries).set(values).where(and(eq(entries.userId, params.userId), eq(entries.id, params.entryId)));
     return { entry: toEntryRecord({ ...existing, ...values }), outcome: 'applied' };
   });
+}
+
+interface BarItemRow {
+  userId: string;
+  ingredientId: string;
+  displayName: string;
+  location: string;
+  updatedAt: string;
+  deleted: boolean;
+  revision: number;
+}
+
+function toHomeBarItemRecord(row: BarItemRow): HomeBarItemRecord {
+  return {
+    ingredientId: row.ingredientId,
+    displayName: row.displayName,
+    location: row.location as HomeBarItemRecord['location'],
+    updatedAt: toIso(row.updatedAt),
+    deleted: row.deleted,
+    revision: row.revision,
+  };
+}
+
+/**
+ * Applies M10's last-edit-wins home-bar state. Unlike collection records,
+ * home-bar tombstones are restorable by a strictly newer explicit write.
+ */
+export async function upsertHomeBarItem(db: Db, params: {
+  userId: string;
+  body: ValidatedHomeBarItem;
+}): Promise<HomeBarItemRecord> {
+  return db.transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, params.userId)).for('update');
+    const existingRows = await tx.select().from(barItems)
+      .where(and(eq(barItems.userId, params.userId), eq(barItems.ingredientId, params.body.ingredientId))).limit(1);
+    const existing = existingRows[0] as BarItemRow | undefined;
+    if (existing && Date.parse(params.body.updatedAt) <= Date.parse(existing.updatedAt)) {
+      return toHomeBarItemRecord(existing);
+    }
+
+    const revisionRows = await tx.update(users).set({ barRevision: sql`${users.barRevision} + 1` })
+      .where(eq(users.id, params.userId)).returning({ revision: users.barRevision });
+    const revision = revisionRows[0]!.revision;
+    const values = {
+      userId: params.userId,
+      ingredientId: params.body.ingredientId,
+      displayName: params.body.displayName,
+      location: params.body.location,
+      updatedAt: params.body.updatedAt,
+      deleted: params.body.deleted,
+      revision,
+    };
+    if (existing) {
+      await tx.update(barItems).set(values)
+        .where(and(eq(barItems.userId, params.userId), eq(barItems.ingredientId, params.body.ingredientId)));
+    } else {
+      await tx.insert(barItems).values(values);
+    }
+    return toHomeBarItemRecord(values);
+  });
+}
+
+export interface HomeBarPullResult {
+  items: HomeBarItemRecord[];
+  revision: number;
+  hasMore: boolean;
+}
+
+/** Pulls only one user's home-bar stream, in ascending revision order. */
+export async function pullHomeBarItems(db: Db, params: {
+  userId: string;
+  since: number;
+  limit: number;
+}): Promise<HomeBarPullResult> {
+  const rows = await db.select().from(barItems)
+    .where(and(eq(barItems.userId, params.userId), gt(barItems.revision, params.since)))
+    .orderBy(asc(barItems.revision)).limit(params.limit + 1);
+  const hasMore = rows.length > params.limit;
+  const page = (hasMore ? rows.slice(0, params.limit) : rows) as BarItemRow[];
+  const revision = page.length > 0 ? page[page.length - 1]!.revision : params.since;
+  return { items: page.map(toHomeBarItemRecord), revision, hasMore };
 }

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/zest_tokens.dart';
 import '../../../core/widgets/zest_button.dart';
-import '../../../core/widgets/zest_states.dart';
+import '../../../core/widgets/zest_card.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
+import '../../home_bar/application/home_bar_providers.dart';
 import '../application/bar_providers.dart';
 import 'bar_widgets.dart';
+import '../../home_bar/presentation/home_bar_screen.dart';
 
 class BarScreen extends ConsumerWidget {
   const BarScreen({super.key});
@@ -15,7 +17,12 @@ class BarScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scope = ref.watch(recipeScopeProvider);
-    final selection = ref.watch(barSelectionProvider);
+    // A direct visit is the durable, catalog-backed home bar. Discovery
+    // continues to own its explicit result scope for the current session;
+    // it must never quietly widen that scope to the local catalog.
+    if (scope == null) return const HomeBarScreen();
+    final stocked = ref.watch(stockedIngredientIdsProvider);
+    final selection = stocked.value ?? const <String>{};
     final running = ref.watch(
       barMatchProvider.select((run) => run.status == BarMatchStatus.running),
     );
@@ -29,20 +36,17 @@ class BarScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (scope == null)
-            ZestEmptyState(
-              announce: true,
-              title: 'Nothing to match yet',
-              message:
-                  'Search or browse in Discover, then choose "What can '
-                  'I make" from the results.',
-              actionLabel: 'Explore discovery',
-              onAction: () => context.go('/discover'),
-            )
-          else ...[
+          ...[
             BarScopeCard(scope: scope),
             const SizedBox(height: ZestSpace.lg),
-            const IngredientSelectionCard(),
+            _ScopedInventoryCard(
+              stocked: selection.length,
+              loading: stocked.isLoading,
+              onManage: () {
+                ref.read(recipeScopeProvider.notifier).clear();
+                context.go('/bar');
+              },
+            ),
             const SizedBox(height: ZestSpace.xl),
             ZestButton(
               key: const ValueKey('bar-find-matches'),
@@ -56,8 +60,10 @@ class BarScreen extends ConsumerWidget {
             Text(
               running
                   ? 'Checking recipes now — matches appear below as they land.'
+                  : stocked.isLoading
+                  ? 'Opening your stocked ingredients…'
                   : selection.isEmpty
-                  ? 'Select at least one ingredient to start matching.'
+                  ? 'Add ingredients to My bar to start matching.'
                   : 'Matching covers the ${scope.recipes.length} '
                         '${scope.recipes.length == 1 ? 'recipe' : 'recipes'} '
                         'in this collection — not the full cocktail catalog.',
@@ -70,4 +76,42 @@ class BarScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _ScopedInventoryCard extends StatelessWidget {
+  const _ScopedInventoryCard({
+    required this.stocked,
+    required this.loading,
+    required this.onManage,
+  });
+
+  final int stocked;
+  final bool loading;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) => ZestCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const DiscoveryHeading('Ingredients from My bar'),
+        const SizedBox(height: ZestSpace.sm),
+        Text(
+          loading
+              ? 'Opening your stocked ingredients…'
+              : stocked == 0
+              ? 'Your bar is empty. Add catalog ingredients to match these discovery results.'
+              : '$stocked ${stocked == 1 ? 'ingredient is' : 'ingredients are'} stocked and used for this match.',
+        ),
+        const SizedBox(height: ZestSpace.md),
+        ZestButton(
+          key: const ValueKey('bar-manage-inventory'),
+          label: 'Manage my bar',
+          icon: Icons.shelves,
+          kind: ZestButtonKind.secondary,
+          onPressed: onManage,
+        ),
+      ],
+    ),
+  );
 }

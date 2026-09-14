@@ -1,5 +1,21 @@
 # Verification record
 
+## M10 — Home-bar inventory and shopping list — 2026-09-14
+
+Commands ran from their owning directories on the development PC:
+
+- Frontend: `flutter analyze` — no issues; `flutter test` — all **493 tests** passed.
+- Backend: `npm run typecheck` and `npm run build` — clean; `npm test` — all **66 tests** passed.
+- Drift generation completed for schema 5. The committed backend migration was applied by every PGlite backend test; no Docker container, server, watcher, provider call, key, or personal data was used.
+
+M10 coverage includes normalized binary inventory, mutually exclusive stocked/shopping locations, idempotent moves, restorable tombstones, millisecond timestamps, schema-4-to-5 migration, owner changes, independent cursors, deterministic dirty pushes, revision paging, equal-timestamp conflict retry, offline and expired-session states, authentication and cross-user isolation, strict request validation, and a local move made while an older PUT is in flight. That race now uses an atomic compare-and-apply and automatically schedules one trailing pass when its debounce expires during an active sync.
+
+Presentation coverage includes direct catalog-backed `/bar`, discovery-scoped matching against the same durable shelf, `/bar/shopping` and Back, manual catalog search, move/remove actions, recipe and match-result shopping actions that exclude optional garnishes, loading protection before recipe shopping writes, rate-limit resume, keyboard operation, 320-pixel layouts at 2× text, and three reviewed synthetic goldens. Catalog counts state the locally loaded recipe/letter coverage and do not claim provider completeness.
+
+The fresh Terra review initially blocked on the in-flight PUT overwrite, then identified the missing automatic trailing pass after the atomic fix. Both defects received regressions and were re-reviewed. Final verdict: no blocking or major findings. See [M10 review](reviews/M10.md).
+
+Limits: no physical-device, TalkBack/VoiceOver, live browser-history, real PostgreSQL/Docker, provider-network, or deployment run was performed. The schema migration test starts from a minimal synthetic schema-4 fixture rather than a full copied production database. Deployment, HTTPS, backups, password recovery, email verification, and account deletion remain later work.
+
 ## Web catalog connection fixed — 2026-09-12
 
 Adam's browser run surfaced `ArgumentError: When compiling to the web, the 'web' parameter needs to be set` from `driftDatabase` — the catalog connection passed only `DriftNativeOptions`, so the web branch of the documented cross-platform opener threw at runtime. Neither `flutter analyze` nor `flutter build web --release` can catch this: the missing parameter is a runtime error on the browser platform only, the exact untested path the M5 review flagged.

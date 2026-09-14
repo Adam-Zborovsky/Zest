@@ -48,6 +48,7 @@ frontend/            # the Flutter application — run commands from here
     features/
       discovery/     # search, browse, recipe detail
       bar/           # "what can I make" matching
+      home_bar/      # persistent stocked/shopping state and sync
       constellation/ # ingredient co-occurrence graph
       collection/    # saved recipes, variations, memory photo
       onboarding/    # intro scenes + login

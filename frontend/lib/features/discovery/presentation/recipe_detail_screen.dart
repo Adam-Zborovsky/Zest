@@ -10,6 +10,9 @@ import '../../../core/widgets/zest_chip.dart';
 import '../../../core/widgets/zest_inline_error.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../collection/application/collection_providers.dart';
+import '../../home_bar/application/home_bar_providers.dart';
+import '../../home_bar/domain/home_bar_item.dart';
+import '../../bar/domain/ingredient_classification.dart';
 import '../../constellation/domain/ingredient_kind.dart';
 import '../../constellation/presentation/ingredient_glyph.dart';
 import '../application/discovery_providers.dart';
@@ -96,6 +99,8 @@ class _RecipeContent extends StatelessWidget {
         ),
         const SizedBox(height: ZestSpace.xl),
         _CollectionActions(recipe: recipe),
+        const SizedBox(height: ZestSpace.lg),
+        _RecipeShoppingAction(recipe: recipe),
         const SizedBox(height: ZestSpace.xxl),
         ZestCard(
           recipe: true,
@@ -170,6 +175,119 @@ class _RecipeContent extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Adds only ingredients the person does not currently stock. Garnishes and
+/// reviewed substitutions stay out of this action: the recipe remains the
+/// source record, and choosing a substitution is always explicit.
+class _RecipeShoppingAction extends ConsumerStatefulWidget {
+  const _RecipeShoppingAction({required this.recipe});
+
+  final Recipe recipe;
+
+  @override
+  ConsumerState<_RecipeShoppingAction> createState() =>
+      _RecipeShoppingActionState();
+}
+
+class _RecipeShoppingActionState extends ConsumerState<_RecipeShoppingAction> {
+  bool _adding = false;
+  bool _added = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ref.watch(homeBarItemsProvider);
+    if (items.isLoading) {
+      return const ZestLoadingState(label: 'Checking your home bar…');
+    }
+    if (items.hasError) {
+      return ZestErrorState(
+        title: 'Your home bar is out of reach',
+        message:
+            'Zest could not check which ingredients are already stocked. Try again before adding this recipe to shopping.',
+        onRetry: () => ref.invalidate(homeBarItemsProvider),
+      );
+    }
+    final records = items.requireValue;
+    final stocked = {
+      for (final item in records)
+        if (item.location == HomeBarLocation.stocked && !item.deleted)
+          item.ingredientId,
+    };
+    final missing = <String>[];
+    final seen = <String>{};
+    for (final ingredient in widget.recipe.ingredients) {
+      if (!seen.add(ingredient.normalizedName) ||
+          stocked.contains(ingredient.normalizedName) ||
+          isOptionalGarnish(ingredient.normalizedName)) {
+        continue;
+      }
+      missing.add(ingredient.name);
+    }
+    if (missing.isEmpty) return const SizedBox.shrink();
+
+    return ZestCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const DiscoveryHeading('Missing essentials'),
+          const SizedBox(height: ZestSpace.sm),
+          Text(
+            '${missing.join(', ')}. Optional garnishes are not added automatically.',
+          ),
+          const SizedBox(height: ZestSpace.md),
+          ZestButton(
+            key: ValueKey('recipe-add-missing-${widget.recipe.id}'),
+            label: _adding
+                ? 'Adding essentials…'
+                : _added
+                ? 'Added to shopping'
+                : 'Add missing essentials to shopping',
+            icon: Icons.add_shopping_cart_rounded,
+            kind: ZestButtonKind.secondary,
+            onPressed: _adding || _added ? null : () => _add(missing),
+          ),
+          if (_added) ...[
+            const SizedBox(height: ZestSpace.sm),
+            Semantics(
+              liveRegion: true,
+              child: Text('Missing essentials added to shopping.'),
+            ),
+            ZestButton(
+              label: 'View shopping',
+              kind: ZestButtonKind.quiet,
+              onPressed: () => context.go('/bar/shopping'),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: ZestSpace.sm),
+            Semantics(liveRegion: true, child: Text(_error!)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _add(List<String> missing) async {
+    setState(() {
+      _adding = true;
+      _error = null;
+    });
+    try {
+      final repository = ref.read(homeBarRepositoryProvider);
+      for (final name in missing) {
+        await repository.addToShopping(name);
+      }
+      if (mounted) setState(() => _added = true);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Unable to update shopping. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
   }
 }
 

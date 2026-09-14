@@ -1,6 +1,6 @@
-# Accounts and synced collection (M8)
+# Accounts and personal-data sync (M8 + M10)
 
-M8 gives Zest real accounts and stores each person's saved drinks, calendar days, variations, and memory photos on Zest's own backend, keyed by user ID. The app stays usable offline: the on-device collection database is a cache that syncs both ways. This document is the build contract for the M8 tracks and becomes the feature record once M8 closes.
+M8 gives Zest real accounts and stores each person's saved drinks, calendar days, variations, and memory photos on Zest's own backend, keyed by user ID. M10 adds the person's stocked ingredients and shopping list as a separate revision stream. The app stays usable offline: the on-device personal-data database is the source of truth and syncs both ways. This document records the shared account lifecycle and both sync contracts.
 
 ## Decisions (Adam, 2026-09-13)
 
@@ -156,6 +156,21 @@ Sync rules:
 
   The pass runs on sign-in, at app start, after local writes (debounced by 2 seconds), and from "Sync now". Status is exposed as `SyncStatus` (idle, syncing, offline, failed) for the profile sheet. It never blocks the collection screens.
   - **Push ties.** A push whose returned record ties the sent `updatedAt` (or `photoUpdatedAt`) but carries different content is a server-side rejection, not a success: the client leaves it dirty, re-stamps its local `updatedAt` strictly past what was sent, and retries once in the same pass before giving up to the next pass, instead of adopting the foreign record and clearing `dirty`. Nothing bounds a clock running backwards: last-edit-wins orders by the timestamps devices assign, not by when the edits actually happened, so concurrent edits from devices with wrong clocks resolve deterministically but not necessarily in human order.
+
+## M10 home-bar sync addendum (2026-09-14)
+
+Home-bar and shopping-list rows are account-owned personal data and use the same authentication and offline-first lifecycle as collection entries, with an independent revision stream. See [M10.md](M10.md) for the complete product and conflict contract.
+
+`HomeBarItemRecord` contains `ingredientId`, `displayName`, `location` (`stocked` or `shopping`), `updatedAt`, `deleted`, and the server-assigned `revision`. The identity is the normalized catalog ingredient name, capped at 120 UTF-16 code units with control characters rejected. The decoded route identity must equal the body identity, and JSON bodies are capped at 16 KiB.
+
+| Route | Body | Result |
+| --- | --- | --- |
+| `GET /api/sync/bar-items?since=<int≥0>&limit=<1..500, default 200>` | none | `200 { items: [HomeBarItemRecord], revision, hasMore }` |
+| `PUT /api/bar-items/:ingredientId` | `HomeBarItemRecord` without `revision`; identity must match the path | `200 HomeBarItemRecord`, the stored result |
+
+Every query filters by the bearer token's user. `users.bar_revision` advances independently of `users.revision`, so collection changes cannot create gaps in the home-bar cursor. Mutations lock the user row, assign the next home-bar revision, and apply only when `updatedAt` is strictly later than the stored value. Equal or earlier writes are no-ops. Home-bar tombstones are restorable by a later explicit add, unlike final collection-entry tombstones.
+
+Drift schema 5 adds `home_bar_items` and `home_bar_sync_state` to the personal-data database. Ownership, dirty ordering, page application, cursor advancement, one-millisecond tie restamping, offline status, `401` expiry, launch sync, debounced local-write sync, explicit “Sync now,” and pre-sign-out sync mirror the collection engine. `AccountSyncCoordinator` presents one combined status while retaining dirty state independently in both stores.
 
 ## Contract (committed before the tracks start)
 

@@ -105,6 +105,35 @@ class SyncState extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// One persistent home-bar identity. [ingredientId] is the normalized
+/// ingredient name, so the same catalog ingredient can only occupy one
+/// location on this device. Deleted rows remain as restorable tombstones
+/// until the server has observed them.
+@DataClassName('HomeBarItemRow')
+class HomeBarItems extends Table {
+  TextColumn get ingredientId => text()();
+  TextColumn get displayName => text()();
+  TextColumn get location => text()();
+  IntColumn get updatedAt => integer().map(const UtcMillisConverter())();
+  BoolColumn get deleted => boolean().withDefault(const Constant(false))();
+  BoolColumn get dirty => boolean().withDefault(const Constant(true))();
+
+  @override
+  Set<Column> get primaryKey => {ingredientId};
+}
+
+/// The home-bar stream deliberately has its own owner and revision cursor.
+/// Collection entry revisions and bar-item revisions advance independently on
+/// the server, so sharing [SyncState.lastRevision] would skip remote changes.
+class HomeBarSyncState extends Table {
+  IntColumn get id => integer().withDefault(const Constant(0))();
+  TextColumn get ownerUserId => text().nullable()();
+  IntColumn get lastRevision => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// The photo bytes for one entry, kept in a separate table so listing
 /// entries never loads image bytes. Deleting an entry deletes its photo row
 /// in the same transaction (`DriftCollectionRepository.delete`).
@@ -121,14 +150,16 @@ class Photos extends Table {
   Set<Column> get primaryKey => {entryId};
 }
 
-@DriftDatabase(tables: [Entries, Photos, SyncState])
+@DriftDatabase(
+  tables: [Entries, Photos, SyncState, HomeBarItems, HomeBarSyncState],
+)
 final class CollectionDatabase extends _$CollectionDatabase {
   /// Tests pass an in-memory or temp-file executor; the app passes the
   /// platform-appropriate connection from `openCollectionConnection`.
   CollectionDatabase(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -166,6 +197,10 @@ final class CollectionDatabase extends _$CollectionDatabase {
         await customStatement(
           'UPDATE photos SET updated_at = updated_at * 1000;',
         );
+      }
+      if (from < 5) {
+        await m.createTable(homeBarItems);
+        await m.createTable(homeBarSyncState);
       }
       if (from < 2) {
         // Date each existing entry by the local day it was created. Done in
