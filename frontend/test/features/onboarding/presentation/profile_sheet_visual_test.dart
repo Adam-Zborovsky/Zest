@@ -4,11 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zest/core/design/zest_theme.dart';
 import 'package:zest/features/account/data/account_repository.dart';
+import 'package:zest/features/collection/sync/sync_contract.dart';
 import 'package:zest/features/onboarding/application/session_providers.dart';
 import 'package:zest/features/onboarding/domain/launch_destination.dart';
 import 'package:zest/features/onboarding/presentation/login_screen.dart';
+import 'package:zest/features/onboarding/presentation/profile_sheet.dart';
 
 import '../../../support/fake_account_repository.dart';
+import '../../../support/fake_collection_sync.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/load_fonts.dart';
 
@@ -16,8 +19,10 @@ class _HomeStub extends StatelessWidget {
   const _HomeStub();
 
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Home')));
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Home'), actions: const [ProfileButton()]),
+    body: const Center(child: Text('Home')),
+  );
 }
 
 class _OnboardingStub extends StatelessWidget {
@@ -28,23 +33,22 @@ class _OnboardingStub extends StatelessWidget {
       const Scaffold(body: Center(child: Text('Onboarding')));
 }
 
-/// The Night Garden theme wrapped around a small router — the same shape the
-/// login track's logic tests use, but with the real theme so the golden
-/// matches the reviewed design instead of Material's defaults.
-Future<void> _pumpLogin(
+Future<void> _pumpProfileSheet(
   WidgetTester tester, {
   required Key capture,
   AccountRepository? account,
+  FakeCollectionSync? sync,
 }) async {
   final overrides = sessionTestOverrides(
     onboarding: InMemoryOnboardingStore(seen: true),
-    account: account ?? FakeAccountRepository(),
+    account: account ?? FakeAccountRepository(current: syntheticAccount()),
+    sync: sync ?? FakeCollectionSync(),
   );
   final container = ProviderContainer(overrides: [...overrides]);
   addTearDown(container.dispose);
   final controller = container.read(sessionControllerProvider);
   final router = GoRouter(
-    initialLocation: SessionRoutes.login,
+    initialLocation: '/',
     refreshListenable: controller,
     redirect: (context, state) =>
         launchRedirect(controller.destination, state.uri),
@@ -76,6 +80,8 @@ Future<void> _pumpLogin(
     ),
   );
   await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('open-profile')));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -95,44 +101,46 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  testWidgets('login-sign-in render', (tester) async {
+  testWidgets('profile-sheet-synced render', (tester) async {
     await setSurface(tester);
-    const capture = ValueKey('login-sign-in-capture');
+    const capture = ValueKey('profile-sheet-synced-capture');
 
-    await _pumpLogin(tester, capture: capture);
+    await _pumpProfileSheet(
+      tester,
+      capture: capture,
+      account: FakeAccountRepository(
+        current: syntheticAccount(email: 'robin@example.test'),
+      ),
+      sync: FakeCollectionSync(
+        initial: SyncStatus(SyncPhase.idle, lastSyncedAt: DateTime(2026, 9, 14, 9)),
+      ),
+    );
 
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byKey(capture),
-      matchesGoldenFile('goldens/login-sign-in.png'),
+      matchesGoldenFile('goldens/profile-sheet-synced.png'),
     );
     await checkGuidelines(tester);
   });
 
-  testWidgets('login-create-account render with a field error', (
-    tester,
-  ) async {
+  testWidgets('profile-sheet-offline render', (tester) async {
     await setSurface(tester);
-    const capture = ValueKey('login-create-account-capture');
+    const capture = ValueKey('profile-sheet-offline-capture');
 
-    await _pumpLogin(tester, capture: capture);
-    await tester.tap(find.byKey(const ValueKey('login-mode-create-account')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const ValueKey('login-email-field')),
-      'sam@example.test',
+    await _pumpProfileSheet(
+      tester,
+      capture: capture,
+      account: FakeAccountRepository(
+        current: syntheticAccount(email: 'robin@example.test'),
+      ),
+      sync: FakeCollectionSync(initial: const SyncStatus(SyncPhase.offline)),
     );
-    await tester.enterText(
-      find.byKey(const ValueKey('login-password-field')),
-      'tooshort',
-    );
-    await tester.tap(find.byKey(const ValueKey('login-submit')));
-    await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byKey(capture),
-      matchesGoldenFile('goldens/login-create-account.png'),
+      matchesGoldenFile('goldens/profile-sheet-offline.png'),
     );
     await checkGuidelines(tester);
   });

@@ -37,6 +37,7 @@ class _CountingAccountRepository implements AccountRepository {
 
   final FakeAccountRepository _inner;
   int signInCalls = 0;
+  int registerCalls = 0;
 
   /// Held open while set, so a test can keep a first call in flight long
   /// enough for a second, overlapping call to observe the busy guard.
@@ -49,8 +50,10 @@ class _CountingAccountRepository implements AccountRepository {
   String? get sessionToken => _inner.sessionToken;
 
   @override
-  Future<Account> register({required String email, required String password}) =>
-      _inner.register(email: email, password: password);
+  Future<Account> register({required String email, required String password}) async {
+    registerCalls++;
+    return _inner.register(email: email, password: password);
+  }
 
   @override
   Future<Account> signIn({required String email, required String password}) async {
@@ -65,6 +68,34 @@ class _CountingAccountRepository implements AccountRepository {
 
   @override
   Future<void> expireSession() => _inner.expireSession();
+}
+
+/// A repository whose next call always fails with a given [AccountException],
+/// so error-copy tests do not depend on triggering the real validation rules.
+class _FailingAccountRepository implements AccountRepository {
+  _FailingAccountRepository(this.failure);
+
+  final AccountException failure;
+
+  @override
+  Account? get currentAccount => null;
+
+  @override
+  String? get sessionToken => null;
+
+  @override
+  Future<Account> register({required String email, required String password}) =>
+      throw failure;
+
+  @override
+  Future<Account> signIn({required String email, required String password}) =>
+      throw failure;
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<void> expireSession() async {}
 }
 
 /// The small test router the login track builds against: it mirrors what
@@ -86,10 +117,7 @@ Future<GoRouter> _pumpLogin(
   final router = GoRouter(
     initialLocation: initial,
     refreshListenable: controller,
-    redirect: (context, state) => launchRedirect(
-      controller.destination,
-      state.uri,
-    ),
+    redirect: (context, state) => launchRedirect(controller.destination, state.uri),
     routes: [
       GoRoute(path: '/', builder: (context, state) => const _HomeStub()),
       GoRoute(
@@ -125,92 +153,188 @@ void main() {
     await tester.enterText(keyed('login-password-field'), password);
   }
 
-  // The taller email/password card can push the submit buttons below the
-  // fold on the default test surface, unlike the single-field M7 form.
   Future<void> tapButton(WidgetTester tester, String key) async {
     final finder = keyed(key);
     await tester.ensureVisible(finder);
     await tester.tap(finder);
   }
 
-  testWidgets('Create account signs in and lands on home', (tester) async {
+  testWidgets('sign-in success lands on home', (tester) async {
     final account = FakeAccountRepository();
+    account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
     final router = await _pumpLogin(tester, account: account);
 
     await enterCredentials(tester);
-    await tapButton(tester, 'login-create-account');
+    await tapButton(tester, 'login-submit');
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/');
+  });
+
+  testWidgets('create-account success signs in and lands on home', (
+    tester,
+  ) async {
+    final account = FakeAccountRepository();
+    final router = await _pumpLogin(tester, account: account);
+
+    await tapButton(tester, 'login-mode-create-account');
+    await enterCredentials(tester);
+    await tapButton(tester, 'login-submit');
     await tester.pumpAndSettle();
 
     expect(router.state.uri.path, '/');
     expect(account.currentAccount?.email, 'sam@example.test');
   });
 
-  testWidgets('Sign in with correct credentials lands on home', (tester) async {
-    final account = FakeAccountRepository();
-    account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
-    final router = await _pumpLogin(tester, account: account);
-
-    await enterCredentials(tester);
-    await tapButton(tester, 'login-sign-in');
-    await tester.pumpAndSettle();
-
-    expect(router.state.uri.path, '/');
-  });
-
-  testWidgets('an invalid email shows an inline error and does not sign in', (
-    tester,
-  ) async {
-    final account = FakeAccountRepository();
-    await _pumpLogin(tester, account: account);
-
-    await enterCredentials(tester, email: 'not-an-email');
-    await tapButton(tester, 'login-sign-in');
-    await tester.pumpAndSettle();
-
-    expect(find.text('Enter a valid email address.'), findsOneWidget);
-    expect(account.currentAccount, isNull);
-  });
-
-  testWidgets('wrong credentials show an inline error', (tester) async {
-    final account = FakeAccountRepository();
-    account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
-    await _pumpLogin(tester, account: account);
-
-    await enterCredentials(tester, password: 'thewrongpassword');
-    await tapButton(tester, 'login-sign-in');
-    await tester.pumpAndSettle();
-
-    expect(find.text('Incorrect email or password.'), findsOneWidget);
-    expect(account.currentAccount, isNull);
-  });
-
   testWidgets(
-    'creating an account with a taken email shows an inline error, and a '
-    'retry with different credentials succeeds',
+    'local validation blocks the network call for a bad email',
     (tester) async {
-      final account = FakeAccountRepository();
-      account.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
-      final router = await _pumpLogin(tester, account: account);
+      final inner = FakeAccountRepository();
+      final counting = _CountingAccountRepository(inner);
+      await _pumpLogin(tester, account: counting);
 
-      await enterCredentials(tester);
-      await tapButton(tester, 'login-create-account');
+      await enterCredentials(tester, email: 'not-an-email');
+      await tapButton(tester, 'login-submit');
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('An account with that email already exists.'),
-        findsOneWidget,
-      );
-
-      await enterCredentials(tester, email: 'robin@example.test');
-      await tapButton(tester, 'login-create-account');
-      await tester.pumpAndSettle();
-
-      expect(router.state.uri.path, '/');
-      expect(account.currentAccount?.email, 'robin@example.test');
+      expect(find.text('Enter a valid email address.'), findsOneWidget);
+      expect(counting.signInCalls, 0);
+      expect(counting.registerCalls, 0);
     },
   );
 
-  testWidgets('a double tap signs in only once', (tester) async {
+  testWidgets(
+    'local validation blocks the network call for a short password',
+    (tester) async {
+      final inner = FakeAccountRepository();
+      final counting = _CountingAccountRepository(inner);
+      await _pumpLogin(tester, account: counting);
+
+      await enterCredentials(tester, password: 'short');
+      await tapButton(tester, 'login-submit');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Use at least 10 characters.'), findsOneWidget);
+      expect(counting.signInCalls, 0);
+      expect(counting.registerCalls, 0);
+    },
+  );
+
+  group('AccountFailure copy', () {
+    Future<void> expectFailureCopy(
+      WidgetTester tester,
+      AccountException failure,
+      String expectedText,
+    ) async {
+      await _pumpLogin(tester, account: _FailingAccountRepository(failure));
+      await enterCredentials(tester);
+      await tapButton(tester, 'login-submit');
+      await tester.pumpAndSettle();
+      expect(find.text(expectedText), findsOneWidget);
+    }
+
+    testWidgets('invalidEmail', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.invalidEmail),
+        'Enter a valid email address.',
+      );
+    });
+
+    testWidgets('weakPassword', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.weakPassword),
+        'Use at least 10 characters.',
+      );
+    });
+
+    testWidgets('invalidCredentials', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.invalidCredentials),
+        "That email and password don't match.",
+      );
+    });
+
+    testWidgets('emailTaken', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.emailTaken),
+        'An account with that email already exists. Sign in instead.',
+      );
+      expect(find.byKey(const ValueKey('login-sign-in-instead')), findsOneWidget);
+    });
+
+    testWidgets('rateLimited rounds retryAfter up to whole minutes', (
+      tester,
+    ) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(
+          AccountFailure.rateLimited,
+          retryAfter: Duration(seconds: 125),
+        ),
+        'Too many attempts. Try again in 3 minutes.',
+      );
+    });
+
+    testWidgets('rateLimited with no retryAfter', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.rateLimited),
+        'Too many attempts. Try again later.',
+      );
+    });
+
+    testWidgets('unreachable', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.unreachable),
+        "Can't reach the Zest server. Check that it's running and you're on "
+            'the same Wi-Fi.',
+      );
+    });
+
+    testWidgets('server', (tester) async {
+      await expectFailureCopy(
+        tester,
+        const AccountException(AccountFailure.server),
+        'Something went wrong on the server. Try again.',
+      );
+    });
+  });
+
+  testWidgets(
+    '"Sign in instead" switches mode and keeps the email',
+    (tester) async {
+      await _pumpLogin(
+        tester,
+        account: _FailingAccountRepository(
+          const AccountException(AccountFailure.emailTaken),
+        ),
+      );
+
+      await tapButton(tester, 'login-mode-create-account');
+      await enterCredentials(tester);
+      await tapButton(tester, 'login-submit');
+      await tester.pumpAndSettle();
+      await tapButton(tester, 'login-sign-in-instead');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(keyed('login-email-field')).controller!.text,
+        'sam@example.test',
+      );
+      expect(
+        tester.widget<TextField>(keyed('login-password-field')).controller!.text,
+        isEmpty,
+      );
+      expect(find.text('Sign in'), findsWidgets);
+    },
+  );
+
+  testWidgets('a double tap submits only once', (tester) async {
     final gate = Completer<void>();
     final inner = FakeAccountRepository();
     inner.seedAccount(email: 'sam@example.test', password: 'longenoughpass');
@@ -220,14 +344,40 @@ void main() {
     // Hold the first sign-in in flight so the second tap lands while the
     // screen is still busy, then release both.
     await enterCredentials(tester);
-    await tapButton(tester, 'login-sign-in');
+    await tapButton(tester, 'login-submit');
     await tester.pump();
-    await tapButton(tester, 'login-sign-in');
+    await tapButton(tester, 'login-submit');
     await tester.pump();
     gate.complete();
     await tester.pumpAndSettle();
 
     expect(counting.signInCalls, 1);
+  });
+
+  testWidgets('the password visibility toggle shows and hides the password', (
+    tester,
+  ) async {
+    await _pumpLogin(tester);
+
+    final field = () => tester.widget<TextField>(keyed('login-password-field'));
+    expect(field().obscureText, isTrue);
+
+    await tapButton(tester, 'login-password-toggle');
+    await tester.pump();
+    expect(field().obscureText, isFalse);
+
+    await tapButton(tester, 'login-password-toggle');
+    await tester.pump();
+    expect(field().obscureText, isTrue);
+  });
+
+  testWidgets('Replay the tour goes to onboarding', (tester) async {
+    final router = await _pumpLogin(tester);
+
+    await tapButton(tester, 'login-replay-tour');
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, SessionRoutes.onboarding);
   });
 
   testWidgets('no overflow at 320 wide with 2x text', (tester) async {

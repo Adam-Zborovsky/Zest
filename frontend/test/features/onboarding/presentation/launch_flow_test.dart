@@ -206,6 +206,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LoginScreen), findsOneWidget);
 
+      final createAccountMode = find.byKey(
+        const ValueKey('login-mode-create-account'),
+      );
+      await tester.ensureVisible(createAccountMode);
+      await tester.tap(createAccountMode);
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('login-email-field')),
         'sam@example.test',
@@ -214,9 +220,9 @@ void main() {
         find.byKey(const ValueKey('login-password-field')),
         'longenoughpass',
       );
-      final createAccount = find.byKey(const ValueKey('login-create-account'));
-      await tester.ensureVisible(createAccount);
-      await tester.tap(createAccount);
+      final submit = find.byKey(const ValueKey('login-submit'));
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
       await tester.pumpAndSettle();
 
       expect(find.byType(HomeScreen), findsOneWidget);
