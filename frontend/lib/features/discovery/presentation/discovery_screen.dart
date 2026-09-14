@@ -7,8 +7,13 @@ import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_chip.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../../core/widgets/zest_suggestion_field.dart';
 import '../../bar/domain/recipe_scope.dart';
 import '../../bar/presentation/bar_widgets.dart';
+import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/domain/catalog_search_index.dart';
+import '../../constellation/presentation/constellation_widgets.dart'
+    show CatalogStatusCard;
 import '../application/discovery_providers.dart';
 import '../domain/discovery_query.dart';
 import '../domain/recipe.dart';
@@ -70,8 +75,40 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     context.go(query.uri.toString());
   }
 
+  /// A recipe suggestion opens its detail, preserving the current route's
+  /// query params the same way a result card does. An ingredient suggestion
+  /// runs ingredient results for it, matching a free-text submit in that
+  /// mode (`docs/M11.md` "Surfaces").
+  void _selectSuggestion(CatalogSuggestion suggestion) {
+    _fieldFocus.unfocus();
+    if (suggestion.kind == CatalogSuggestionKind.recipe) {
+      final base = widget.query?.uri ?? Uri(path: '/discover');
+      context.push(
+        base.replace(path: '/discover/recipe/${suggestion.id}').toString(),
+      );
+      return;
+    }
+    setState(() {
+      _mode = DiscoveryMode.ingredient;
+      _text.text = suggestion.label;
+    });
+    context.go(
+      DiscoveryQuery(
+        mode: DiscoveryMode.ingredient,
+        value: suggestion.label,
+      ).uri.toString(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Arms the shared search-index freshness listener: a snapshot apply
+    // rebuilds `catalogSearchIndexProvider`, which this screen reads below.
+    ref.watch(catalogSearchIndexFreshnessProvider);
+    final index = ref.watch(catalogSearchIndexProvider).value ??
+        CatalogSearchIndex.empty;
+    final hasCatalog = ref.watch(catalogCoverageProvider).value?.hasSnapshot ??
+        false;
     final query = widget.query;
     return DiscoveryFrame(
       back: true,
@@ -126,26 +163,39 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                     ),
                   ),
                   const SizedBox(height: ZestSpace.sm),
-                  Semantics(
+                  ZestSuggestionField<CatalogSuggestion>(
+                    key: const ValueKey('discovery-query'),
+                    controller: _text,
+                    focusNode: _fieldFocus,
                     label: _mode == DiscoveryMode.name
                         ? 'Cocktail name'
                         : 'Ingredient name',
-                    child: TextFormField(
-                      key: const ValueKey('discovery-query'),
-                      controller: _text,
-                      focusNode: _fieldFocus,
-                      textInputAction: TextInputAction.search,
-                      textCapitalization: TextCapitalization.none,
-                      onFieldSubmitted: (_) => _submit(),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? 'Enter a name to start your search.'
-                          : null,
-                      decoration: InputDecoration(
-                        errorMaxLines: 4,
-                        prefixIcon: const Icon(Icons.search_rounded),
-                      ),
+                    textInputAction: TextInputAction.search,
+                    onFieldSubmitted: (_) => _submit(),
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty
+                        ? 'Enter a name to start your search.'
+                        : null,
+                    suggestionsFor: (text) => index.suggest(
+                      text,
+                      kinds: _mode == DiscoveryMode.name
+                          ? const {CatalogSuggestionKind.recipe}
+                          : const {CatalogSuggestionKind.ingredient},
                     ),
+                    labelFor: (suggestion) => suggestion.label,
+                    captionFor: (suggestion) =>
+                        suggestion.kind == CatalogSuggestionKind.ingredient
+                        ? '${suggestion.recipeCount} '
+                              '${suggestion.recipeCount == 1 ? 'recipe' : 'recipes'}'
+                        : null,
+                    semanticLabelFor: (suggestion) =>
+                        suggestion.kind == CatalogSuggestionKind.recipe
+                        ? '${suggestion.label}, cocktail'
+                        : '${suggestion.label}, ingredient, '
+                              '${suggestion.recipeCount} '
+                              '${suggestion.recipeCount == 1 ? 'recipe' : 'recipes'}',
+                    replaceTextOnSelect: false,
+                    onSelected: _selectSuggestion,
                   ),
                   const SizedBox(height: ZestSpace.lg),
                   ZestButton(
@@ -206,6 +256,9 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
           if (query != null) ...[
             DiscoveryHeading(resultTitle(query)),
             const SizedBox(height: ZestSpace.lg),
+            if (!hasCatalog)
+              const CatalogStatusCard(key: ValueKey('discovery-catalog-status'))
+            else
             ref
                 .watch(discoveryResultsProvider(query))
                 .when(
@@ -218,7 +271,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                             Semantics(
                               liveRegion: true,
                               child: Text(
-                                '${recipes.length} ${recipes.length == 1 ? 'recipe' : 'recipes'} returned by TheCocktailDB.',
+                                '${recipes.length} ${recipes.length == 1 ? 'recipe' : 'recipes'} found in your downloaded catalog.',
                               ),
                             ),
                             const SizedBox(height: ZestSpace.lg),

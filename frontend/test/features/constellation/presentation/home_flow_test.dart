@@ -359,7 +359,9 @@ void main() {
 
     await activate(tester, keyed('constellation-recipe-000971'));
     expect(router(tester).state.uri.path, '/discover/recipe/000971');
-    expect(find.text('Testbench Tonic'), findsOneWidget);
+    // Local-first detail (docs/M11.md "Recipe detail"): this id is in the
+    // seeded catalog, so its stored name shows — not the gateway mock's.
+    expect(find.text('Aarden Spritz 1'), findsOneWidget);
   });
 
   testWidgets('home opens with nothing selected, including after leaving '

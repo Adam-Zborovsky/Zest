@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/cocktail_api_exception.dart';
+import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/domain/catalog_search_index.dart';
 import '../data/cocktail_db_client.dart';
 import '../domain/discovery_query.dart';
 import '../domain/recipe.dart';
@@ -25,24 +27,61 @@ final _discoveryRequestGatewayProvider = Provider<CocktailRequestGateway>((ref) 
 
 /// The application-scoped request gateway shared by discovery and bar
 /// matching. Public so M4 bar matching reuses the same conservative
-/// 429 cooldown; the client remains the authority for response caching.
+/// 429 cooldown; the client remains the authority for `lookup.php` response
+/// caching — the only recipe endpoint left calling it (`docs/M11.md`
+/// "Recipe detail").
 final cocktailRequestGatewayProvider = _discoveryRequestGatewayProvider;
 
-/// Source searches and letter browsing return full records, while ingredient
-/// filtering returns summaries. The UI has one uniform summary result shape.
+/// Local-catalog results per `docs/M11.md` "Surfaces": name and ingredient
+/// results come from the ranked search index, letter results are every
+/// stored recipe whose folded name starts with that letter, ordered by
+/// name. No network call is made; offline with a downloaded catalog works
+/// the same as online.
 final discoveryResultsProvider = FutureProvider.autoDispose
-    .family<List<RecipeSummary>, DiscoveryQuery>(
-      (ref, query) =>
-          ref.watch(_discoveryRequestGatewayProvider).results(query),
-      retry: (retryCount, error) => null,
-    );
+    .family<List<RecipeSummary>, DiscoveryQuery>((ref, query) async {
+      final index = await ref.watch(catalogSearchIndexProvider.future);
+      final recipes = await ref.watch(catalogRepositoryProvider).allRecipes();
+      final byId = {for (final recipe in recipes) recipe.id: recipe};
+      final List<String> ids;
+      switch (query.mode) {
+        case DiscoveryMode.name:
+          ids = index.recipeIdsMatchingName(query.value);
+        case DiscoveryMode.ingredient:
+          ids = index.recipeIdsWithIngredient(query.value);
+        case DiscoveryMode.letter:
+          final matches = recipes
+              .where(
+                (recipe) => foldSearchText(recipe.name).startsWith(query.value),
+              )
+              .toList()
+            ..sort(
+              (a, b) => foldSearchText(a.name).compareTo(foldSearchText(b.name)),
+            );
+          ids = [for (final recipe in matches) recipe.id];
+      }
+      return [
+        for (final id in ids)
+          if (byId[id] case final recipe?)
+            RecipeSummary.fromJson(recipe.toJson()),
+      ];
+    }, retry: (retryCount, error) => null);
+
+/// Local catalog first, `lookup.php` only when the id is absent from the
+/// downloaded catalog (a saved recipe that has since left the shared
+/// snapshot). Shared with the M4 bar-matching detail fetches.
+Future<Recipe?> lookupRecipeLocalFirst(Ref ref, String id) async {
+  final local = await ref.watch(catalogRepositoryProvider).recipeById(id);
+  if (local != null) return local;
+  return ref.watch(_discoveryRequestGatewayProvider).detail(id);
+}
 
 final recipeDetailProvider = FutureProvider.autoDispose.family<Recipe?, String>(
   (ref, id) {
-    if (!RegExp(r'^\d+$').hasMatch(id.trim())) {
+    final trimmed = id.trim();
+    if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
       throw ArgumentError.value(id, 'id', 'Must be a numeric ID.');
     }
-    return ref.watch(_discoveryRequestGatewayProvider).detail(id.trim());
+    return lookupRecipeLocalFirst(ref, trimmed);
   },
   retry: (retryCount, error) => null,
 );
@@ -58,30 +97,8 @@ final class CocktailRequestGateway {
   final DateTime Function() now;
   DateTime? _cooldownUntil;
 
-  Future<List<RecipeSummary>> results(DiscoveryQuery query) async {
-    return _throughCooldown(() async {
-      switch (query.mode) {
-        case DiscoveryMode.name:
-          final recipes = await client.searchByName(query.value);
-          return List<RecipeSummary>.unmodifiable(
-            recipes.map((recipe) => RecipeSummary.fromJson(recipe.toJson())),
-          );
-        case DiscoveryMode.ingredient:
-          return client.filterByIngredient(query.value);
-        case DiscoveryMode.letter:
-          final recipes = await client.browseByFirstLetter(query.value);
-          return List<RecipeSummary>.unmodifiable(
-            recipes.map((recipe) => RecipeSummary.fromJson(recipe.toJson())),
-          );
-      }
-    });
-  }
-
   Future<Recipe?> detail(String id) =>
       _throughCooldown(() => client.lookupRecipe(id));
-
-  Future<List<String>> ingredientNames() =>
-      _throughCooldown(client.listIngredientNames);
 
   Future<T> _throughCooldown<T>(Future<T> Function() request) async {
     final until = _cooldownUntil;

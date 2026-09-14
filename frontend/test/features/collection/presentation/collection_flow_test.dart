@@ -12,6 +12,7 @@ import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
@@ -89,6 +90,7 @@ Future<InMemoryCollectionRepository> openApp(
       overrides: [
         ...collectionTestOverrides(repository: repository),
         ...sessionTestOverrides(),
+        emptyCatalogRepositoryOverride(),
         cocktailDbClientProvider.overrideWithValue(client),
         nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
         if (imageProvider != null)
@@ -265,7 +267,12 @@ void main() {
       );
       expect(
         tester
-            .widget<TextField>(keyed('variation-ingredient-name-0'))
+            .widget<TextFormField>(
+              find.descendant(
+                of: keyed('variation-ingredient-name-0'),
+                matching: find.byType(TextFormField),
+              ),
+            )
             .controller!
             .text,
         'Imaginary leaf syrup',

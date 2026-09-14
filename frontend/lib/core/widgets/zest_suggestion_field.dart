@@ -51,6 +51,9 @@ class ZestSuggestionField<T extends Object> extends StatefulWidget {
     this.prefixIcon = Icons.search_rounded,
     this.textInputAction = TextInputAction.search,
     this.validator,
+    this.errorText,
+    this.maxLength,
+    this.buildCounter,
     this.onFieldSubmitted,
     this.autofocus = false,
     required this.suggestionsFor,
@@ -82,6 +85,15 @@ class ZestSuggestionField<T extends Object> extends StatefulWidget {
 
   /// Runs inside a [Form] via [TextFormField.validator].
   final FormFieldValidator<String>? validator;
+
+  /// A caller-managed error shown under the field, for a row validated
+  /// outside any [Form] (e.g. the variation editor's ingredient rows).
+  /// Independent of [validator].
+  final String? errorText;
+
+  /// Forwarded to the inner [TextFormField], including its counter.
+  final int? maxLength;
+  final InputCounterWidgetBuilder? buildCounter;
 
   /// Free-text submission: called on Enter when no option is highlighted,
   /// and via the field's own submit action otherwise. Discover's mode
@@ -251,6 +263,8 @@ class _ZestSuggestionFieldState<T extends Object>
                   textInputAction: widget.textInputAction,
                   textCapitalization: TextCapitalization.none,
                   validator: widget.validator,
+                  maxLength: widget.maxLength,
+                  buildCounter: widget.buildCounter,
                   onTapOutside: (_) => focusNode.unfocus(),
                   // Suppresses EditableText's default "unfocus on submit"
                   // behavior for done/search/etc. — focus is this widget's
@@ -268,6 +282,7 @@ class _ZestSuggestionFieldState<T extends Object>
                     hintText: widget.hintText,
                     hintMaxLines: 3,
                     errorMaxLines: 4,
+                    errorText: widget.errorText,
                     prefixIcon: widget.prefixIcon == null
                         ? null
                         : Icon(widget.prefixIcon),

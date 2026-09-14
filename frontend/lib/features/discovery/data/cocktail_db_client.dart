@@ -51,34 +51,6 @@ final class CocktailDbClient {
   final _aborters = <Completer<void>>{};
   bool _closed = false;
 
-  Future<List<Recipe>> searchByName(String name) {
-    final query = _requiredText(name, 'name');
-    return _cached('search:$query', () async {
-      final drinks = await _drinks('search.php', {'s': query});
-      return List<Recipe>.unmodifiable(drinks.map(_parseRecipe));
-    });
-  }
-
-  Future<List<Recipe>> browseByFirstLetter(String letter) {
-    final query = letter.trim();
-    if (query.length != 1 || !RegExp(r'^[a-zA-Z]$').hasMatch(query)) {
-      throw ArgumentError.value(letter, 'letter', 'Must be one ASCII letter.');
-    }
-    final normalized = query.toLowerCase();
-    return _cached('letter:$normalized', () async {
-      final drinks = await _drinks('search.php', {'f': normalized});
-      return List<Recipe>.unmodifiable(drinks.map(_parseRecipe));
-    });
-  }
-
-  Future<List<RecipeSummary>> filterByIngredient(String name) {
-    final query = _requiredText(name, 'name');
-    return _cached('ingredient:$query', () async {
-      final drinks = await _drinks('filter.php', {'i': query});
-      return List<RecipeSummary>.unmodifiable(drinks.map(_parseSummary));
-    });
-  }
-
   Future<Recipe?> lookupRecipe(String id) {
     final query = id.trim();
     if (query.isEmpty || !RegExp(r'^\d+$').hasMatch(query)) {
@@ -91,25 +63,6 @@ final class CocktailDbClient {
       final recipe = _parseRecipe(drinks.single);
       if (recipe.id != query) _invalid();
       return recipe;
-    });
-  }
-
-  /// The provider's ingredient filter names via `list.php?i=list`. Names
-  /// only — no availability or property claim. Sorted case-insensitively and
-  /// deduplicated for stable selection UI.
-  Future<List<String>> listIngredientNames() {
-    return _cached('ingredient-list', () async {
-      final drinks = await _drinks('list.php', {'i': 'list'});
-      final names = <String, String>{};
-      for (final record in drinks) {
-        final value = record['strIngredient1'];
-        if (value is! String || value.trim().isEmpty) _invalid();
-        final trimmed = value.trim();
-        names.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
-      }
-      final sorted = names.values.toList()
-        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-      return List.unmodifiable(sorted);
     });
   }
 
@@ -257,27 +210,12 @@ final class CocktailDbClient {
     return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
   }
 
-  String _requiredText(String value, String name) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty)
-      throw ArgumentError.value(value, name, 'Must not be blank.');
-    return trimmed;
-  }
-
   Never _invalid() =>
       throw const CocktailApiException(CocktailApiErrorKind.invalidResponse);
 
   Recipe _parseRecipe(Map<String, dynamic> json) {
     try {
       return Recipe.fromJson(json);
-    } on FormatException {
-      _invalid();
-    }
-  }
-
-  RecipeSummary _parseSummary(Map<String, dynamic> json) {
-    try {
-      return RecipeSummary.fromJson(json);
     } on FormatException {
       _invalid();
     }

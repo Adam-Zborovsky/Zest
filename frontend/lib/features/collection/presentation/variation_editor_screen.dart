@@ -8,6 +8,9 @@ import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../../core/widgets/zest_suggestion_field.dart';
+import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/domain/catalog_search_index.dart';
 import '../../discovery/application/discovery_providers.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../../discovery/presentation/recipe_detail_screen.dart'
@@ -348,6 +351,16 @@ class _VariationFormState extends ConsumerState<_VariationForm> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
+    ref.watch(catalogSearchIndexFreshnessProvider);
+    final searchIndex =
+        ref.watch(catalogSearchIndexProvider).value ?? CatalogSearchIndex.empty;
+    List<String> ingredientSuggestions(String query) => [
+      for (final suggestion in searchIndex.suggest(
+        query,
+        kinds: const {CatalogSuggestionKind.ingredient},
+      ))
+        suggestion.label,
+    ];
     return PopScope(
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, result) async {
@@ -412,6 +425,7 @@ class _VariationFormState extends ConsumerState<_VariationForm> {
                       row: _rows[i],
                       error: _rowErrors[_rows[i].id],
                       onRemove: () => _removeRow(_rows[i].id),
+                      suggestionsFor: ingredientSuggestions,
                     ),
                   ],
                   const SizedBox(height: ZestSpace.md),
@@ -507,6 +521,7 @@ class _IngredientFieldRow extends StatelessWidget {
     required this.index,
     required this.row,
     required this.onRemove,
+    required this.suggestionsFor,
     this.error,
   });
 
@@ -515,15 +530,26 @@ class _IngredientFieldRow extends StatelessWidget {
   final VoidCallback onRemove;
   final String? error;
 
+  /// Catalog ingredient label suggestions for the name field. Free text
+  /// always stays valid — this only offers a shortcut to a catalog spelling.
+  final List<String> Function(String query) suggestionsFor;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final nameField = TextField(
+      final nameField = ZestSuggestionField<String>(
         key: ValueKey('variation-ingredient-name-$index'),
         controller: row.name,
+        label: 'Ingredient',
+        hintText: 'Ingredient',
+        errorText: error,
         maxLength: VariationIngredient.maxNameLength,
         buildCounter: _noCounter,
-        decoration: InputDecoration(labelText: 'Ingredient', errorText: error),
+        suggestionsFor: suggestionsFor,
+        labelFor: (suggestion) => suggestion,
+        semanticLabelFor: (suggestion) => '$suggestion, ingredient',
+        onSelected: (suggestion) => row.name.text = suggestion,
+        prefixIcon: null,
       );
       final measureField = TextField(
         key: ValueKey('variation-ingredient-measure-$index'),

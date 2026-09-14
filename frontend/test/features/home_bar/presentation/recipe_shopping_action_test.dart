@@ -12,6 +12,7 @@ import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 import 'package:zest/features/home_bar/domain/home_bar_item.dart';
 
 import '../../../support/bar_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_home_bar_repository.dart';
 import '../../../support/in_memory_session.dart';
@@ -56,6 +57,7 @@ Future<InMemoryHomeBarRepository> _openRecipe(
     ProviderScope(
       overrides: [
         cocktailDbClientProvider.overrideWithValue(client),
+        emptyCatalogRepositoryOverride(),
         homeBarRepositoryProvider.overrideWithValue(repository),
         if (inventoryLoading)
           homeBarItemsProvider.overrideWithValue(

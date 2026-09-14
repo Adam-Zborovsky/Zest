@@ -39,7 +39,7 @@ void main() {
     );
     addTearDown(client.close);
     await expectLater(
-      client.searchByName('Synthetic'),
+      client.lookupRecipe('1'),
       throwsA(
         isA<CocktailApiException>().having(
           (error) => error.kind,

@@ -11,8 +11,10 @@ import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_chip.dart';
 import '../../../core/widgets/zest_notice.dart';
 import '../../../core/widgets/zest_states.dart';
+import '../../../core/widgets/zest_suggestion_field.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/application/catalog_update_controller.dart';
+import '../../catalog/domain/catalog_search_index.dart';
 import '../../catalog/domain/catalog_update_state.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/constellation_providers.dart';
@@ -101,8 +103,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     // Arms the one-place freshness wiring: an applied snapshot invalidates
-    // the stored coverage and the graph (see catalogFreshnessProvider).
+    // the stored coverage and the graph (see catalogFreshnessProvider), and
+    // the search index the constellation search field suggests from.
     ref.watch(catalogFreshnessProvider);
+    ref.watch(catalogSearchIndexFreshnessProvider);
     // The update notice: shown only on a real, non-silent version change —
     // never for a 304/no-op, and never for the first automatic download.
     ref.listen(catalogUpdateControllerProvider, (previous, next) {
@@ -254,27 +258,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       filtering: query.isNotEmpty,
       matches: matches,
     );
+    final index =
+        ref.watch(catalogSearchIndexProvider).value ?? CatalogSearchIndex.empty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Semantics(
+        ZestSuggestionField<CatalogSuggestion>(
+          key: const ValueKey('constellation-search'),
+          controller: _search,
           label: 'Find an ingredient',
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: ZestShape.control,
-              boxShadow: ZestShadow.hard(ZestPalette.leaf),
-            ),
-            child: TextFormField(
-              key: const ValueKey('constellation-search'),
-              controller: _search,
-              textCapitalization: TextCapitalization.none,
-              decoration: const InputDecoration(
-                hintText: 'Find an ingredient',
-                hintMaxLines: 3,
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-            ),
-          ),
+          hintText: 'Find an ingredient',
+          style: ZestSuggestionFieldStyle.hardShadow,
+          replaceTextOnSelect: false,
+          // Restricted to identities present as graph nodes: the field's
+          // own suggestions are only ever things there is something to
+          // select on the canvas (docs/M11.md "Constellation search").
+          suggestionsFor: (text) => index
+              .suggest(
+                text,
+                kinds: const {CatalogSuggestionKind.ingredient},
+                limit: 64,
+              )
+              .where((suggestion) => graph.node(suggestion.id) != null)
+              .take(8)
+              .toList(growable: false),
+          labelFor: (suggestion) => suggestion.label,
+          captionFor: (suggestion) =>
+              '${suggestion.recipeCount} '
+              '${suggestion.recipeCount == 1 ? 'recipe' : 'recipes'}',
+          semanticLabelFor: (suggestion) =>
+              '${suggestion.label}, ingredient, ${suggestion.recipeCount} '
+              '${suggestion.recipeCount == 1 ? 'recipe' : 'recipes'}',
+          // Selecting a suggestion has the same effect as tapping the node
+          // on the canvas, and the live filter text is left alone.
+          onSelected: (suggestion) => setState(() {
+            _selectedNodeId = suggestion.id;
+            _selectedEdge = null;
+          }),
         ),
         const SizedBox(height: ZestSpace.md),
         Semantics(

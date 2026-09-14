@@ -9,6 +9,8 @@ import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../bar/domain/bar_match.dart';
+import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/domain/catalog_search_index.dart';
 import '../../discovery/domain/recipe.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/home_bar_providers.dart';
@@ -25,6 +27,7 @@ class HomeBarScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(homeBarCatalogFreshnessProvider);
+    ref.watch(catalogSearchIndexFreshnessProvider);
     final items = ref.watch(homeBarItemsProvider);
     final recipes = ref.watch(homeBarCatalogRecipesProvider);
     final coverage = ref.watch(homeBarCatalogCoverageProvider);
@@ -402,18 +405,19 @@ class _InventoryRow extends StatelessWidget {
   );
 }
 
-class _CatalogIngredientPicker extends StatefulWidget {
+class _CatalogIngredientPicker extends ConsumerStatefulWidget {
   const _CatalogIngredientPicker({required this.options, required this.add});
 
   final List<HomeBarCatalogIngredient> options;
   final Future<void> Function(String name) add;
 
   @override
-  State<_CatalogIngredientPicker> createState() =>
+  ConsumerState<_CatalogIngredientPicker> createState() =>
       _CatalogIngredientPickerState();
 }
 
-class _CatalogIngredientPickerState extends State<_CatalogIngredientPicker> {
+class _CatalogIngredientPickerState
+    extends ConsumerState<_CatalogIngredientPicker> {
   final _search = TextEditingController();
   bool _saving = false;
   String? _error;
@@ -434,18 +438,43 @@ class _CatalogIngredientPickerState extends State<_CatalogIngredientPicker> {
 
   void _changed() => setState(() {});
 
+  /// Ranks and filters [widget.options] by the shared search index for a
+  /// non-empty query (`docs/M11.md` "Home-bar picker"): an ingredient
+  /// identity present in the index sorts by its rank there; one not in the
+  /// index (a stored ingredient the current catalog no longer has) falls
+  /// back to the old substring match, ordered after ranked matches.
+  List<HomeBarCatalogIngredient> _rankedOptions(
+    String query,
+    CatalogSearchIndex index,
+  ) {
+    final byId = {for (final option in widget.options) option.ingredientId: option};
+    final ranked = <HomeBarCatalogIngredient>[];
+    final seen = <String>{};
+    for (final suggestion in index.suggest(
+      query,
+      kinds: const {CatalogSuggestionKind.ingredient},
+      limit: widget.options.length == 0 ? 1 : widget.options.length,
+    )) {
+      final option = byId[suggestion.id];
+      if (option != null && seen.add(option.ingredientId)) ranked.add(option);
+    }
+    final fallback = widget.options.where(
+      (ingredient) =>
+          !seen.contains(ingredient.ingredientId) &&
+          (ingredient.displayName.toLowerCase().contains(query) ||
+              ingredient.ingredientId.contains(query)),
+    );
+    return [...ranked, ...fallback];
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _search.text.trim().toLowerCase();
+    final index =
+        ref.watch(catalogSearchIndexProvider).value ?? CatalogSearchIndex.empty;
     final visible = query.isEmpty
         ? widget.options
-        : widget.options
-              .where(
-                (ingredient) =>
-                    ingredient.displayName.toLowerCase().contains(query) ||
-                    ingredient.ingredientId.contains(query),
-              )
-              .toList();
+        : _rankedOptions(query, index);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,

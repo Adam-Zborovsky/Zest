@@ -4,7 +4,10 @@ import '../data/catalog_connection.dart';
 import '../data/catalog_database.dart';
 import '../data/catalog_repository.dart';
 import '../data/catalog_snapshot_client.dart';
+import '../domain/catalog_search_index.dart';
 import '../domain/coverage_report.dart';
+import 'catalog_update_controller.dart';
+import '../domain/catalog_update_state.dart';
 
 /// Injectable clock for deterministic update-controller behavior. Shared
 /// with the discovery layer's own `nowProvider` would create a cross-feature
@@ -52,3 +55,30 @@ final catalogCoverageProvider = FutureProvider<CoverageReport>(
   (ref) => ref.watch(catalogRepositoryProvider).coverage(),
   retry: (retryCount, error) => null,
 );
+
+/// The ranked search index over every locally stored recipe and ingredient
+/// identity. `catalogFreshnessProvider` invalidates this whenever the update
+/// controller applies a new snapshot, so suggestions and local results stay
+/// in step with the on-device catalog.
+final catalogSearchIndexProvider = FutureProvider<CatalogSearchIndex>((
+  ref,
+) async {
+  final recipes = await ref.watch(catalogRepositoryProvider).allRecipes();
+  return CatalogSearchIndex.fromRecipes(recipes);
+}, retry: (retryCount, error) => null);
+
+/// Keeps [catalogSearchIndexProvider] fresh as the update controller applies
+/// new snapshots. Every surface that suggests from the index (Discover,
+/// constellation, the home-bar picker, and the variation editor) watches
+/// this provider once to arm the listener; it is not `autoDispose`, so the
+/// index stays correct even for a surface visited after another one armed
+/// it.
+final catalogSearchIndexFreshnessProvider = Provider<void>((ref) {
+  ref.listen(catalogUpdateControllerProvider, (previous, next) {
+    final applied =
+        next.status == CatalogUpdateStatus.updated &&
+        previous?.status != next.status;
+    if (!applied) return;
+    ref.invalidate(catalogSearchIndexProvider);
+  });
+});

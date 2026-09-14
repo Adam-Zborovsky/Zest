@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,77 +5,154 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
+import 'package:zest/features/catalog/application/catalog_providers.dart';
+import 'package:zest/features/catalog/data/catalog_database.dart';
+import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/discovery_query.dart';
+import 'package:zest/features/discovery/domain/recipe.dart';
+
+import '../../../support/catalog_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 
 void main() {
-  test(
-    'maps all discovery modes to summaries and their respective client calls',
-    () async {
-      final requests = <Uri>[];
-      final container = _container(
-        MockClient((request) async {
-          requests.add(request.url);
-          return _response({
-            'drinks': [
-              request.url.path.contains('filter') ? _summary('3') : _full('3'),
-            ],
-          });
-        }),
-      );
-      addTearDown(container.dispose);
+  test('name mode ranks local catalog matches via the search index', () async {
+    final seeded = await _seededContainer([
+      catalogRecipeModel(id: '1', name: 'Old Fashioned'),
+      catalogRecipeModel(id: '2', name: 'Margarita'),
+    ]);
+    addTearDown(() => _disposeSeeded(seeded));
 
-      for (final query in [
-        DiscoveryQuery(mode: DiscoveryMode.name, value: 'mint'),
-        DiscoveryQuery(mode: DiscoveryMode.ingredient, value: 'lime'),
-        DiscoveryQuery(mode: DiscoveryMode.letter, value: 'z'),
-      ]) {
-        final results = await container.read(
-          discoveryResultsProvider(query).future,
-        );
-        expect(results.single.id, '3');
-      }
-      expect((await container.read(recipeDetailProvider('3').future))?.id, '3');
-      expect(requests.map((uri) => uri.queryParameters), [
-        {'s': 'mint'},
-        {'i': 'lime'},
-        {'f': 'z'},
-        {'i': '3'},
+    final results = await seeded.container.read(
+      discoveryResultsProvider(
+        DiscoveryQuery(mode: DiscoveryMode.name, value: 'old fash'),
+      ).future,
+    );
+    expect(results.map((r) => r.id), ['1']);
+  });
+
+  test(
+    'ingredient mode returns every recipe using that ingredient identity',
+    () async {
+      final seeded = await _seededContainer([
+        catalogRecipeModel(
+          id: '1',
+          name: 'Gin Fizz',
+          ingredients: const [('Gin', '2 oz')],
+        ),
+        catalogRecipeModel(
+          id: '2',
+          name: 'Gin Sour',
+          ingredients: const [('Gin', '1 oz')],
+        ),
+        catalogRecipeModel(
+          id: '3',
+          name: 'Rum Punch',
+          ingredients: const [('Rum', '1 oz')],
+        ),
       ]);
+      addTearDown(() => _disposeSeeded(seeded));
+
+      final results = await seeded.container.read(
+        discoveryResultsProvider(
+          DiscoveryQuery(mode: DiscoveryMode.ingredient, value: 'gin'),
+        ).future,
+      );
+      expect(results.map((r) => r.id).toSet(), {'1', '2'});
     },
   );
 
-  test('rejects invalid detail IDs before any network request', () async {
+  test(
+    'letter mode returns recipes whose folded name starts with that letter, ordered by name',
+    () async {
+      final seeded = await _seededContainer([
+        catalogRecipeModel(id: '1', name: 'Zesty Zinger'),
+        catalogRecipeModel(id: '2', name: 'Zephyr'),
+        catalogRecipeModel(id: '3', name: 'Amaro Spritz'),
+      ]);
+      addTearDown(() => _disposeSeeded(seeded));
+
+      final results = await seeded.container.read(
+        discoveryResultsProvider(
+          DiscoveryQuery(mode: DiscoveryMode.letter, value: 'z'),
+        ).future,
+      );
+      expect(results.map((r) => r.id), ['2', '1']);
+    },
+  );
+
+  test('rejects invalid detail IDs before any lookup', () async {
     var calls = 0;
-    final container = _container(
-      MockClient((_) async {
+    final seeded = await _seededContainer(
+      const [],
+      transport: MockClient((_) async {
         calls++;
         return _response({'drinks': []});
       }),
     );
-    addTearDown(container.dispose);
+    addTearDown(() => _disposeSeeded(seeded));
 
     await expectLater(
-      container.read(recipeDetailProvider('not-an-id').future),
+      seeded.container.read(recipeDetailProvider('not-an-id').future),
       throwsArgumentError,
     );
     expect(calls, 0);
   });
 
-  test('does not automatically retry provider failures', () async {
+  test(
+    'recipe detail reads the local catalog first, without any network call',
+    () async {
+      var calls = 0;
+      final seeded = await _seededContainer(
+        [catalogRecipeModel(id: '3', name: 'Local Hit')],
+        transport: MockClient((_) async {
+          calls++;
+          return _response({'drinks': []});
+        }),
+      );
+      addTearDown(() => _disposeSeeded(seeded));
+
+      final recipe = await seeded.container.read(recipeDetailProvider('3').future);
+      expect(recipe?.name, 'Local Hit');
+      expect(calls, 0);
+    },
+  );
+
+  test(
+    'recipe detail falls back to lookup.php when the id is absent from the catalog',
+    () async {
+      final requests = <Uri>[];
+      final seeded = await _seededContainer(
+        const [],
+        transport: MockClient((request) async {
+          requests.add(request.url);
+          return _response({
+            'drinks': [_full('7')],
+          });
+        }),
+      );
+      addTearDown(() => _disposeSeeded(seeded));
+
+      final recipe = await seeded.container.read(recipeDetailProvider('7').future);
+      expect(recipe?.id, '7');
+      expect(requests.single.queryParameters, {'i': '7'});
+    },
+  );
+
+  test('does not automatically retry a fallback lookup failure', () async {
     var calls = 0;
-    final container = _container(
-      MockClient((_) async {
+    final seeded = await _seededContainer(
+      const [],
+      transport: MockClient((_) async {
         calls++;
         return http.Response('', 500);
       }),
     );
-    addTearDown(container.dispose);
-    final query = DiscoveryQuery(mode: DiscoveryMode.name, value: 'mint');
+    addTearDown(() => _disposeSeeded(seeded));
 
     await expectLater(
-      container.read(discoveryResultsProvider(query).future),
+      seeded.container.read(recipeDetailProvider('7').future),
       throwsA(isA<CocktailApiException>()),
     );
     await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -84,53 +160,13 @@ void main() {
   });
 
   test(
-    'separate family states do not let an older result replace a newer one',
-    () async {
-      final first = Completer<http.Response>();
-      final second = Completer<http.Response>();
-      var calls = 0;
-      final container = _container(
-        MockClient((_) {
-          calls++;
-          return calls == 1 ? first.future : second.future;
-        }),
-      );
-      addTearDown(container.dispose);
-      final oldQuery = DiscoveryQuery(mode: DiscoveryMode.name, value: 'old');
-      final newQuery = DiscoveryQuery(mode: DiscoveryMode.name, value: 'new');
-      final oldFuture = container.read(
-        discoveryResultsProvider(oldQuery).future,
-      );
-      final newFuture = container.read(
-        discoveryResultsProvider(newQuery).future,
-      );
-
-      second.complete(
-        _response({
-          'drinks': [_full('2', name: 'New')],
-        }),
-      );
-      expect((await newFuture).single.name, 'New');
-      first.complete(
-        _response({
-          'drinks': [_full('1', name: 'Old')],
-        }),
-      );
-      await oldFuture;
-      expect(
-        container.read(discoveryResultsProvider(newQuery)).value?.single.name,
-        'New',
-      );
-    },
-  );
-
-  test(
-    'shares a 429 cooldown across results and detail, then expires',
+    'a 429 on the fallback lookup shares a cooldown across detail requests, then expires',
     () async {
       var clock = DateTime(2026);
       var calls = 0;
-      final container = _container(
-        MockClient((_) async {
+      final seeded = await _seededContainer(
+        const [],
+        transport: MockClient((_) async {
           calls++;
           if (calls == 1) return http.Response('', 429);
           return _response({
@@ -139,11 +175,10 @@ void main() {
         }),
         now: () => clock,
       );
-      addTearDown(container.dispose);
-      final query = DiscoveryQuery(mode: DiscoveryMode.name, value: 'mint');
+      addTearDown(() => _disposeSeeded(seeded));
 
       await expectLater(
-        container.read(discoveryResultsProvider(query).future),
+        seeded.container.read(recipeDetailProvider('7').future),
         throwsA(
           isA<CocktailApiException>().having(
             (e) => e.retryAfter,
@@ -153,7 +188,7 @@ void main() {
         ),
       );
       await expectLater(
-        container.read(recipeDetailProvider('7').future),
+        seeded.container.read(recipeDetailProvider('8').future),
         throwsA(
           isA<CocktailApiException>().having(
             (e) => e.retryAfter,
@@ -164,27 +199,9 @@ void main() {
       );
       expect(calls, 1);
       clock = clock.add(const Duration(seconds: 30));
-      container.invalidate(recipeDetailProvider('7'));
-      expect((await container.read(recipeDetailProvider('7').future))?.id, '7');
+      seeded.container.invalidate(recipeDetailProvider('7'));
+      expect((await seeded.container.read(recipeDetailProvider('7').future))?.id, '7');
       expect(calls, 2);
-    },
-  );
-
-  test(
-    'overlapping 429 responses retain the maximum shared cooldown',
-    () async {
-      await _expectOverlappingCooldown(
-        firstDelay: const Duration(seconds: 120),
-        secondDelay: const Duration(seconds: 1),
-        firstExpected: const Duration(seconds: 120),
-        secondExpected: const Duration(seconds: 120),
-      );
-      await _expectOverlappingCooldown(
-        firstDelay: const Duration(seconds: 1),
-        secondDelay: const Duration(seconds: 120),
-        firstExpected: const Duration(seconds: 1),
-        secondExpected: const Duration(seconds: 120),
-      );
     },
   );
 
@@ -193,7 +210,7 @@ void main() {
     final client = container.read(cocktailDbClientProvider);
     container.dispose();
     await expectLater(
-      client.searchByName('after disposal'),
+      client.lookupRecipe('42'),
       throwsA(
         isA<CocktailApiException>().having(
           (e) => e.kind,
@@ -205,97 +222,43 @@ void main() {
   });
 }
 
-ProviderContainer _container(
-  http.Client transport, {
+/// Both the container and its in-memory catalog database, so callers can
+/// tear down each explicitly (`ProviderContainer` has no dispose hook of its
+/// own to close a database an override merely points at).
+typedef _Seeded = ({ProviderContainer container, CatalogDatabase database});
+
+Future<_Seeded> _seededContainer(
+  List<Recipe> recipes, {
+  http.Client? transport,
   DateTime Function()? now,
-}) {
-  return ProviderContainer(
+}) async {
+  final database = openInMemoryCatalog();
+  final repository = CatalogRepository(database: database);
+  if (recipes.isNotEmpty) {
+    await repository.applySnapshot(catalogSnapshotFixture(drinks: recipes));
+  }
+  final container = ProviderContainer(
     overrides: [
+      catalogRepositoryProvider.overrideWithValue(repository),
       cocktailDbClientProvider.overrideWithValue(
-        CocktailDbClient(client: transport),
+        CocktailDbClient(client: transport ?? MockClient((_) async => _response({'drinks': []}))),
       ),
       if (now != null) nowProvider.overrideWithValue(now),
     ],
   );
+  return (container: container, database: database);
+}
+
+Future<void> _disposeSeeded(_Seeded seeded) async {
+  seeded.container.dispose();
+  await seeded.database.close();
 }
 
 http.Response _response(Object body) => http.Response(jsonEncode(body), 200);
 
-Map<String, dynamic> _summary(String id) => {
-  'idDrink': id,
-  'strDrink': 'Synthetic $id',
-};
-
 Map<String, dynamic> _full(String id, {String? name}) => {
-  ..._summary(id),
+  'idDrink': id,
   'strDrink': name ?? 'Synthetic $id',
   'strInstructions': 'Stir.',
   'strIngredient1': 'Mint',
 };
-
-Future<void> _expectOverlappingCooldown({
-  required Duration firstDelay,
-  required Duration secondDelay,
-  required Duration firstExpected,
-  required Duration secondExpected,
-}) async {
-  var clock = DateTime(2026);
-  final responses = [Completer<http.Response>(), Completer<http.Response>()];
-  var calls = 0;
-  final container = _container(
-    MockClient((_) => responses[calls++].future),
-    now: () => clock,
-  );
-  try {
-    final first = container.read(
-      discoveryResultsProvider(
-        DiscoveryQuery(mode: DiscoveryMode.name, value: 'first'),
-      ).future,
-    );
-    final second = container.read(
-      discoveryResultsProvider(
-        DiscoveryQuery(mode: DiscoveryMode.name, value: 'second'),
-      ).future,
-    );
-    await Future<void>.delayed(Duration.zero);
-    expect(calls, 2);
-
-    final firstError = expectLater(first, _rateLimitWith(firstExpected));
-    responses[0].complete(
-      http.Response(
-        '',
-        429,
-        headers: {'retry-after': '${firstDelay.inSeconds}'},
-      ),
-    );
-    await firstError;
-
-    final secondError = expectLater(second, _rateLimitWith(secondExpected));
-    responses[1].complete(
-      http.Response(
-        '',
-        429,
-        headers: {'retry-after': '${secondDelay.inSeconds}'},
-      ),
-    );
-    await secondError;
-
-    await expectLater(
-      container.read(
-        discoveryResultsProvider(
-          DiscoveryQuery(mode: DiscoveryMode.name, value: 'blocked'),
-        ).future,
-      ),
-      _rateLimitWith(firstDelay > secondDelay ? firstDelay : secondDelay),
-    );
-    expect(calls, 2);
-  } finally {
-    container.dispose();
-  }
-}
-
-Matcher _rateLimitWith(Duration delay) => throwsA(
-  isA<CocktailApiException>()
-      .having((error) => error.kind, 'kind', CocktailApiErrorKind.rateLimited)
-      .having((error) => error.retryAfter, 'retryAfter', delay),
-);

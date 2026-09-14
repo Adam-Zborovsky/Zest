@@ -10,6 +10,7 @@ import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
 import '../../../support/discovery_fixtures.dart';
@@ -51,6 +52,7 @@ Future<FailingCollectionRepository> _open(
       overrides: [
         ...collectionTestOverrides(repository: repository),
         ...sessionTestOverrides(),
+        emptyCatalogRepositoryOverride(),
         cocktailDbClientProvider.overrideWithValue(client),
       ],
       child: ZestApp(initialLocation: location),

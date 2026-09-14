@@ -15,6 +15,16 @@ CatalogDatabase openInMemoryCatalog() => CatalogDatabase(
   ),
 );
 
+/// A `catalogRepositoryProvider` override backed by a fresh, empty in-memory
+/// database — for any test that only needs local-catalog reads to
+/// consistently miss (so `recipeDetailProvider`/bar matching fall straight
+/// through to their gateway fallback) without touching the real on-device
+/// connection or `catalogSearchIndexProvider`'s content.
+dynamic emptyCatalogRepositoryOverride() =>
+    catalogRepositoryProvider.overrideWithValue(
+      CatalogRepository(database: openInMemoryCatalog()),
+    );
+
 /// A queued, injectable stand-in for `CatalogSnapshotClient.fetch` — no test
 /// touches the network through this fake. Responses are consumed FIFO;
 /// `gateNextCall`/`release` let a test pause a fetch mid-flight to exercise
