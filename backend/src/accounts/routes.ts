@@ -215,6 +215,10 @@ export async function registerAccountsRoutes(app: FastifyInstance, opts: Account
       const contentType = request.headers['content-type'];
       if (!contentType || !(PHOTO_CONTENT_TYPES as readonly string[]).includes(contentType)) throw unsupportedMediaType();
       const bytes = request.body as Buffer;
+      // Defense in depth: `bodyLimit` above already rejects an oversized
+      // request before this handler runs, but a stricter re-check here means
+      // a future bodyLimit change (or a body Fastify parsed some other way)
+      // can never let an over-quota buffer reach setEntryPhoto/disk.
       if (bytes.length > AccountLimits.maxPhotoBytes) throw payloadTooLarge();
       const sniffed = sniffPhotoType(bytes);
       if (!sniffed || sniffed !== contentType) throw unsupportedMediaType();
