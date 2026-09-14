@@ -71,14 +71,20 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - Swipeable onboarding: animated versions of actual interface components with a small illustrated character as support; Next/Back, visible progress, Skip goes to login; no forced animation waits; completion state persisted (returning signed-in users enter the app; signed-out users land on login).
 - Login per Adam's chosen approach. Onboarding must not request photo or camera permissions — only the photo feature does, on first use.
 - **Decision (2026-09-13): Local-first auth.** The login page offers "Continue on this device", which creates or resumes a profile stored only on this device. There is no account, credential, server, or sync. `AuthRepository` is the seam where Supabase or Firebase can replace the local implementation later without changing screens or routing.
-- **Status (2026-09-13):** flows tested; reduced-motion variants; the returning-user state machine covered by tests over all four states; independent review approved with fixes (all acceptance criteria met). Analysis clean, 390 tests pass. No photo/camera permission requested during onboarding. One known limitation: no fallback if `SharedPreferencesWithCache.create` throws at startup; revisit alongside Android lost-photo recovery. Adam's on-device check of the screens and lime character drawing is pending. See [docs/ONBOARDING.md](ONBOARDING.md) and [docs/reviews/M7.md](reviews/M7.md).
+- **Status (2026-09-13):** flows tested; reduced-motion variants; the returning-user state machine covered by tests over all four states; independent review approved with fixes (all acceptance criteria met). Analysis clean, 390 tests pass. No photo/camera permission requested during onboarding. One known limitation: no fallback if `SharedPreferencesWithCache.create` throws at startup; revisit alongside Android lost-photo recovery. Adam's on-device check of the screens and lime character drawing is pending. M8 replaced the local-profile login with email/password accounts. See [docs/ONBOARDING.md](ONBOARDING.md) and [docs/reviews/M7.md](reviews/M7.md).
 
-## Post-M7 (not scheduled)
+## M8 — Accounts and synced collection — implementation and review complete; local server check pending
 
-Publication and licensing review, distribution, and the home-bar/shopping/hosting ideas listed in `docs/PRODUCT.md`.
+- **Decision (2026-09-13):** Zest's own Fastify backend (not Supabase/Firebase). Account required: email and password. Offline-first sync with last edit wins per entry. Existing device data uploads on first sign-in. PostgreSQL 18 with Drizzle. Photos on server disk, owner-readable only. Local-first: Docker Compose on Adam's PC, LAN access. Email verification and password reset deferred. Opaque bearer tokens; server stores SHA-256 hash. See [docs/ACCOUNTS.md](ACCOUNTS.md).
+- **Status (2026-09-14):** Backend auth/entry/sync/photo routes, Flutter HTTP account repository with secure token storage, Drift schema 3 with sync flags and tombstones, sync engine with last-edit-wins and retry logic, sign in/create account UI, profile sheet with sync status and email. Two independent reviews and integrator review complete; all findings resolved. Analysis clean, 469 Flutter tests pass, 60 backend tests pass. Remaining: Adam's local Docker Postgres run with sign-up, photo, and sync check. See [docs/reviews/M8.md](reviews/M8.md).
+
+## Post-M8 (not scheduled)
+
+Deployment/publication (HTTPS, backups, email verification, password reset, account deletion), and the home-bar/shopping/hosting ideas listed in `docs/PRODUCT.md`.
 
 ## Open decisions that gate work
 
 - **Art direction** — resolved in M1: Adam selected C — Botanical Play.
-- **Auth provider and guest/local-only mode** — resolved for M7 (2026-09-13): local-first, with `AuthRepository` as the seam for later cloud accounts and sync. The recipe gateway is separately authorized before M5; it does not settle auth or cloud storage.
-- **Publication target** (repository visibility, distribution) — after M7.
+- **Auth provider and guest/local-only mode** — resolved in M8 (2026-09-13): Zest's own backend with email/password accounts, offline-first sync, local Docker Compose. The recipe gateway is separately authorized before M5; it does not settle auth or cloud storage.
+- **Media storage and sync** — resolved in M8 (2026-09-13): photos on Zest's server disk, owner-readable only, synced with collection entries.
+- **Deployment/publication** (HTTPS, backups, email verification, password reset, account deletion, enumeration review) — after M8.

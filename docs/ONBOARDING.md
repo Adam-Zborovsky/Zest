@@ -1,6 +1,6 @@
 # Onboarding and login (M7)
 
-M7 adds a swipeable onboarding and a login page in front of the app. This document is the build contract for the M7 tracks and becomes the feature record once M7 closes.
+M7 adds a swipeable onboarding and a login page in front of the app. This document is the build contract for the M7 tracks and becomes the feature record once M7 closes. The onboarding flow and launch states remain unchanged in M8, which replaced the local-profile login with email/password accounts (see [docs/ACCOUNTS.md](ACCOUNTS.md)).
 
 ## Decisions (Adam, 2026-09-13)
 
