@@ -49,6 +49,14 @@ class CollectionScreen extends ConsumerWidget {
                     CollectionMonth(month: month, byDay: byDay, today: today),
                     const SizedBox(height: ZestSpace.xxl),
                   ],
+                  if (entries.any(_showsProviderImage))
+                    Text(
+                      'Days without a photo of your own show a small image '
+                      'from TheCocktailDB.',
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: ZestPalette.secondaryInk,
+                      ),
+                    ),
                 ],
               ),
             );
@@ -109,6 +117,13 @@ String? calendarThumbnailUrl(String? url) {
   final text = uri.toString();
   return text.endsWith('/small') ? text : '$text/small';
 }
+
+/// True when [entry]'s tile shows TheCocktailDB's picture rather than the
+/// person's own memory photo — the same condition [EntryArtwork] uses to
+/// choose what to render, so the tile's semantics never claim a photo that
+/// is not actually a photo of the person's own.
+bool _showsProviderImage(CollectionEntry entry) =>
+    !entry.hasPhoto && calendarThumbnailUrl(entry.source.thumbnailUrl) != null;
 
 class _EmptyCollection extends StatelessWidget {
   const _EmptyCollection();
@@ -265,12 +280,20 @@ class CalendarDayCell extends StatelessWidget {
         ),
       );
     }
+    final providerImageCount = entries.where(_showsProviderImage).length;
+    final imageNote = providerImageCount == 0
+        ? ''
+        : count == 1
+        ? ', image from TheCocktailDB'
+        : providerImageCount == 1
+        ? ', includes an image from TheCocktailDB'
+        : ', includes images from TheCocktailDB';
     return Semantics(
       key: key,
       button: true,
       label:
           '$date${isToday ? ', today' : ''}, '
-          '${count == 1 ? '1 drink' : '$count drinks'}',
+          '${count == 1 ? '1 drink' : '$count drinks'}$imageNote',
       excludeSemantics: true,
       child: Material(
         type: MaterialType.transparency,

@@ -10,6 +10,7 @@ import 'package:zest/features/collection/domain/collection_entry.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
+import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
@@ -65,6 +66,7 @@ Future<InMemoryCollectionRepository> openApp(
   WidgetTester tester, {
   required String location,
   Future<http.Response> Function(http.Request)? respond,
+  ImageProvider<Object> Function(String)? imageProvider,
   Size size = const Size(412, 1600),
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -89,6 +91,8 @@ Future<InMemoryCollectionRepository> openApp(
         ...sessionTestOverrides(),
         cocktailDbClientProvider.overrideWithValue(client),
         nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
+        if (imageProvider != null)
+          recipeImageProvider.overrideWithValue(imageProvider),
       ],
       child: ZestApp(initialLocation: location),
     ),
@@ -178,6 +182,41 @@ void main() {
     expectReadable(tester);
   });
 
+  testWidgets('the calendar credits source thumbnails in copy and semantics', (
+    tester,
+  ) async {
+    final repository = await openApp(
+      tester,
+      location: '/collection',
+      imageProvider: (_) => MemoryImage(validTinyPng().bytes),
+    );
+    await repository.saveRecipe(
+      Recipe.fromJson(
+        discoveryRecipe(
+          id: '99004',
+          name: 'Paper Garden 4',
+          thumbnailUrl: 'https://images.example.test/paper-garden.png',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Days without a photo of your own show a small image from '
+        'TheCocktailDB.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(
+        'Sunday, September 13, 2026, today, 1 drink, image from '
+        'TheCocktailDB',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('an entry can be moved to another day', (tester) async {
     final repository = await openApp(tester, location: '/collection');
     final entry = await repository.saveRecipe(
@@ -213,6 +252,13 @@ void main() {
       );
       await activate(tester, keyed('recipe-make-variation'));
       expect(find.text('Your variation of Paper Garden 1'), findsOneWidget);
+      // The prefilled fields below are a copy of the source recipe, so its
+      // credit and link stay visible even before anything is edited.
+      expect(
+        find.text('Recipe data and imagery: TheCocktailDB'),
+        findsOneWidget,
+      );
+      expect(find.text('Open source recipe'), findsOneWidget);
       expect(
         tester.widget<TextField>(keyed('variation-name')).controller!.text,
         'Paper Garden 1',
@@ -258,6 +304,9 @@ void main() {
       tester.widget<TextField>(keyed('variation-name')).controller!.text,
       'Original name',
     );
+    // Editing an existing variation still credits and links its source.
+    expect(find.text('Recipe data and imagery: TheCocktailDB'), findsOneWidget);
+    expect(find.text('Open source recipe'), findsOneWidget);
     await tester.enterText(keyed('variation-name'), 'Updated name');
     await activate(tester, keyed('variation-save'));
 

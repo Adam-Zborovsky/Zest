@@ -67,6 +67,7 @@ class VariationEditorScreen extends ConsumerWidget {
                     eyebrow: 'New variation',
                     heading: 'Your variation of ${recipe.name}',
                     initial: VariationDetails.fromSource(recipe),
+                    sourceUri: recipe.attributionUrl,
                     onSave: (details) => ref
                         .read(collectionRepositoryProvider)
                         .createVariation(recipe, details),
@@ -108,6 +109,7 @@ class VariationEditorScreen extends ConsumerWidget {
                   eyebrow: 'Edit variation',
                   heading: 'Your variation of ${entry.source.name}',
                   initial: entry.variation!,
+                  sourceUri: entry.source.attributionUrl,
                   onSave: (details) => ref
                       .read(collectionRepositoryProvider)
                       .updateVariation(entryId, details),
@@ -134,12 +136,18 @@ class _VariationForm extends ConsumerStatefulWidget {
     required this.eyebrow,
     required this.heading,
     required this.initial,
+    required this.sourceUri,
     required this.onSave,
   });
 
   final String eyebrow;
   final String heading;
   final VariationDetails initial;
+
+  /// The source recipe's TheCocktailDB page. The starting ingredients and
+  /// method below are copied from that recipe, so its credit and link stay
+  /// reachable even after the person has edited every field.
+  final Uri sourceUri;
   final Future<CollectionEntry> Function(VariationDetails details) onSave;
 
   @override
@@ -355,6 +363,14 @@ class _VariationFormState extends ConsumerState<_VariationForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            SourceAttribution(
+              uri: widget.sourceUri,
+              notices: const [
+                'Everything below started as a copy of that recipe. Edit '
+                    'anything to make it your own.',
+              ],
+            ),
+            const SizedBox(height: ZestSpace.xl),
             ZestCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
