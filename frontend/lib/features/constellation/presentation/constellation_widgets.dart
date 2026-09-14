@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,9 +9,9 @@ import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_sheet.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/application/catalog_update_controller.dart';
+import '../../catalog/domain/catalog_update_state.dart';
 import '../../catalog/domain/coverage_report.dart';
-import '../../catalog/domain/sync_state.dart';
-import '../../discovery/application/discovery_providers.dart';
 import '../../discovery/domain/recipe.dart';
 import '../domain/ingredient_graph.dart';
 import '../domain/ingredient_kind.dart';
@@ -33,11 +30,19 @@ String prevalencePhrase(IngredientNode node, IngredientGraph graph) =>
     '${graph.recipeCount == 1 ? 'recipe' : 'recipes'} in the analyzed '
     'collection.';
 
-/// The identified collection label required wherever counts appear.
-String coverageLine(CoverageReport report) =>
-    'TheCocktailDB recipes loaded on this device '
-    '(${report.lettersCompleted} of ${report.lettersTotal} letters · '
-    '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'}).';
+/// The identified collection label required wherever counts appear:
+/// "TheCocktailDB catalog, N recipes, updated <date>." Never claims
+/// provider completeness — it just names what is on this device.
+String coverageLine(BuildContext context, CoverageReport report) {
+  final recipes =
+      '${report.recipeCount} ${report.recipeCount == 1 ? 'recipe' : 'recipes'}';
+  final publishedAt = report.publishedAt;
+  if (publishedAt == null) return 'TheCocktailDB catalog, $recipes.';
+  final date = MaterialLocalizations.of(
+    context,
+  ).formatMediumDate(publishedAt.toLocal());
+  return 'TheCocktailDB catalog, $recipes, updated $date.';
+}
 
 /// Bottom sheet listing the recipes behind one edge, each navigating to the
 /// existing recipe detail route.
@@ -294,98 +299,72 @@ class _ConstellationListViewState extends State<ConstellationListView> {
   }
 }
 
-/// Home's sync and coverage status: explains the on-device collection,
-/// drives the resumable sync, and always labels counts as the loaded
-/// collection — never as proof of full-catalog completeness. Once the sync
-/// has finished it shrinks to one quiet identified line; the completeness
-/// guidance lives one tap away in a sheet instead of repeating on the page.
-class CatalogSyncCard extends ConsumerStatefulWidget {
-  const CatalogSyncCard({super.key});
+
+/// Home's shared-catalog status: shows automatic-download progress on a
+/// first launch, a branded retry on failure with no catalog yet, and
+/// otherwise a quiet identified coverage line — "TheCocktailDB catalog, N
+/// recipes, updated <date>." Background checks, applies, and staged updates
+/// are silent here; they surface through `showZestNotice` instead
+/// (`docs/M11.md` "Update behavior").
+class CatalogStatusCard extends ConsumerWidget {
+  const CatalogStatusCard({super.key});
 
   @override
-  ConsumerState<CatalogSyncCard> createState() => _CatalogSyncCardState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final coverageAsync = ref.watch(catalogCoverageProvider);
+    final updateState = ref.watch(catalogUpdateControllerProvider);
+    final coverage = coverageAsync.value;
+    final hasSnapshot = coverage?.hasSnapshot ?? false;
 
-class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
-  Timer? _ticker;
-
-  /// Absolute deadline synthesized for cooldowns that arrive without a
-  /// `retryAt` (no Retry-After from the source). Built once per pause from
-  /// the remaining-seconds snapshot so the countdown actually ticks between
-  /// rebuilds; cleared whenever the card leaves the cooldown state.
-  DateTime? _fallbackDeadline;
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  /// The cooldown state is a snapshot; the UI owns the ticking. Remaining
-  /// seconds are recomputed from the absolute deadline on every build, so
-  /// rebuilds never drift — mirrors the discovery cooldown card. When the
-  /// state carries no deadline, one is synthesized from the remaining-
-  /// seconds snapshot so the fallback path still ticks.
-  int _remainingSeconds(CatalogSyncState state) {
-    if (state.status != CatalogSyncStatus.pausedCooldown) return 0;
-    final deadline = state.retryAt ?? _synthesizedDeadline(state);
-    if (deadline == null) return math.max(0, state.secondsRemaining ?? 0);
-    final now = ref.read(nowProvider)();
-    return math.max(0, deadline.difference(now).inSeconds);
-  }
-
-  DateTime? _synthesizedDeadline(CatalogSyncState state) {
-    final remaining = state.secondsRemaining;
-    if (remaining == null) return null;
-    return _fallbackDeadline ??= ref
-        .read(nowProvider)()
-        .add(Duration(seconds: remaining));
-  }
-
-  void _ensureTicker() {
-    if (_ticker != null) return;
-    _ticker = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      final state = ref.read(catalogSyncProvider);
-      if (state.status != CatalogSyncStatus.pausedCooldown ||
-          _remainingSeconds(state) <= 0) {
-        timer.cancel();
-        _ticker = null;
-      }
-      if (mounted) setState(() {});
-    });
-  }
-
-  void _cancelTicker() {
-    _ticker?.cancel();
-    _ticker = null;
-    _fallbackDeadline = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(catalogSyncProvider);
-    if (state.status == CatalogSyncStatus.pausedCooldown) {
-      _ensureTicker();
-      // A deadline on the state supersedes any earlier synthesized one.
-      if (state.retryAt != null) _fallbackDeadline = null;
-    } else {
-      _cancelTicker();
+    if (!hasSnapshot && updateState.status == CatalogUpdateStatus.downloading) {
+      return ZestCard(
+        child: Row(
+          children: [
+            const BotanicalArt(motif: BotanicalMotif.citrus, size: 44),
+            const SizedBox(width: ZestSpace.md),
+            Expanded(
+              child: Semantics(
+                header: true,
+                liveRegion: true,
+                child: Text(
+                  'Downloading the recipe catalog…',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
-    final coverage = ref.watch(catalogCoverageProvider).value;
-    final letters = coverage?.lettersCompleted ?? state.lettersDone;
-    final recipes = coverage?.recipeCount ?? state.recipesLoaded;
-    final lettersTotal = coverage?.lettersTotal ?? 26;
-    final loaded = recipes > 0;
-    final report = CoverageReport(
-      lettersCompleted: letters,
-      lettersTotal: lettersTotal,
-      recipeCount: recipes,
-      lastCompletedAt: coverage?.lastCompletedAt,
-    );
 
-    return switch (state.status) {
-      CatalogSyncStatus.idle => ZestCard(
+    if (!hasSnapshot && updateState.status == CatalogUpdateStatus.failed) {
+      return ZestErrorState(
+        key: const ValueKey('catalog-download-failed'),
+        title: "Couldn't download the catalog",
+        message: _failureMessage(updateState.failure),
+        actionLabel: 'Retry',
+        onRetry: () =>
+            ref.read(catalogUpdateControllerProvider.notifier).checkNow(),
+      );
+    }
+
+    if (!hasSnapshot && coverageAsync.isLoading) {
+      return const ZestLoadingState(label: 'Opening your recipe catalog…');
+    }
+
+    if (coverageAsync.hasError) {
+      return ZestErrorState(
+        title: 'The catalog could not open',
+        message: 'The local recipe catalog could not be read. Try again.',
+        onRetry: () => ref.invalidate(catalogCoverageProvider),
+      );
+    }
+
+    if (!hasSnapshot || coverage == null) {
+      // A safe fallback for the rare case nothing has downloaded and no
+      // download is currently running (e.g. the very first frame, before
+      // `checkOnLaunch` completes its first async gap).
+      return ZestCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -397,128 +376,41 @@ class _CatalogSyncCardState extends ConsumerState<CatalogSyncCard> {
               ),
             ),
             const SizedBox(height: ZestSpace.sm),
-            Text(
-              loaded
-                  ? coverageLine(report)
-                  : 'Nothing is loaded yet. Syncing browses the recipe '
-                        'source one letter at a time and saves every recipe on '
-                        'this device — progress survives a restart.',
-            ),
-            if (loaded) ...[
-              const SizedBox(height: ZestSpace.sm),
-              const Text(
-                'Syncing continues from the letters still pending; the '
-                'constellation grows with every letter.',
-              ),
-            ],
+            const Text('Nothing is loaded yet.'),
             const SizedBox(height: ZestSpace.lg),
             ZestButton(
-              key: const ValueKey('sync-start'),
-              label: loaded && letters < lettersTotal
-                  ? 'Continue syncing'
-                  : 'Start syncing',
+              key: const ValueKey('catalog-download'),
+              label: 'Download catalog',
               icon: Icons.download_rounded,
-              onPressed: () => ref.read(catalogSyncProvider.notifier).start(),
+              onPressed: () =>
+                  ref.read(catalogUpdateControllerProvider.notifier).checkNow(),
             ),
           ],
         ),
-      ),
-      CatalogSyncStatus.syncing => ZestCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              header: true,
-              liveRegion: true,
-              child: Text(
-                'Syncing… ${state.lettersDone} of $lettersTotal letters · '
-                '${state.recipesLoaded} '
-                '${state.recipesLoaded == 1 ? 'recipe' : 'recipes'}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            const SizedBox(height: ZestSpace.sm),
-            Text(
-              state.currentLetter != null
-                  ? 'Browsing letter '
-                        '“${state.currentLetter!.toUpperCase()}”.'
-                  : 'Finishing up.',
-            ),
-            const SizedBox(height: ZestSpace.sm),
-            const Text(
-              'Everything loaded so far is saved on this device. Stopping '
-              'keeps it.',
-              style: TextStyle(color: ZestPalette.secondaryInk),
-            ),
-            const SizedBox(height: ZestSpace.lg),
-            ZestButton(
-              key: const ValueKey('sync-stop'),
-              label: 'Stop',
-              kind: ZestButtonKind.secondary,
-              onPressed: () => ref.read(catalogSyncProvider.notifier).stop(),
-            ),
-          ],
-        ),
-      ),
-      CatalogSyncStatus.pausedCooldown => ZestCard(
-        color: Theme.of(context).colorScheme.errorContainer,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              header: true,
-              liveRegion: true,
-              child: Text(
-                'Paused for a moment',
-                style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
-              ),
-            ),
-            const SizedBox(height: ZestSpace.sm),
-            Text(
-              'The recipe source asked Zest to wait. Your progress is saved '
-              'on this device.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: ZestSpace.lg),
-            Builder(
-              builder: (context) {
-                final remaining = _remainingSeconds(state);
-                return ZestButton(
-                  key: const ValueKey('sync-resume'),
-                  label: remaining > 0
-                      ? 'Resume in $remaining s'
-                      : 'Resume syncing',
-                  icon: Icons.play_arrow_rounded,
-                  onPressed: remaining > 0
-                      ? null
-                      : () => ref.read(catalogSyncProvider.notifier).resume(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-      CatalogSyncStatus.pausedError => ZestErrorState(
-        title: 'The sync hit a problem',
-        message:
-            'The recipe source is unavailable right now. Everything '
-            'loaded so far is saved on this device.',
-        actionLabel: 'Resume syncing',
-        onRetry: () => ref.read(catalogSyncProvider.notifier).resume(),
-      ),
-      CatalogSyncStatus.finished => _CollectionNote(report: report),
-    };
+      );
+    }
+
+    return _CatalogCollectionNote(report: coverage);
   }
+
+  String _failureMessage(CatalogUpdateFailureKind? kind) => switch (kind) {
+    CatalogUpdateFailureKind.offline =>
+      "You're offline. Connect and try again.",
+    CatalogUpdateFailureKind.timeout =>
+      'The recipe source took too long to answer. Try again.',
+    CatalogUpdateFailureKind.unavailable =>
+      'The recipe source is unavailable right now. Try again shortly.',
+    CatalogUpdateFailureKind.rateLimited =>
+      'The recipe source asked Zest to wait. Try again shortly.',
+    _ => 'The recipe source could not be reached. Try again.',
+  };
 }
 
-/// The finished collection, stated once: the identified coverage line and a
-/// details button whose sheet carries the completeness guidance.
-class _CollectionNote extends StatelessWidget {
-  const _CollectionNote({required this.report});
+/// The resting collection state: the identified coverage line and a details
+/// button whose sheet names the source and states it is not a completeness
+/// claim.
+class _CatalogCollectionNote extends StatelessWidget {
+  const _CatalogCollectionNote({required this.report});
 
   final CoverageReport report;
 
@@ -535,10 +427,10 @@ class _CollectionNote extends StatelessWidget {
             children: [
               Semantics(
                 header: true,
-                child: Text('Collection loaded', style: textTheme.titleMedium),
+                child: Text('Your recipe catalog', style: textTheme.titleMedium),
               ),
               Text(
-                coverageLine(report),
+                coverageLine(context, report),
                 style: textTheme.bodySmall!.copyWith(
                   color: ZestPalette.secondaryInk,
                 ),
@@ -548,23 +440,21 @@ class _CollectionNote extends StatelessWidget {
         ),
         IconButton(
           key: const ValueKey('collection-details'),
-          tooltip: 'About these counts',
+          tooltip: 'About this catalog',
           icon: const Icon(Icons.info_outline_rounded),
           onPressed: () => showZestSheet<void>(
             context: context,
-            title: 'About these counts',
+            title: 'About this catalog',
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(coverageLine(report)),
-                if (report.lettersCompleted >= report.lettersTotal) ...[
-                  const SizedBox(height: ZestSpace.sm),
-                  const Text('Every A–Z browse has completed.'),
-                ],
+                Text(coverageLine(context, report)),
                 const SizedBox(height: ZestSpace.sm),
                 const Text(
-                  CoverageReport.completenessGuidance,
+                  'This is TheCocktailDB catalog as last downloaded to this '
+                  'device — not necessarily every drink the provider has '
+                  'ever published.',
                   style: TextStyle(color: ZestPalette.secondaryInk),
                 ),
               ],

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../catalog/application/catalog_providers.dart';
+import '../../catalog/application/catalog_update_controller.dart';
+import '../../catalog/domain/catalog_update_state.dart';
 import '../../catalog/domain/coverage_report.dart';
 import '../../discovery/domain/recipe.dart';
 import '../data/home_bar_repository.dart';
@@ -57,6 +59,20 @@ final homeBarCatalogCoverageProvider = FutureProvider<CoverageReport>(
   (ref) => ref.watch(catalogRepositoryProvider).coverage(),
   retry: (retryCount, error) => null,
 );
+
+/// Keeps the home-bar's catalog-derived providers fresh as the shared
+/// catalog update controller applies new snapshots. The home-bar screen
+/// watches this provider to arm the listener.
+final homeBarCatalogFreshnessProvider = Provider<void>((ref) {
+  ref.listen(catalogUpdateControllerProvider, (previous, next) {
+    final applied =
+        next.status == CatalogUpdateStatus.updated &&
+        previous?.status != next.status;
+    if (!applied) return;
+    ref.invalidate(homeBarCatalogRecipesProvider);
+    ref.invalidate(homeBarCatalogCoverageProvider);
+  });
+});
 
 /// Catalog options use the first raw recipe spelling encountered in the
 /// catalog's deterministic recipe/ingredient order for each normalized id.

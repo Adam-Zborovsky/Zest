@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/widgets/zest_button.dart';
+import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/catalog/domain/coverage_report.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
@@ -18,6 +19,7 @@ import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 import 'package:zest/features/home_bar/domain/home_bar_item.dart';
 
 import '../../../support/bar_fixtures.dart';
+import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_home_bar_repository.dart';
 import '../../../support/in_memory_session.dart';
@@ -115,9 +117,18 @@ Future<void> openApp(
     transport.close();
   });
   addTearDown(repository.dispose);
+  // homeBarCatalogFreshnessProvider watches the shared catalog update
+  // controller, which otherwise pulls in the real (path_provider-backed)
+  // catalog database — never touched directly by this screen's own
+  // overrides below.
+  final catalogDatabase = openInMemoryCatalog();
+  addTearDown(catalogDatabase.close);
+  final catalogFetcher = FakeCatalogSnapshotFetcher()
+    ..enqueueAvailable(const CatalogSnapshotUnchanged());
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...catalogTestOverrides(database: catalogDatabase, fetcher: catalogFetcher),
         cocktailDbClientProvider.overrideWithValue(client),
         homeBarRepositoryProvider.overrideWithValue(repository),
         homeBarCatalogRecipesProvider.overrideWith(
@@ -125,9 +136,8 @@ Future<void> openApp(
         ),
         homeBarCatalogCoverageProvider.overrideWith(
           (ref) async => CoverageReport(
-            lettersCompleted: catalogRecipes.isEmpty ? 0 : 2,
             recipeCount: catalogRecipes.length,
-            lastCompletedAt: DateTime.utc(2026, 9, 14),
+            publishedAt: catalogRecipes.isEmpty ? null : DateTime.utc(2026, 9, 14),
           ),
         ),
         homeBarCatalogIngredientOptionsProvider.overrideWith(

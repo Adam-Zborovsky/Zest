@@ -30,10 +30,10 @@ Future<ProviderContainer> openApp(
 }) async {
   final database = openInMemoryCatalog();
   addTearDown(database.close);
-  final source = FakeCatalogLetterSource(letters: {});
+  final fetcher = FakeCatalogSnapshotFetcher();
   final container = ProviderContainer(
     overrides: [
-      ...catalogTestOverrides(database: database, source: source),
+      ...catalogTestOverrides(database: database, fetcher: fetcher),
       ...collectionTestOverrides(),
       ...sessionTestOverrides(
         onboardingSeen: onboardingSeen,

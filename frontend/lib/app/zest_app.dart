@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design/zest_theme.dart';
+import '../features/catalog/application/catalog_update_controller.dart';
 import '../features/onboarding/application/session_providers.dart';
 import 'design_gallery.dart';
 import 'zest_router.dart';
@@ -27,6 +28,11 @@ class _ZestAppState extends ConsumerState<ZestApp> {
   // deactivating, when `ref.read` is unsafe.
   late final GoRouter _router;
 
+  // docs/M11.md "Update behavior": a resume 6+ hours after the last
+  // successful check triggers a background check that stages (never
+  // auto-applies) a found update.
+  AppLifecycleListener? _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
@@ -34,10 +40,16 @@ class _ZestAppState extends ConsumerState<ZestApp> {
       initialLocation: widget.initialLocation,
       session: ref.read(sessionControllerProvider),
     );
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () => ref
+          .read(catalogUpdateControllerProvider.notifier)
+          .checkAfterResume(),
+    );
   }
 
   @override
   void dispose() {
+    _lifecycleListener?.dispose();
     _router.dispose();
     super.dispose();
   }

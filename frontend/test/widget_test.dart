@@ -12,17 +12,19 @@ void main() {
     // Home reads the on-device catalog; tests inject the in-memory store.
     final database = openInMemoryCatalog();
     addTearDown(database.close);
-    final source = FakeCatalogLetterSource(letters: {});
+    final fetcher = FakeCatalogSnapshotFetcher();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          ...catalogTestOverrides(database: database, source: source),
+          ...catalogTestOverrides(database: database, fetcher: fetcher),
           ...collectionTestOverrides(),
           ...sessionTestOverrides(),
         ],
         child: const ZestApp(),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
 
     expect(find.text('Zest'), findsOneWidget);
