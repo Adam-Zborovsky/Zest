@@ -3,7 +3,27 @@ import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
 import { createTestApp } from './support/accounts_test_app.js';
 import { publishCatalog } from '../src/catalog/store.js';
+import { catalogRecipes } from '../src/catalog/schema.js';
 import type { Db } from '../src/accounts/db.js';
+
+/** Counts `.from(catalogRecipes)` calls on `db.select()` — a spy seam for
+ * asserting a request never reads the recipes table. */
+function spyOnRecipeReads(db: Db): { count: number } {
+  const counter = { count: 0 };
+  const originalSelect = db.select.bind(db);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (db as any).select = (...args: unknown[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const builder: any = (originalSelect as any)(...args);
+    const originalFrom = builder.from.bind(builder);
+    builder.from = (table: unknown) => {
+      if (table === catalogRecipes) counter.count++;
+      return originalFrom(table);
+    };
+    return builder;
+  };
+  return counter;
+}
 
 function drink(id: string, name: string) {
   return { idDrink: id, strDrink: name, strInstructions: 'Stir synthetic ingredients.', strIngredient1: 'Synthetic gin' };
@@ -38,7 +58,9 @@ test('GET /api/catalog serves the wire shape with a quoted strong ETag and no-ca
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers.etag, `"${'a'.repeat(64)}"`);
     assert.equal(response.headers['cache-control'], 'no-cache');
-    assert.equal(response.headers.vary, 'Accept-Encoding');
+    // @fastify/cors sets its own Vary: Origin; the route must append
+    // Accept-Encoding to it rather than overwrite it (finding #16).
+    assert.match(response.headers.vary as string, /Accept-Encoding/);
     const body = response.json();
     assert.equal(body.version, 'a'.repeat(64));
     assert.equal(body.recipeCount, 2);
@@ -156,7 +178,7 @@ test('gzip is used when accepted, with Content-Encoding and Vary, and the plain 
     });
     assert.equal(gzipped.statusCode, 200);
     assert.equal(gzipped.headers['content-encoding'], 'gzip');
-    assert.equal(gzipped.headers.vary, 'Accept-Encoding');
+    assert.match(gzipped.headers.vary as string, /Accept-Encoding/);
     const decompressed = gunzipSync(gzipped.rawPayload).toString('utf-8');
     assert.equal(decompressed, plain.body);
   } finally {
@@ -220,6 +242,55 @@ test('a publish landing between the state and recipes reads never serves a torn 
     assert.equal(snapshot!.state.version, 'k'.repeat(64));
     assert.equal(snapshot!.recipes.length, 3);
     assert.deepEqual(snapshot!.recipes.map((r) => r.providerId).sort(), ['1', '2', '3']);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('Vary carries the CORS Origin value alongside Accept-Encoding, appended not overwritten', async () => {
+  const harness = await createTestApp({ origins: ['http://localhost:5173'] });
+  try {
+    await seedCatalog(harness.db, { version: 'l'.repeat(64), publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog', headers: { origin: 'http://localhost:5173' },
+    });
+    assert.equal(response.statusCode, 200);
+    const vary = (response.headers.vary as string).split(',').map((v) => v.trim());
+    assert.ok(vary.includes('Origin'), `expected Vary to include Origin, got: ${response.headers.vary}`);
+    assert.ok(vary.includes('Accept-Encoding'), `expected Vary to include Accept-Encoding, got: ${response.headers.vary}`);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('Accept-Encoding: gzip;q=0 is not treated as accepting gzip', async () => {
+  const harness = await createTestApp();
+  try {
+    await seedCatalog(harness.db, { version: 'm'.repeat(64), publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog', headers: { 'accept-encoding': 'gzip;q=0, deflate' },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['content-encoding'], undefined);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a 304 answer never reads the recipes table', async () => {
+  const harness = await createTestApp();
+  try {
+    const version = 'n'.repeat(64);
+    await seedCatalog(harness.db, { version, publishedAt: '2026-09-14T08:00:00.000Z', drinks: [drink('1', 'One')] });
+    // Warm the in-memory body cache first with an unconditional GET, then
+    // spy: a 304 answered from the cached version must not touch recipes.
+    await harness.app.inject({ method: 'GET', url: '/api/catalog' });
+    const recipeReads = spyOnRecipeReads(harness.db);
+    const response = await harness.app.inject({
+      method: 'GET', url: '/api/catalog', headers: { 'if-none-match': `"${version}"` },
+    });
+    assert.equal(response.statusCode, 304);
+    assert.equal(recipeReads.count, 0);
   } finally {
     await harness.cleanup();
   }

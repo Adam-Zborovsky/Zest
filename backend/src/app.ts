@@ -59,7 +59,10 @@ export function buildApp(options: AppOptions) {
   });
   // Widened for accounts and sync (docs/ACCOUNTS.md): still loopback-only origins, no credentials.
   app.register(cors, { origin: origins, methods: ['GET', 'POST', 'PUT', 'DELETE'], credentials: false,
-    allowedHeaders: ['Accept', 'Authorization', 'Content-Type'], exposedHeaders: ['Retry-After'] });
+    // If-None-Match: the conditional GET /api/catalog client (docs/M11.md)
+    // sends it, and without it listed here a browser preflight for that
+    // request fails, so web clients never receive catalog updates.
+    allowedHeaders: ['Accept', 'Authorization', 'Content-Type', 'If-None-Match'], exposedHeaders: ['Retry-After'] });
   if (options.db) {
     app.register(registerAccountsRoutes, {
       db: options.db, photoDir: options.photoDir ?? './data/photos',
