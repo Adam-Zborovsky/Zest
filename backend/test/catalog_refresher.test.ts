@@ -232,7 +232,7 @@ test('close() during a run stops promptly and publishes nothing', async () => {
   }
 });
 
-test('24h scheduling: start() refreshes immediately with no snapshot, skips when checkedAt is fresh, and fires on the interval', async () => {
+test('24h scheduling: start() schedules an immediate run with no snapshot, defers when checkedAt is fresh, and the scheduled timer fires the next check', async () => {
   const { db, cleanup } = await createCatalogTestDb();
   try {
     const intervalMs = 24 * 60 * 60 * 1000;
@@ -241,29 +241,195 @@ test('24h scheduling: start() refreshes immediately with no snapshot, skips when
     const { gateway, calls } = fakeGateway(fullCatalogPlan());
     const refresher = new CatalogRefresher({ db, gateway, clock: clock.clock, intervalMs, letterPauseMs: 0, timers: fake.timers });
 
-    // No published snapshot: start() must refresh right away. refresh()
-    // returns the same in-flight promise start() already kicked off.
+    // No published snapshot: start() must schedule a due-now (0ms) timer.
     await refresher.start();
+    assert.equal(fake.pendingTimeouts(), 1);
+    assert.equal(fake.lastDelay(), 0);
+    fake.fireTimeouts();
     await flushRefresh(refresher.refresh(), fake);
     assert.ok(calls.length > 0, 'expected an immediate refresh with no prior snapshot');
-    assert.equal(fake.pendingIntervals(), 1);
+    // A successful run reschedules a fresh 24h-out timer, not a recurring interval.
+    assert.equal(fake.pendingTimeouts(), 1);
+    assert.equal(fake.lastDelay(), intervalMs);
 
-    // A second refresher, same db, checkedAt is now fresh: no immediate run.
+    // A second refresher, same db, checkedAt is now fresh: the next check is
+    // scheduled far out, not due now.
     const fake2 = createFakeTimers();
     const { gateway: gateway2, calls: calls2 } = fakeGateway(fullCatalogPlan());
     clock.set('2026-09-14T09:00:00.000Z');
     const refresher2 = new CatalogRefresher({ db, gateway: gateway2, clock: clock.clock, intervalMs, letterPauseMs: 0, timers: fake2.timers });
     await refresher2.start();
+    assert.equal(fake2.pendingTimeouts(), 1);
+    assert.ok(fake2.lastDelay()! > 0 && fake2.lastDelay()! <= intervalMs);
     await flushMicrotasks(20);
     assert.equal(calls2.length, 0, 'a recent checkedAt must not trigger an immediate refresh');
 
-    // Firing the interval callback triggers another refresh.
-    fake2.fireIntervals();
+    // Firing the scheduled timer triggers the next check.
+    fake2.fireTimeouts();
     await flushRefresh(refresher2.refresh(), fake2);
-    assert.ok(calls2.length > 0, 'the 24h interval must trigger a refresh');
+    assert.ok(calls2.length > 0, 'the scheduled timer must trigger a refresh');
 
     await refresher.close();
-    assert.equal(fake.pendingIntervals(), 0, 'close() must clear the recurring timer');
+    assert.equal(fake.pendingTimeouts(), 0, 'close() must clear the pending scheduled timer');
+    await refresher2.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a failed run schedules a retry well before the full interval, not a 24h wait', async () => {
+  const { db, cleanup } = await createCatalogTestDb();
+  try {
+    const intervalMs = 24 * 60 * 60 * 1000;
+    const failingPlan = fullCatalogPlan();
+    failingPlan.m = 'fail';
+    const { gateway } = fakeGateway(failingPlan);
+    const fake = createFakeTimers();
+    const refresher = new CatalogRefresher({ db, gateway, clock: () => new Date(CLOCK_START), intervalMs, letterPauseMs: 0, timers: fake.timers });
+
+    await flushRefresh(refresher.refresh(), fake);
+
+    // The refresh's own retry timer is the only one left pending once its
+    // internal letter-pause timeouts have all been drained.
+    assert.equal(fake.pendingTimeouts(), 1);
+    const delay = fake.lastDelay()!;
+    assert.ok(delay > 0 && delay < intervalMs, `expected a bounded backoff retry, got ${delay}ms`);
+    assert.ok(delay <= 5 * 60 * 1000, `expected the first retry within the 5-minute base backoff, got ${delay}ms`);
+    await refresher.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('backoff doubles across consecutive failures and is capped at the interval', async () => {
+  const { db, cleanup } = await createCatalogTestDb();
+  try {
+    const intervalMs = 5000; // small on purpose so the cap is reached in a few doublings
+    const failingPlan = fullCatalogPlan();
+    failingPlan.m = 'fail';
+    const fake = createFakeTimers();
+    const refresher = new CatalogRefresher({
+      db, gateway: fakeGateway(failingPlan).gateway, clock: () => new Date(CLOCK_START),
+      intervalMs, letterPauseMs: 0, backoffBaseMs: 1000, timers: fake.timers,
+    });
+
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 1000, 'first failure retries at the base backoff');
+
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 2000, 'second consecutive failure doubles the backoff');
+
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 4000, 'third consecutive failure doubles again');
+
+    // The fourth doubling (8000ms) would exceed the 5000ms interval: it must cap there instead.
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), intervalMs, 'backoff must never exceed the success interval');
+
+    // And stays capped on further consecutive failures.
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), intervalMs, 'backoff stays capped, not still doubling');
+    await refresher.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('backoff resets to the base after a successful run following failures', async () => {
+  const { db, cleanup } = await createCatalogTestDb();
+  try {
+    const intervalMs = 30 * 60 * 1000;
+    const failingPlan = fullCatalogPlan();
+    failingPlan.m = 'fail';
+    let impl = fakeGateway(failingPlan).gateway;
+    const swappableGateway = { get: (op: Parameters<typeof impl.get>[0]) => impl.get(op) };
+    const fake = createFakeTimers();
+    const refresher = new CatalogRefresher({
+      db, gateway: swappableGateway, clock: () => new Date(CLOCK_START),
+      intervalMs, letterPauseMs: 0, backoffBaseMs: 1000, timers: fake.timers,
+    });
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 1000);
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 2000);
+
+    // Swap in a gateway that now succeeds fully.
+    impl = fakeGateway(fullCatalogPlan()).gateway;
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), intervalMs, 'a success reschedules the full interval');
+
+    // Fail again immediately after: backoff must have reset to the base, not
+    // continued doubling from before the success.
+    impl = fakeGateway(failingPlan).gateway;
+    fake.fireTimeouts();
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 1000, 'backoff must reset to the base after a success');
+    await refresher.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a gateway retryAfter longer than the computed backoff wins', async () => {
+  const { GatewayError } = await import('../src/gateway.js');
+  const { db, cleanup } = await createCatalogTestDb();
+  try {
+    const intervalMs = 24 * 60 * 60 * 1000;
+    const gateway = {
+      async get(operation: { value: string }) {
+        if (operation.value === 'd') throw new GatewayError('rate_limited', 429, 900); // 900s = 15 min
+        return JSON.stringify({ drinks: null });
+      },
+    };
+    const fake = createFakeTimers();
+    const refresher = new CatalogRefresher({
+      db, gateway, clock: () => new Date(CLOCK_START), intervalMs, letterPauseMs: 0, backoffBaseMs: 1000, timers: fake.timers,
+    });
+    await flushRefresh(refresher.refresh(), fake);
+    assert.equal(fake.lastDelay(), 900 * 1000, 'a longer retryAfter overrides the shorter computed backoff');
+    await refresher.close();
+  } finally {
+    await cleanup();
+  }
+});
+
+test('restarting after a failed check retries promptly, even though checked_at is recent', async () => {
+  const { db, cleanup } = await createCatalogTestDb();
+  try {
+    const intervalMs = 24 * 60 * 60 * 1000;
+    const clock = mutableClock(CLOCK_START);
+
+    // A successful publish first, so there is a snapshot row for a later
+    // failed check to record its error code against.
+    const fakeSeed = createFakeTimers();
+    const seed = new CatalogRefresher({ db, gateway: fakeGateway(fullCatalogPlan()).gateway, clock: clock.clock, intervalMs, letterPauseMs: 0, timers: fakeSeed.timers });
+    await flushRefresh(seed.refresh(), fakeSeed);
+    await seed.close();
+
+    const failingPlan = fullCatalogPlan();
+    failingPlan.m = 'fail';
+    clock.set('2026-09-15T08:00:00.000Z');
+    const fake1 = createFakeTimers();
+    const refresher1 = new CatalogRefresher({ db, gateway: fakeGateway(failingPlan).gateway, clock: clock.clock, intervalMs, letterPauseMs: 0, timers: fake1.timers });
+    await flushRefresh(refresher1.refresh(), fake1);
+    const state = await readCatalogState(db);
+    assert.equal(state!.lastErrorCode, 'upstream_unavailable');
+    await refresher1.close();
+
+    // A brand-new refresher instance (simulating a server restart) a minute
+    // later — checked_at is fresh by the clock, but the last check failed.
+    clock.set('2026-09-14T08:01:00.000Z');
+    const fake2 = createFakeTimers();
+    const refresher2 = new CatalogRefresher({ db, gateway: fakeGateway(fullCatalogPlan()).gateway, clock: clock.clock, intervalMs, letterPauseMs: 0, timers: fake2.timers });
+    await refresher2.start();
+    assert.equal(fake2.pendingTimeouts(), 1);
+    assert.equal(fake2.lastDelay(), 0, 'a failed last check must be treated as stale regardless of checked_at age');
     await refresher2.close();
   } finally {
     await cleanup();
