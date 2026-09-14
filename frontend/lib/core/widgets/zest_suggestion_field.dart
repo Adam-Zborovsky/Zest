@@ -47,6 +47,7 @@ class ZestSuggestionField<T extends Object> extends StatefulWidget {
     this.controller,
     this.focusNode,
     required this.label,
+    this.labelText,
     this.hintText,
     this.prefixIcon = Icons.search_rounded,
     this.textInputAction = TextInputAction.search,
@@ -80,6 +81,13 @@ class ZestSuggestionField<T extends Object> extends StatefulWidget {
   /// caller (existing screens render their own heading above the field).
   final String label;
   final String? hintText;
+
+  /// The field's visible floating label, rendered the same way as any other
+  /// Zest [TextFormField] (e.g. the variation editor's "Measure" field). Not
+  /// used for accessibility — [label] is the field's accessible name
+  /// regardless of whether this is set — so a caller with its own heading
+  /// above the field can leave this null.
+  final String? labelText;
   final IconData? prefixIcon;
   final TextInputAction textInputAction;
 
@@ -279,6 +287,7 @@ class _ZestSuggestionFieldState<T extends Object>
                     }
                   },
                   decoration: InputDecoration(
+                    labelText: widget.labelText,
                     hintText: widget.hintText,
                     hintMaxLines: 3,
                     errorMaxLines: 4,

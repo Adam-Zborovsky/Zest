@@ -351,7 +351,6 @@ class _VariationFormState extends ConsumerState<_VariationForm> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
-    ref.watch(catalogSearchIndexFreshnessProvider);
     final searchIndex =
         ref.watch(catalogSearchIndexProvider).value ?? CatalogSearchIndex.empty;
     List<String> ingredientSuggestions(String query) => [
@@ -541,7 +540,7 @@ class _IngredientFieldRow extends StatelessWidget {
         key: ValueKey('variation-ingredient-name-$index'),
         controller: row.name,
         label: 'Ingredient',
-        hintText: 'Ingredient',
+        labelText: 'Ingredient',
         errorText: error,
         maxLength: VariationIngredient.maxNameLength,
         buildCounter: _noCounter,
