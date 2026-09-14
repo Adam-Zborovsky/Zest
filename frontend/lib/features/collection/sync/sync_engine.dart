@@ -70,6 +70,7 @@ final class SyncEngine implements CollectionSync {
 
   /// Debounces a pass by [debounce] after a local write. Call from wherever
   /// the collection database is written.
+  @override
   void scheduleAfterLocalWrite() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(debounce, () {
@@ -80,7 +81,38 @@ final class SyncEngine implements CollectionSync {
   /// One final push attempt on sign-out, before the account repository
   /// clears the session. Never throws; a failure is silently accepted, as
   /// the collection cache still keeps the unsynced local changes.
+  ///
+  /// Routed through the single-flight guard ([_inFlight]) rather than
+  /// calling `_push()` directly: a debounced or already-running pass could
+  /// otherwise race this final push, sending two concurrent requests, or
+  /// (worse) finish after the caller clears the session token. This joins
+  /// any pass already running, cancels the debounce timer so no further
+  /// pass starts on its own, then runs one more push under the same guard
+  /// so a concurrent `syncNow()`/`scheduleAfterLocalWrite()` call joins this
+  /// push instead of racing it. The caller (`SessionController.signOut`)
+  /// awaits this before clearing the token, so no request goes out after.
+  @override
   Future<void> pushBeforeSignOut() async {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    final running = _inFlight;
+    if (running != null) {
+      try {
+        await running;
+      } catch (_) {
+        // The prior pass's own failure handling already recorded status;
+        // proceed to the final push regardless.
+      }
+    }
+    final future = _finalPush();
+    _inFlight = future;
+    future.whenComplete(() {
+      if (identical(_inFlight, future)) _inFlight = null;
+    });
+    await future;
+  }
+
+  Future<void> _finalPush() async {
     try {
       await _push();
     } catch (_) {
@@ -167,11 +199,19 @@ final class SyncEngine implements CollectionSync {
 
   Future<void> _applyPulledEntry(EntryRecord entry) async {
     final local = await _store.localRecord(entry.id);
+    // A dirty local row must never be silently overwritten (and its dirty
+    // flag cleared) by a pulled record at an equal or earlier `updatedAt`:
+    // an equal timestamp does not prove the server has seen this edit yet —
+    // it may belong to a different device's write that happened to land on
+    // the same millisecond, or (pre-M8-review-fix) the same second. Only a
+    // pulled record strictly *newer* than a dirty local row may replace it;
+    // a clean (already-synced) local row has nothing to lose, so the server
+    // always wins for it, ties included.
     final serverWins =
-        local == null || !local.dirty || !local.updatedAt.isAfter(entry.updatedAt);
+        local == null || !local.dirty || local.updatedAt.isBefore(entry.updatedAt);
     if (!serverWins) {
-      // The local edit is newer and still unpushed; keep it and let the
-      // next push resolve it against the server.
+      // The local edit is newer than, or tied with, the server's version and
+      // still unpushed; keep it and let the next push resolve it.
       return;
     }
     await _store.applyServerRecord(entry);
