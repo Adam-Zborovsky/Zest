@@ -475,6 +475,54 @@ void main() {
     expect(find.text('Showing 0 of 3 ingredients.'), findsOneWidget);
   });
 
+  testWidgets(
+    'a constellation suggestion selects that node and keeps the filter text',
+    (tester) async {
+      await openHome(
+        tester,
+        seed: [
+          ...catalogLetterRecipes('a'),
+          ...catalogLetterRecipes('b'),
+          ...catalogLetterRecipes('c'),
+        ],
+      );
+
+      await tester.ensureVisible(keyed('constellation-search'));
+      await tester.tap(
+        find.descendant(
+          of: keyed('constellation-search'),
+          matching: find.byType(TextFormField),
+        ),
+      );
+      await tester.enterText(keyed('constellation-search'), 'mint');
+      await tester.pumpAndSettle();
+      // The suggestion row shows the catalog's own spelling, not yet a
+      // selection.
+      expect(find.text('Mint Leaves'), findsOneWidget);
+      expect(find.text('Clear selection'), findsNothing);
+
+      await tester.tap(find.text('Mint Leaves'));
+      await tester.pumpAndSettle();
+
+      // Same effect as tapping the node on the canvas.
+      expect(find.text('Mint leaf'), findsOneWidget);
+      expect(find.text('Clear selection'), findsOneWidget);
+      // The live filter text stays as typed.
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.descendant(
+                of: keyed('constellation-search'),
+                matching: find.byType(TextFormField),
+              ),
+            )
+            .controller!
+            .text,
+        'mint',
+      );
+    },
+  );
+
   testWidgets('a collection wider than the top-40 bound discloses the cut '
       'honestly in both views', (tester) async {
     await openHome(tester, seed: wideGardenRecipes());

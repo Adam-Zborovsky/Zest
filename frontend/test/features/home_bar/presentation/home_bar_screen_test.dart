@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/catalog/domain/coverage_report.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
@@ -10,6 +11,7 @@ import 'package:zest/features/home_bar/application/home_bar_providers.dart';
 import 'package:zest/features/home_bar/domain/home_bar_item.dart';
 
 import '../../../support/bar_fixtures.dart';
+import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
@@ -36,6 +38,13 @@ Future<void> _open(
   addTearDown(catalogDatabase.close);
   final catalogFetcher = FakeCatalogSnapshotFetcher()
     ..enqueueAvailable(const CatalogSnapshotUnchanged());
+  // Keeps `catalogSearchIndexProvider` (the home-bar picker's ranking
+  // source, docs/M11.md "Home-bar picker") consistent with `recipes`.
+  if (recipes.isNotEmpty) {
+    await CatalogRepository(
+      database: catalogDatabase,
+    ).applySnapshot(catalogSnapshotFixture(drinks: recipes));
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -141,6 +150,39 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('1 ingredient stocked.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the catalog picker orders matches by the shared search index ranking',
+    (tester) async {
+      final repository = InMemoryHomeBarRepository();
+      await _open(
+        tester,
+        repository: repository,
+        recipes: [
+          // Query "gin": "Gin" is an exact match (tier 1), "Ginger ale" is
+          // a prefix match (tier 2), "Beefeater Gin" only a substring
+          // match (tier 4) — the index ranks them in that order.
+          _recipe('99201', 'Martini', [('Gin', '2 oz')]),
+          _recipe('99202', 'Shandy', [('Ginger ale', '4 oz')]),
+          _recipe('99203', 'Imported Fizz', [('Beefeater Gin', '2 oz')]),
+        ],
+      );
+
+      await tester.tap(find.byKey(const ValueKey('home-bar-add-ingredient')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('home-bar-catalog-search')),
+        'gin',
+      );
+      await tester.pump();
+
+      final order = tester
+          .widgetList<ListTile>(find.byType(ListTile))
+          .map((tile) => (tile.title! as Text).data)
+          .toList();
+      expect(order, ['Gin', 'Ginger ale', 'Beefeater Gin']);
     },
   );
 

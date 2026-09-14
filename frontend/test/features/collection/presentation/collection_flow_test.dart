@@ -6,12 +6,15 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
+import 'package:zest/features/catalog/application/catalog_providers.dart';
+import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/collection/domain/collection_entry.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
 import 'package:zest/features/discovery/domain/recipe.dart';
 import 'package:zest/features/discovery/presentation/discovery_widgets.dart';
 
+import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
 import '../../../support/collection_test_overrides.dart';
 import '../../../support/in_memory_session.dart';
@@ -69,6 +72,7 @@ Future<InMemoryCollectionRepository> openApp(
   Future<http.Response> Function(http.Request)? respond,
   ImageProvider<Object> Function(String)? imageProvider,
   Size size = const Size(412, 1600),
+  List<Recipe> catalogRecipes = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -85,12 +89,20 @@ Future<InMemoryCollectionRepository> openApp(
     client.close();
     transport.close();
   });
+  final catalogDatabase = openInMemoryCatalog();
+  addTearDown(catalogDatabase.close);
+  final catalogRepository = CatalogRepository(database: catalogDatabase);
+  if (catalogRecipes.isNotEmpty) {
+    await catalogRepository.applySnapshot(
+      catalogSnapshotFixture(drinks: catalogRecipes),
+    );
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         ...collectionTestOverrides(repository: repository),
         ...sessionTestOverrides(),
-        emptyCatalogRepositoryOverride(),
+        catalogRepositoryProvider.overrideWithValue(catalogRepository),
         cocktailDbClientProvider.overrideWithValue(client),
         nowProvider.overrideWithValue(() => DateTime(2026, 9, 13, 12)),
         if (imageProvider != null)
@@ -294,6 +306,40 @@ void main() {
         findsOneWidget,
       );
       expectReadable(tester);
+    },
+  );
+
+  testWidgets(
+    'an ingredient row suggests catalog labels; free text stays valid',
+    (tester) async {
+      await openApp(
+        tester,
+        location: '/discover/recipe/99001',
+        respond: (_) async => discoveryResponse([
+          discoveryRecipe(id: '99001', name: 'Paper Garden 1'),
+        ]),
+        // Carries the default fixture ingredients, including "Imaginary
+        // leaf syrup" — the same identity the source recipe's row starts
+        // with, so the index has a suggestion for it.
+        catalogRecipes: [seedRecipe(id: '99050', name: 'Ginger Fix')],
+      );
+      await activate(tester, keyed('recipe-make-variation'));
+
+      final nameField = find.descendant(
+        of: keyed('variation-ingredient-name-0'),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(nameField, 'Imaginary');
+      await tester.pumpAndSettle();
+      // The suggestion is the catalog's own spelling for this identity.
+      expect(find.text('Imaginary leaf syrup'), findsWidgets);
+
+      // Free text remains valid: typing something not in the catalog and
+      // saving still succeeds.
+      await tester.enterText(nameField, 'My own bitters blend');
+      await tester.pumpAndSettle();
+      await activate(tester, keyed('variation-save'));
+      expect(find.text('Your variation of Paper Garden 1'), findsOneWidget);
     },
   );
 
