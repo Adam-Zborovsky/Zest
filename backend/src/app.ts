@@ -5,6 +5,16 @@ import type { Endpoint, Fetcher, Operation } from './gateway.js';
 import { registerAccountsRoutes } from './accounts/routes.js';
 import type { Db } from './accounts/db.js';
 import type { Argon2Options } from './accounts/auth.js';
+import { registerCatalogRoutes, CatalogRateLimitError, type CatalogRateLimitOptions } from './catalog/routes.js';
+import { CatalogRefresher, type CatalogTimers } from './catalog/refresher.js';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    // Present only when `db` is provided; undefined otherwise. server.ts
+    // starts it after listen and closes it before the pool, per docs/M11.md.
+    catalogRefresher?: CatalogRefresher;
+  }
+}
 
 export interface AppOptions {
   apiKey: string;
@@ -24,6 +34,14 @@ export interface AppOptions {
   argon2Options?: Argon2Options;
   clock?: () => Date;
   tokenGenerator?: () => string;
+  // Shared catalog (M11, docs/M11.md). Omitting `db` also leaves the
+  // catalog route and refresh job unregistered.
+  catalogRateLimit?: CatalogRateLimitOptions | undefined;
+  catalogIntervalMs?: number | undefined;
+  catalogLetterPauseMs?: number | undefined;
+  catalogTimers?: CatalogTimers | undefined;
+  onCatalogRefresh?: ((outcome: { published: boolean; version: string; recipeCount: number }) => void) | undefined;
+  onCatalogFailure?: ((code: string) => void) | undefined;
 }
 
 export function buildApp(options: AppOptions) {
@@ -47,6 +65,12 @@ export function buildApp(options: AppOptions) {
       db: options.db, photoDir: options.photoDir ?? './data/photos',
       argon2Options: options.argon2Options, clock: options.clock, tokenGenerator: options.tokenGenerator,
     });
+    app.register(registerCatalogRoutes, { db: options.db, rateLimit: options.catalogRateLimit });
+    app.decorate('catalogRefresher', new CatalogRefresher({
+      db: options.db, gateway,
+      clock: options.clock, intervalMs: options.catalogIntervalMs, letterPauseMs: options.catalogLetterPauseMs,
+      timers: options.catalogTimers, onRefresh: options.onCatalogRefresh, onFailure: options.onCatalogFailure,
+    }));
   }
   app.get('/api/health', async () => ({ status: 'ok' }));
   const text = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[^\\u0000-\\u001f\\u007f]+$' };
@@ -77,12 +101,15 @@ export function buildApp(options: AppOptions) {
       if (error.retryAfter !== undefined) reply.header('Retry-After', error.retryAfter);
       return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
     }
+    if (error instanceof CatalogRateLimitError) {
+      return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
+    }
     const status = typeof error === 'object' && error !== null && 'statusCode' in error ? error.statusCode : undefined;
     if (typeof status === 'number' && status >= 400 && status < 500) {
       return reply.code(status).send({ error: { code: 'invalid_request', message: 'Invalid recipe request.' } });
     }
     return reply.code(500).send({ error: { code: 'internal_error', message: 'Request could not be completed.' } });
   });
-  app.addHook('onClose', async () => { gateway.close(); });
+  app.addHook('onClose', async () => { await app.catalogRefresher?.close(); gateway.close(); });
   return app;
 }
