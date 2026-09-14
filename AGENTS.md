@@ -54,7 +54,7 @@ frontend/            # the Flutter application — run commands from here
   test/
     fixtures/        # synthetic API-shaped JSON
     features/        # mirrors lib structure
-backend/             # local recipe gateway; accounts/auth remain gated on M7
+backend/             # recipe gateway, accounts, sync, and photo storage (M8)
 docs/                # PRODUCT.md, ROADMAP.md, DESIGN.md (created in M1), review records
 ```
 

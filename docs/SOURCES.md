@@ -136,7 +136,7 @@ Verified by the integrator on 2026-09-14:
       photos.
 - [x] Two early commits (`018a4738`, `871999565`) carry Adam's personal Gmail
       address as the commit author, rather than his GitHub noreply address.
-      Adam is deciding whether to keep them as-is before publishing.
+      Adam decided on 2026-09-14 to keep them as-is (no history rewrite).
 
 Left for Adam:
 
