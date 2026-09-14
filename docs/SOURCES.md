@@ -105,6 +105,14 @@ absence of a prohibition rather than an explicit grant.
 - **Server-side sync of source snapshots is not addressed.** Storing a
   user's saved-recipe `source` JSON on Zest's own backend (`docs/ACCOUNTS.md`)
   is a form of storage the terms do not mention.
+- **Shared server-side catalog (M11, Adam's decision 2026-09-14).** Zest's
+  backend will persist the full set of provider recipe records fetched through
+  the official letter-browse endpoint, refresh it at most daily, and serve it
+  as one snapshot to Zest clients. Images are never mirrored; attribution
+  travels with the snapshot and stays in the app. The terms do not address
+  this form of storage; Adam accepted the risk. It must be revisited before
+  any deployment reachable outside Adam's own LAN, where it bears directly on
+  the "cannot resell our API" clause. See `docs/M11.md`.
 - **The terms page identifies as TheMealDB.** The terms Zest relies on are
   hosted at TheCocktailDB's own terms URL but the page content names TheMealDB.
   Zest treats this as the terms TheCocktailDB has chosen to publish for

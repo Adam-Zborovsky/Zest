@@ -104,6 +104,10 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
 - **Implementation:** Drift schema 5 stores stocked/shopping rows and an isolated sync cursor; the backend stores owner-scoped rows with a separate monotonic `bar_revision`; the account sync coordinator runs collection and home-bar passes together. `/bar` is the durable catalog-backed shelf, `/bar/shopping` is route-backed, and discovery-scoped matching reads the same persistent shelf. Recipe and match actions add missing essentials without optional garnishes or implicit substitutions.
 - **Verification:** Flutter analysis is clean and all 493 tests pass. Backend typecheck, all 66 tests, and build pass. Tests cover migration, local writes, restoration, account isolation, paging, timestamp ties, an edit during an in-flight PUT with its automatic trailing pass, offline/session-expiry behavior, scoped and catalog matching, shopping actions, route-backed Back behavior, keyboard flow, 320-pixel/2× text, and reviewed goldens. Independent review found and blocked on the in-flight-write race; the atomic compare-and-apply and trailing-pass fixes were re-reviewed with no blocking or major findings. See [reviews/M10.md](reviews/M10.md).
 
+## M11 — Shared catalog and search suggestions — PLANNED
+
+- **Decision (Adam, 2026-09-14):** the backend owns one shared, daily-refreshed catalog served as a versioned snapshot; clients store it on-device and search locally; suggestions in Discover, constellation, home-bar picker, and variation-editor ingredients; Discover results become local; catalog updates apply on launch with an in-app notice. Per-keystroke server search rejected. Server-side persistence risk accepted in [SOURCES.md](SOURCES.md). See [M11.md](M11.md).
+
 ## Later (not scheduled)
 
 - Deployment: HTTPS, backups, email verification, password reset, account deletion, and a review of whether sign-up reveals which emails already have accounts.
