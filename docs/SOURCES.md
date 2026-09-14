@@ -121,7 +121,7 @@ absence of a prohibition rather than an explicit grant.
   done, and would need its own review against the artwork/attribution
   clauses).
 
-## Before making the repository public
+## Repository-publication checklist
 
 Verified by the integrator on 2026-09-14:
 
@@ -138,8 +138,11 @@ Verified by the integrator on 2026-09-14:
       address as the commit author, rather than his GitHub noreply address.
       Adam decided on 2026-09-14 to keep them as-is (no history rewrite).
 
+Current GitHub state, verified on 2026-09-14:
+
+- [x] The repository is public.
+- [x] `Development` is the default branch.
+
 Left for Adam:
 
-- [ ] Flip the repository's GitHub visibility to public.
 - [ ] Set the repository description and topics.
-- [ ] Choose the default branch.

@@ -1,76 +1,113 @@
 # Zest
 
-A personal, playful cocktail companion: a Flutter app (TheCocktailDB as recipe source) with an expressive, app-wide visual language. This repository is a monorepo.
+Zest is a personal cocktail companion built around the ingredients you have and the drinks you want to remember. Its home screen is an ingredient constellation: a visual map of which ingredients appear together across the locally loaded recipe collection.
+
+The app combines recipe discovery, practical bar matching, a dated drink collection, personal variations, memory photos, and account-backed sync. The interface uses Zest's Botanical Play and Night Garden design system rather than stock Material styling.
+
+<p align="center">
+  <img src="docs/screenshots/home-constellation.png" width="47%" alt="Zest home screen showing the ingredient constellation with Gin selected">
+  &nbsp;
+  <img src="docs/screenshots/onboarding-bar-matching.png" width="47%" alt="Zest onboarding screen demonstrating ready, substitution, and missing-ingredient matches">
+</p>
+
+## What Zest does
+
+- Explores ingredient relationships through a bounded co-occurrence graph, with an accessible list alternative.
+- Searches and browses TheCocktailDB recipes by name, ingredient, and first letter.
+- Sorts selected recipes into ready to make, possible with a reviewed substitution, and missing essentials.
+- Saves drinks to a calendar and keeps personal variations distinct from their source recipes.
+- Attaches one private memory photo to a saved drink or variation.
+- Works from an on-device Drift database and syncs collection entries and photos through Zest's own account backend.
+- Handles loading, empty, error, reduced-motion, large-text, and keyboard-access paths as part of each feature.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Flutter[Flutter app] --> Drift[(On-device Drift database)]
+    Flutter --> API[Fastify backend]
+    API --> CocktailDB[TheCocktailDB]
+    API --> Postgres[(PostgreSQL)]
+    API --> Photos[Private photo directory]
+```
+
+The Flutter app remains usable offline from its local collection. The backend holds the recipe-provider key, authenticates users, resolves collection synchronization, stores account data in PostgreSQL, and keeps photo files on server disk. It currently targets local development on a trusted computer or home network; public deployment is not configured.
 
 ## Repository layout
 
-- `frontend/` — the Flutter application (run Flutter commands here).
-- `backend/` — local Node/TypeScript/Fastify recipe gateway. Run npm commands here. It holds the provider key; accounts and authentication remain M7 decisions. See [local setup](backend/README.md).
-- `docs/` — product brief, roadmap, review records, and the development-agent prompt.
-- `AGENTS.md` — operating instructions for development agents working in this repository.
+```text
+frontend/   Flutter application
+backend/    TypeScript/Fastify gateway, accounts, sync, and photo storage
+docs/       Product contracts, design system, milestone records, and reviews
+```
 
-## This host does not run Zest
+The main references are [the product brief](docs/PRODUCT.md), [roadmap](docs/ROADMAP.md), [design system](docs/DESIGN.md), [account and sync contract](docs/ACCOUNTS.md), and [data-source rights record](docs/SOURCES.md).
 
-This repository is also present on a production server where Flutter and Dart are intentionally absent. Do not install or run SDK tooling there. Development happens on the development PC with a current stable Flutter SDK.
+## Run locally
 
-## First setup on the development PC
+You need Flutter 3.44 or newer, Node.js 24 or newer, and Docker Compose.
 
-For live recipe discovery, first follow [backend setup](backend/README.md). Start Flutter web with `flutter run -d chrome --web-port=5173` so its origin matches the gateway allowlist. No Docker or deployment setup is required. The default recipe API address is `http://127.0.0.1:3000/api/cocktails/`.
+Install the backend dependencies and create its ignored environment file:
 
-All Flutter commands run from the repository's `frontend/` directory. Start from the repository root, then:
+```powershell
+cd backend
+npm ci
+Copy-Item .env.example .env
+```
 
-1. Preserve an untouched copy of this source checkout before generating anything. The authored files may be untracked in a fresh clone; `git diff` alone cannot show whether they changed until a tracked baseline exists.
+The example uses TheCocktailDB's documented development key `1`. If you have a Premium key, put it only in `backend/.env` as `COCKTAIL_DB_API_KEY`. Never place it in Flutter configuration or tracked files.
 
-   Use `git status --short` to understand the checkout state:
+Start PostgreSQL, apply the committed migrations, and run the development server:
 
-   ```text
-   git status --short
-   ```
+```powershell
+docker compose -f docker-compose.dev.yml up -d
+npm run db:migrate
+npm run dev
+```
 
-2. If any platform wrapper directory (`android/`, `web/`) is missing, regenerate it from `frontend/`:
+In another terminal:
 
-   ```text
-   cd frontend
-   flutter create --project-name=zest --platforms=android,web --no-pub .
-   ```
+```powershell
+cd frontend
+flutter pub get
+flutter run -d chrome --web-port=5173
+```
 
-   Do not add `--overwrite`. Flutter's `Template.render` skips an existing destination when overwrite is false, and `CreateCommand` passes the `--overwrite` flag (false by default) to that rendering path. Therefore the authored source files are preserved; keep the untouched copy as the independent recovery point. Source: [Template.render](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/template.dart) and [CreateCommand](https://github.com/flutter/flutter/blob/master/packages/flutter_tools/lib/src/commands/create.dart).
+The app defaults to `http://127.0.0.1:3000/api/cocktails/`. A different backend address can be supplied with a trailing slash:
 
-   `.metadata` and the application `pubspec.lock` are generated on the development PC. Review them and normally include them in a later user-approved commit.
+```powershell
+flutter run -d <device-id> --dart-define=ZEST_API_BASE_URL=http://<host>:3000/api/cocktails/
+```
 
-3. Resolve dependencies and validate the source:
+Phone access requires binding the backend to the LAN and has clear security limits: there is no HTTPS, and every device on that Wi-Fi can reach the service. Follow the warning and configuration steps in [backend/README.md](backend/README.md) before enabling it.
 
-   ```text
-   flutter pub get
-   flutter analyze
-   flutter test
-   ```
+## Verification
 
-4. List available targets, then run one by its listed device ID:
+Run Flutter checks from `frontend/`:
 
-   ```text
-   flutter devices
-   flutter run -d DEVICE_ID
-   ```
+```powershell
+flutter analyze
+flutter test
+```
 
-   Replace `DEVICE_ID` with an ID reported by `flutter devices` (for example, an attached Android serial, an iOS simulator UUID, or another listed target). `flutter run -d chrome` is also a valid web-specific example because `chrome` is its device ID. Select only targets supported by the development PC.
+Run backend checks from `backend/`:
 
-## Project files
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
 
-- `frontend/lib/main.dart` — Botanical Play app shell and debug-only design gallery.
-- `frontend/lib/features/discovery/` — discovery/detail UI, Riverpod state, recipe models and cached TheCocktailDB client.
-- `frontend/tool/m2_demo.dart` — one-shot synthetic data/cache demo; optional `--live` smoke check.
-- `frontend/test/` — design/accessibility regressions and synthetic data-layer tests.
-- `docs/PRODUCT.md` — canonical agreed product requirements and explicit implementation boundary.
-- `docs/ROADMAP.md` — milestone order and acceptance criteria.
-- `docs/DATA.md` — M2 API, source preservation, ingredient aliases, cache policy and demo commands.
-- `docs/DISCOVERY.md` — M3 routes, interface behavior, source attribution and rendered demos.
-- `docs/AGENT_PROMPT.md` — kick-off prompt for the development-PC agent.
-- `docs/review.md` — review records for the foundation and handoff.
-- `docs/VERIFICATION.md` — host-side static verification and its limits.
-- `AGENTS.md` — agent operating instructions and default stack.
-- `.gitignore` — ignores tool outputs, local native settings, secrets, and local personal-media paths.
+Tests use synthetic recipe-shaped fixtures, an in-process PGlite database, and temporary photo storage. They do not require provider traffic, Docker, private credentials, or personal media.
 
-## Source boundary
+## Data, photos, and current limits
 
-Flutter calls the local recipe gateway; the provider key exists only in the backend process environment or ignored `backend/.env`. The gateway defaults to documented public test key `1`. No provider records, images, private API keys, or content-license grant are included in this repository. Tests and synthetic demos use invented fixtures; provider responses are cached in memory only. Personal photos remain a planned private archive feature. See [gateway contract](docs/GATEWAY.md) and `docs/PRODUCT.md` for boundaries and unresolved decisions.
+TheCocktailDB remains the recipe source. Provider recipes and images are fetched at runtime and are not committed to this repository. Zest's own backend syncs saved source snapshots and owner-readable memory photos; the published provider terms do not explicitly address that storage, which is recorded as an accepted risk in [docs/SOURCES.md](docs/SOURCES.md).
+
+Zest has no public-server configuration, HTTPS termination, backups, password reset, email verification, or account deletion yet. The local server is development infrastructure, not a production deployment.
+
+## License and credits
+
+Zest's original application and backend code are licensed under the [MIT License](LICENSE). That license does not cover TheCocktailDB recipes or artwork, the bundled Fraunces and DM Sans fonts, or third-party packages; see [NOTICE.md](NOTICE.md).
+
+Recipe data and artwork come from [TheCocktailDB](https://www.thecocktaildb.com/). The exact published terms Zest relies on, along with the unresolved points, are documented in [docs/SOURCES.md](docs/SOURCES.md).

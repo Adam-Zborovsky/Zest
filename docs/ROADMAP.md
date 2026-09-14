@@ -96,6 +96,7 @@ Order matters: each milestone builds on the previous one. Acceptance criteria ar
   - Every provider image or data surface credits TheCocktailDB and links back, and this is covered by tests.
   - The README describes current reality: M8 accounts and sync, Docker setup, phone access over Wi-Fi, tests, and credits.
   - Adam switches repository visibility himself after reviewing the checklist.
+- **Status (2026-09-14):** Acceptance is complete in the working tree. The repository is public with `Development` as its default branch; the history and committed media were audited; licensing, notices, source-rights analysis, and publication boundaries are documented. The README now describes the M8 system and uses two provider-free screenshots. The final in-app audit added conditional calendar-image attribution and source attribution to both variation-editor paths; the profile sheet received its pending responsive polish. Analysis is clean and all 472 Flutter tests pass. Repository description and topics remain optional GitHub metadata. See [docs/reviews/M9.md](reviews/M9.md).
 
 ## M10 — Home-bar inventory and shopping list
 
