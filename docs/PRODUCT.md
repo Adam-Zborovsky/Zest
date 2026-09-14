@@ -41,7 +41,7 @@ Onboarding is a swipeable introduction with light animation, visible progress, e
 
 The art direction uses animated versions of actual interface components, supported by the `LimeSprite` character. The interface leads; the character is a supporting presence. Four content pages introduce constellation exploration, available-ingredient discovery, making a personal variation, and saving one illustrative personal photo; then the login page appears. Demonstrations are drawn from real reviewed tables or neutral wording and must not imply sync, backup, or personalized recommendations.
 
-Login requires an email and password (M8). Accounts are created on Zest's own backend; there is no guest or local-only mode. A returning-user variant prefills the email. The profile sheet, accessible from the top bar next to the collection button, shows the account email, sync status, and includes sign-out, which never deletes any collection data.
+Login requires an email and password (M8). Accounts are created on Zest's own backend; there is no guest or local-only mode. The profile sheet, accessible from the top bar next to the collection button, shows the account email, sync status, and includes sign-out, which never deletes any collection data.
 
 Onboarding completion and sign-in state are persisted: signed-in returning users go to the app; signed-out returning users land on login; signed-out returning users can "Replay the tour". Do not request camera or photo permission during onboarding—only when adding a photo to a saved recipe or variation.
 
