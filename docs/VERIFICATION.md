@@ -1,5 +1,36 @@
 # Verification record
 
+## M11 — Independent review fixes — 2026-09-15
+
+Commands ran from their owning directories on the development PC, addressing all 20 findings in [reviews/M11.md](reviews/M11.md):
+
+- Frontend: `flutter analyze` — no issues; `flutter test` — all **583 tests** passed; `test/features/catalog/application/catalog_update_controller_test.dart` run 3× — all **16 tests** passed each time.
+- Backend: `npm run typecheck` and `npm run build` — clean; `npm test` — all **99 tests** passed; `npm run demo` — exits 0, no network/server/Docker.
+- No Docker container, server, watcher, provider network call, key, or personal data was used.
+
+Tracks covered:
+
+- **Backend (findings 1, 16, 17, 18):** CORS `allowedHeaders` includes `If-None-Match`; the conditional-GET route appends to an existing `Vary` instead of overwriting it; `Accept-Encoding` q-values are parsed (`gzip;q=0` is not accepted); `GET /api/catalog` answers a 304 from `catalog_state` alone, without reading the recipes table.
+- **Backend retry fix (finding 13):** the dead `filter.php`/`list.php` gateway `Endpoint` variants, their `validateEnvelope` branches, and the matching fake branches in `contract_fixture.ts` and `bar_flow_test.dart` are removed; `npm run demo` now exercises `lookup.php` in-process with a synthetic fetcher instead of the removed `search.php`-based flow that made it exit 1.
+- **Catalog-update controller (findings 2, 3, 5, 6, 20):** the 6h resume gate keys off the last *attempted* check (success or failure) and is skipped entirely while the on-device catalog is empty, so an offline-first-launch-then-reconnect applies immediately instead of staging; `checkOnLaunch` is triggered once from `app/zest_app.dart` after the first frame rather than from Home, and the controller invalidates every catalog-derived provider (coverage, the shared recipe decode that both the search index and the id→Recipe map build from, the constellation graph, and the home-bar catalog providers) directly after any apply; every repository call in the controller is wrapped so a thrown error lands a retryable `failed(unknown)` state instead of escaping a fire-and-forget lifecycle callback; a staged snapshot is cleared on every immediate apply and discarded if the applied version moved on since staging; `lookupRecipeLocalFirst` uses `ref.read`. A latent `UnmountedRefException` this surfaced across unrelated widget-test suites — a fire-and-forget lifecycle callback still writing `Notifier.state` after the provider (and its test container) was torn down — is fixed by guarding every state write with `ref.mounted`, not just the staleness token.
+- **Notice hosting (finding 7):** the staged/applied catalog-update notice moved from a screen-local listener to the app shell via `ref.listenManual`, reachable via `navigatorKey.currentState?.overlay` (not `Overlay.of(context)` from the Navigator's own ancestor context, which threw "No Overlay widget found"); staged copy reads "Catalog update available · …" with an **Update** action, distinct from the applied "Catalog updated · …".
+- **Suggestion field (findings 4, 8, 9):** `ZestSuggestionField` gained an optional `labelText` rendered as a floating label like other Zest inputs, wired into the variation editor's ingredient rows; the options panel now announces `semanticLabelFor(option)` via the current `SemanticsService.sendAnnouncement` API on a user-driven (keyboard-touched) highlight change; the "N suggestions" live region is a visually-hidden, zero-layout-impact `Semantics` node, cleared immediately on Escape or selection and never triggered by a selection's own programmatic controller rewrite.
+- **Search index (findings 10, 11):** `recipeIdsMatchingName` includes typo-tier matches only when tiers 1–4 return nothing at all; the equal-length-prefix typo rule needs query words of 5+ characters (the full-word one-edit rule is unaffected, staying at 4+); an ingredient identity with no direct normalized match now resolves by exact folded match against every entry's label, identity and reviewed aliases.
+- **Client data docs (finding 14, this entry):** [DATA.md](DATA.md) marks the M2–M10 `searchByName`/`browseByFirstLetter`/`filterByIngredient`/`listIngredientNames` table historical and documents the current single-method (`lookupRecipe`) surface; [CONSTELLATION.md](CONSTELLATION.md) corrects its invalidation description (no more `catalogFreshnessProvider`/`homeBarCatalogFreshnessProvider` — the controller invalidates directly) and the resume-gate/notice-hosting wording, and fixes a "fpr" typo.
+- **Wiring/review fixes (finding 19):** `CatalogStatusCard` moved to `lib/features/catalog/presentation/catalog_status_card.dart`; its two call sites (home, Discover/results) updated.
+
+Goldens changed or added between `165410c` and this record's `HEAD` (`git diff --name-only 165410c..HEAD -- '*.png'`), each regenerated with `--update-goldens` and inspected with the Read tool before acceptance:
+
+- `frontend/test/core/widgets/goldens/zest-suggestion-field-open.png` (added — unchanged visually; the new live region is invisible)
+- `frontend/test/features/constellation/presentation/goldens/home-night-garden.png` and `home-night-garden-desktop.png` (the "downloaded catalog" copy wording)
+- `frontend/test/features/discovery/presentation/goldens/discovery-results.png`
+- `frontend/test/features/home_bar/presentation/goldens/home-bar-shelf.png` and `home-bar-shopping.png` (`CatalogStatusCard` move and copy wording)
+- `frontend/test/features/onboarding/presentation/goldens/profile-sheet-offline.png` and `profile-sheet-synced.png`
+
+`frontend/test/features/collection/presentation/goldens/collection-variation-editor.png` (the floating "Ingredient" label, finding #4) was also inspected this pass, but nets to no byte diff against `165410c` — an earlier, since-reverted attempt at the same fix had already produced an identical render at that commit.
+
+Limits: no physical-device, TalkBack/VoiceOver, live browser-history, real PostgreSQL/Docker, provider-network, or deployment run was performed.
+
 ## M11 — Shared catalog and search suggestions — 2026-09-14
 
 Commands ran from their owning directories on the development PC:
