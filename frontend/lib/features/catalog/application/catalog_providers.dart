@@ -1,13 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../discovery/domain/recipe.dart';
 import '../data/catalog_connection.dart';
 import '../data/catalog_database.dart';
 import '../data/catalog_repository.dart';
 import '../data/catalog_snapshot_client.dart';
 import '../domain/catalog_search_index.dart';
 import '../domain/coverage_report.dart';
-import 'catalog_update_controller.dart';
-import '../domain/catalog_update_state.dart';
 
 /// Injectable clock for deterministic update-controller behavior. Shared
 /// with the discovery layer's own `nowProvider` would create a cross-feature
@@ -56,29 +55,35 @@ final catalogCoverageProvider = FutureProvider<CoverageReport>(
   retry: (retryCount, error) => null,
 );
 
+/// Every locally stored recipe, decoded once. `catalogSearchIndexProvider`
+/// and `catalogRecipesByIdProvider` both build from this single decode
+/// (Riverpod caches a `FutureProvider`'s value across watchers) instead of
+/// each calling `CatalogRepository.allRecipes()` — and therefore
+/// re-decoding every recipe's source JSON — on its own (finding #20).
+final catalogRecipesProvider = FutureProvider<List<Recipe>>(
+  (ref) => ref.watch(catalogRepositoryProvider).allRecipes(),
+  retry: (retryCount, error) => null,
+);
+
+/// The same recipes as [catalogRecipesProvider], keyed by provider id — what
+/// a search result list needs to resolve matched ids into full records
+/// without decoding the catalog again per query.
+final catalogRecipesByIdProvider = FutureProvider<Map<String, Recipe>>((
+  ref,
+) async {
+  final recipes = await ref.watch(catalogRecipesProvider.future);
+  return {for (final recipe in recipes) recipe.id: recipe};
+}, retry: (retryCount, error) => null);
+
 /// The ranked search index over every locally stored recipe and ingredient
-/// identity. `catalogFreshnessProvider` invalidates this whenever the update
-/// controller applies a new snapshot, so suggestions and local results stay
-/// in step with the on-device catalog.
+/// identity. `CatalogUpdateController` invalidates this directly whenever it
+/// applies a new snapshot, so suggestions and local results stay in step
+/// with the on-device catalog — including on a cold deep link that never
+/// visits a screen which used to "arm" that invalidation (docs/M11.md,
+/// independent review finding #3).
 final catalogSearchIndexProvider = FutureProvider<CatalogSearchIndex>((
   ref,
 ) async {
-  final recipes = await ref.watch(catalogRepositoryProvider).allRecipes();
+  final recipes = await ref.watch(catalogRecipesProvider.future);
   return CatalogSearchIndex.fromRecipes(recipes);
 }, retry: (retryCount, error) => null);
-
-/// Keeps [catalogSearchIndexProvider] fresh as the update controller applies
-/// new snapshots. Every surface that suggests from the index (Discover,
-/// constellation, the home-bar picker, and the variation editor) watches
-/// this provider once to arm the listener; it is not `autoDispose`, so the
-/// index stays correct even for a surface visited after another one armed
-/// it.
-final catalogSearchIndexFreshnessProvider = Provider<void>((ref) {
-  ref.listen(catalogUpdateControllerProvider, (previous, next) {
-    final applied =
-        next.status == CatalogUpdateStatus.updated &&
-        previous?.status != next.status;
-    if (!applied) return;
-    ref.invalidate(catalogSearchIndexProvider);
-  });
-});

@@ -1,14 +1,30 @@
+import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
 import 'package:zest/features/catalog/application/catalog_providers.dart';
 import 'package:zest/features/catalog/application/catalog_update_controller.dart';
+import 'package:zest/features/catalog/data/catalog_database.dart';
 import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
 import 'package:zest/features/catalog/domain/catalog_update_state.dart';
 
 import '../../../support/catalog_fixtures.dart';
 import '../../../support/catalog_wiring.dart';
+
+/// Makes every `SELECT` throw, so `CatalogRepository.currentSnapshot()`
+/// fails the way a real disk error or a corrupted on-device database would
+/// (finding #6: the controller must land a retryable `failed(unknown)`
+/// instead of letting this escape as an unhandled error).
+final class _ThrowingSelects extends QueryInterceptor {
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) => throw StateError('Simulated database failure.');
+}
 
 void main() {
   var clock = DateTime.utc(2026, 9, 14, 8);
@@ -151,6 +167,12 @@ void main() {
   group('resume', () {
     test('checked under 6 hours ago: does nothing', () async {
       final test = setup();
+      // Finding #2: the 6h resume gate only applies once there is a local
+      // catalog to protect — seed one so this exercises the gate itself
+      // rather than the empty-catalog fallthrough (covered below).
+      await test.repository.applySnapshot(
+        catalogSnapshotFixture(version: fakeCatalogVersion('kept')),
+      );
       test.fetcher.enqueueAvailable(const CatalogSnapshotUnchanged());
       final notifier = test.container.read(catalogUpdateControllerProvider.notifier);
       await notifier.checkOnLaunch(); // sets lastCheckedAt = clock
@@ -160,6 +182,68 @@ void main() {
 
       expect(test.fetcher.requests, hasLength(1)); // no second call
     });
+
+    test(
+      'a failed check with an existing catalog does not force a resume '
+      'check within 6 hours',
+      () async {
+        final test = setup();
+        await test.repository.applySnapshot(
+          catalogSnapshotFixture(version: fakeCatalogVersion('kept')),
+        );
+        test.fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+        final notifier =
+            test.container.read(catalogUpdateControllerProvider.notifier);
+        await notifier.checkOnLaunch(); // records the failed attempt's time
+
+        final failedState = test.container.read(catalogUpdateControllerProvider);
+        expect(failedState.status, CatalogUpdateStatus.failed);
+
+        clock = clock.add(const Duration(hours: 5));
+        await notifier.checkAfterResume();
+
+        expect(test.fetcher.requests, hasLength(1)); // no second call
+      },
+    );
+
+    test(
+      'offline on first launch then reconnecting on resume applies '
+      'immediately with no local catalog to protect',
+      () async {
+        final test = setup();
+        test.fetcher.enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+        final notifier =
+            test.container.read(catalogUpdateControllerProvider.notifier);
+        await notifier.checkOnLaunch();
+        expect(
+          test.container.read(catalogUpdateControllerProvider).status,
+          CatalogUpdateStatus.failed,
+        );
+
+        // Reconnect moments later — well under 6h — and resume. Because the
+        // catalog is still empty, the 6h gate is skipped entirely: the
+        // person must not be left staring at an empty state until the gate
+        // clears.
+        clock = clock.add(const Duration(minutes: 1));
+        test.fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('reconnect'),
+              drinks: [catalogRecipeModel(id: '1', name: 'First Drink')],
+            ),
+          ),
+        );
+        await notifier.checkAfterResume();
+
+        final state = test.container.read(catalogUpdateControllerProvider);
+        expect(state.status, CatalogUpdateStatus.updated);
+        expect(await test.repository.recipeCount(), 1);
+      },
+    );
 
     test('checked 6+ hours ago with a new version: stages it, never applies '
         'it, and reports a non-silent diff', () async {
@@ -254,6 +338,78 @@ void main() {
       expect(
         (outcome as CatalogUpdateFailed).kind,
         CatalogUpdateFailureKind.invalidResponse,
+      );
+    });
+  });
+
+  group('finding #6: repository failures never escape as unhandled errors', () {
+    test('checkOnLaunch lands failed(unknown) when currentSnapshot throws',
+        () async {
+      final database = CatalogDatabase(
+        DatabaseConnection(
+          NativeDatabase.memory(),
+          closeStreamsSynchronously: true,
+        ).interceptWith(_ThrowingSelects()),
+      );
+      addTearDown(database.close);
+      final repository = CatalogRepository(database: database, now: () => clock);
+      final fetcher = FakeCatalogSnapshotFetcher();
+      final container = ProviderContainer(
+        overrides: [
+          catalogRepositoryProvider.overrideWithValue(repository),
+          catalogSnapshotFetcherProvider.overrideWithValue(fetcher.call),
+          catalogNowProvider.overrideWithValue(() => clock),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Completing at all (rather than throwing out of this awaited call)
+      // is itself the assertion that the StateError never escaped.
+      await container
+          .read(catalogUpdateControllerProvider.notifier)
+          .checkOnLaunch();
+
+      expect(
+        container.read(catalogUpdateControllerProvider).status,
+        CatalogUpdateStatus.failed,
+      );
+      expect(
+        container.read(catalogUpdateControllerProvider).failure,
+        CatalogUpdateFailureKind.unknown,
+      );
+      // No network call was even attempted: the throw happened resolving
+      // whether a local catalog exists, before any fetch.
+      expect(fetcher.requests, isEmpty);
+    });
+
+    test('checkNow reports CatalogUpdateFailed(unknown) when the repository '
+        'throws', () async {
+      final database = CatalogDatabase(
+        DatabaseConnection(
+          NativeDatabase.memory(),
+          closeStreamsSynchronously: true,
+        ).interceptWith(_ThrowingSelects()),
+      );
+      addTearDown(database.close);
+      final repository = CatalogRepository(database: database, now: () => clock);
+      final fetcher = FakeCatalogSnapshotFetcher();
+      final container = ProviderContainer(
+        overrides: [
+          catalogRepositoryProvider.overrideWithValue(repository),
+          catalogSnapshotFetcherProvider.overrideWithValue(fetcher.call),
+          catalogNowProvider.overrideWithValue(() => clock),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final outcome = await container
+          .read(catalogUpdateControllerProvider.notifier)
+          .checkNow();
+
+      expect(outcome, isA<CatalogUpdateFailed>());
+      expect(
+        (outcome as CatalogUpdateFailed).kind,
+        CatalogUpdateFailureKind.unknown,
       );
     });
   });

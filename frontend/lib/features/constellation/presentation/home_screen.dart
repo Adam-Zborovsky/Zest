@@ -9,13 +9,12 @@ import '../../../core/widgets/zest_action_tile.dart';
 import '../../../core/widgets/zest_button.dart';
 import '../../../core/widgets/zest_card.dart';
 import '../../../core/widgets/zest_chip.dart';
-import '../../../core/widgets/zest_notice.dart';
 import '../../../core/widgets/zest_states.dart';
 import '../../../core/widgets/zest_suggestion_field.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/application/catalog_update_controller.dart';
 import '../../catalog/domain/catalog_search_index.dart';
-import '../../catalog/domain/catalog_update_state.dart';
+import '../../catalog/presentation/catalog_status_card.dart';
 import '../../discovery/presentation/discovery_widgets.dart';
 import '../application/constellation_providers.dart';
 import '../domain/ingredient_graph.dart';
@@ -70,13 +69,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _search = TextEditingController()..addListener(() => setState(() {}));
-    // Launch check per docs/M11.md "Update behavior": after the first
-    // frame, an empty catalog downloads automatically; an existing one is
-    // checked in the background.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(catalogUpdateControllerProvider.notifier).checkOnLaunch();
-    });
   }
 
   @override
@@ -102,29 +94,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Arms the one-place freshness wiring: an applied snapshot invalidates
-    // the stored coverage and the graph (see catalogFreshnessProvider), and
-    // the search index the constellation search field suggests from.
-    ref.watch(catalogFreshnessProvider);
-    ref.watch(catalogSearchIndexFreshnessProvider);
-    // The update notice: shown only on a real, non-silent version change —
-    // never for a 304/no-op, and never for the first automatic download.
-    ref.listen(catalogUpdateControllerProvider, (previous, next) {
-      if (next.silent || next.diff == null || next.diff!.isNoOp) return;
-      if (next.status == CatalogUpdateStatus.updated &&
-          previous?.status != CatalogUpdateStatus.updated) {
-        showZestNotice(context, message: catalogUpdateNoticeText(next.diff!));
-      } else if (next.status == CatalogUpdateStatus.staged &&
-          previous?.status != CatalogUpdateStatus.staged) {
-        showZestNotice(
-          context,
-          message: catalogUpdateNoticeText(next.diff!),
-          actionLabel: 'Update',
-          onAction: () =>
-              ref.read(catalogUpdateControllerProvider.notifier).applyStaged(),
-        );
-      }
-    });
     final graphAsync = ref.watch(constellationGraphProvider);
     final coverage = ref.watch(catalogCoverageProvider).value;
     final coverageLabel = coverage == null || !coverage.hasSnapshot
@@ -147,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       title: 'Follow the ',
       titleAccent: 'lines.',
       intro:
-          'The most-used ingredients in the loaded collection get a place. '
+          'The most-used ingredients in the downloaded catalog get a place. '
           'Ingredients that appear together in recipes pull close.',
       band: showGraph ? _band(graph) : null,
       child: Column(
@@ -307,7 +276,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _selectionInfo(context, graph),
         const SizedBox(height: ZestSpace.md),
         Text(
-          'Sizes show how many loaded recipes use each ingredient; lines '
+          'Sizes show how many downloaded recipes use each ingredient; lines '
           'show ingredients that appear together.',
           style: Theme.of(context).textTheme.bodySmall,
         ),

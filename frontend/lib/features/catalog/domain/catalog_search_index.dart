@@ -283,19 +283,34 @@ final class CatalogSearchIndex {
     ];
   }
 
-  /// Every recipe whose name matches [query] (tiers 1–5), ranked, no limit.
+  /// Every recipe whose name matches [query], ranked, no limit. Tier-5
+  /// (typo) matches are included only when tiers 1–4 return nothing at all
+  /// (finding #10) — otherwise a query with plenty of real matches (e.g.
+  /// "sour") would also pull in unrelated one-edit-distance noise.
   List<String> recipeIdsMatchingName(String query) {
     final prepared = _prepareQuery(query);
     if (prepared == null) return const [];
     final matches = _match(prepared.folded, prepared.words, const {
       CatalogSuggestionKind.recipe,
     });
-    return [for (final match in matches) match.$2.id];
+    final hasNonTypoMatch = matches.any((match) => match.$1 <= 4);
+    final ranked = hasNonTypoMatch
+        ? matches.where((match) => match.$1 <= 4)
+        : matches;
+    return [for (final match in ranked) match.$2.id];
   }
 
   /// Recipe ids that use the ingredient identity named by [identity] (after
   /// [normalizeIngredientName]), ordered by folded recipe name then id.
-  /// An unknown or blank identity returns an empty list.
+  ///
+  /// [normalizeIngredientName] only lowercases and collapses whitespace —
+  /// it does not fold diacritics — so free text like "creme de cassis"
+  /// normalizes to an identity that never exactly matches the catalog's own
+  /// "crème de cassis". When the direct lookup misses, this falls back to
+  /// an exact *folded* match ([foldSearchText]) against every ingredient
+  /// entry's label, identity and reviewed aliases (finding #11), so the
+  /// same free text a person would type for that ingredient still resolves
+  /// to it. An unknown or blank identity returns an empty list.
   List<String> recipeIdsWithIngredient(String identity) {
     final String normalized;
     try {
@@ -303,7 +318,17 @@ final class CatalogSearchIndex {
     } on FormatException {
       return const [];
     }
-    return _ingredientRecipeIds[normalized] ?? const [];
+    final direct = _ingredientRecipeIds[normalized];
+    if (direct != null) return direct;
+    final folded = foldSearchText(identity);
+    if (folded.isEmpty) return const [];
+    for (final entry in _entries) {
+      if (entry.kind == CatalogSuggestionKind.ingredient &&
+          entry.exactMatchTexts.contains(folded)) {
+        return _ingredientRecipeIds[entry.id] ?? const [];
+      }
+    }
+    return const [];
   }
 
   /// Folds and defensively truncates [query]; returns null when there is
@@ -401,11 +426,14 @@ final class CatalogSearchIndex {
   }
 
   /// [queryWord] matches [labelWord] within one Damerau–Levenshtein edit,
-  /// either against the full word or against its prefix of equal length
-  /// (so a typo made partway through typing a longer word still counts).
+  /// either against the full word (query words of 4+ chars, per
+  /// [_matchesWordForTypo]) or against its prefix of equal length — a typo
+  /// made partway through typing a longer word — which needs query words of
+  /// 5+ chars: at 4 chars the equal-length prefix rule matched too many
+  /// unrelated short words (finding #10).
   static bool _typoMatchesWord(String queryWord, String labelWord) {
     if (_withinOneEdit(queryWord, labelWord)) return true;
-    if (labelWord.length >= queryWord.length) {
+    if (queryWord.length >= 5 && labelWord.length >= queryWord.length) {
       final prefix = labelWord.substring(0, queryWord.length);
       if (_withinOneEdit(queryWord, prefix)) return true;
     }

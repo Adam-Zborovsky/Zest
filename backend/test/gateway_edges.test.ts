@@ -129,3 +129,20 @@ test('browser CORS allows the configured origin and exposes cooldown, never cred
     assert.equal(denied.statusCode, 403);
   } finally { await app.close(); }
 });
+
+test('CORS preflight for the conditional catalog GET allows If-None-Match, and a GET with Origin still works', async () => {
+  const app = buildApp({ apiKey: '1', fetcher: async () => Response.json(source) });
+  try {
+    const preflight = await app.inject({ method: 'OPTIONS', url: '/api/catalog', headers: {
+      origin: 'http://localhost:5173', 'access-control-request-method': 'GET',
+      'access-control-request-headers': 'If-None-Match',
+    } });
+    assert.equal(preflight.statusCode, 204);
+    assert.match(preflight.headers['access-control-allow-headers'] as string, /if-none-match/i);
+    const response = await app.inject({
+      method: 'GET', url: '/api/health', headers: { origin: 'http://localhost:5173', 'if-none-match': '"anything"' },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:5173');
+  } finally { await app.close(); }
+});

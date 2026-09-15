@@ -81,21 +81,31 @@ final class CatalogUpdateFailed extends CatalogUpdateOutcome {
   final CatalogUpdateFailureKind kind;
 }
 
-/// Agreed wording for the update notice — stated in `docs/M11.md`: "The diff
-/// wording only states counts it measured." Never mentions counts that
-/// weren't part of the diff.
-String catalogUpdateNoticeText(CatalogDiff diff) {
+/// Agreed wording for the *applied* update notice — stated in
+/// `docs/M11.md`: "The diff wording only states counts it measured." Never
+/// mentions counts that weren't part of the diff.
+String catalogUpdateNoticeText(CatalogDiff diff) =>
+    _diffNoticeText(diff, verb: 'updated');
+
+/// Wording for a *staged* update notice (finding #7): a staged snapshot has
+/// been downloaded and validated but not applied, so the copy must not
+/// claim the catalog was already updated — it offers the **Update** action
+/// instead.
+String catalogUpdateStagedNoticeText(CatalogDiff diff) =>
+    _diffNoticeText(diff, verb: 'update available');
+
+String _diffNoticeText(CatalogDiff diff, {required String verb}) {
   if (diff.added > 0) {
-    return 'Catalog updated · ${diff.added} new '
+    return 'Catalog $verb · ${diff.added} new '
         '${diff.added == 1 ? 'recipe' : 'recipes'}';
   }
   if (diff.changed > 0) {
-    return 'Catalog updated · ${diff.changed} '
+    return 'Catalog $verb · ${diff.changed} '
         '${diff.changed == 1 ? 'recipe' : 'recipes'} changed';
   }
   if (diff.removed > 0) {
-    return 'Catalog updated · ${diff.removed} '
+    return 'Catalog $verb · ${diff.removed} '
         '${diff.removed == 1 ? 'recipe' : 'recipes'} removed';
   }
-  return 'Catalog updated';
+  return 'Catalog $verb';
 }

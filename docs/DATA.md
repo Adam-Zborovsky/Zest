@@ -4,17 +4,24 @@ The M2 data layer is consumed by the M3 discovery/detail and M4 bar-matching int
 
 ## Client
 
-`frontend/lib/features/discovery/data/cocktail_db_client.dart` exposes:
+**Historical (M2–M10):** `frontend/lib/features/discovery/data/cocktail_db_client.dart` originally exposed the full read surface below, backing Discover's search, browse and filter screens directly against the provider on every query:
 
 | Method | Provider request | Result |
 | --- | --- | --- |
 | `searchByName(name)` | `search.php?s=…` | Immutable `List<Recipe>` |
 | `browseByFirstLetter(letter)` | `search.php?f=…` | Immutable `List<Recipe>` |
 | `filterByIngredient(name)` | `filter.php?i=…` | Immutable `List<RecipeSummary>` |
-| `lookupRecipe(id)` | `lookup.php?i=…` | `Recipe?`; null means no match |
 | `listIngredientNames()` | `list.php?i=list` | Immutable `List<String>` |
 
-Queries are URL encoded and trimmed. First-letter browse accepts one ASCII letter; lookup accepts a numeric ID. Empty search/filter queries are rejected without a request. Filter summaries must be looked up before displaying a complete recipe. Nothing claims to represent the entire provider catalog. `listIngredientNames` returns the provider's ingredient filter names — names only, no property or availability claim — trimmed, deduplicated case-insensitively (first spelling wins), and sorted case-insensitively for a stable selection UI. Malformed list records are errors, not silent skips.
+M11 ([M11.md](M11.md)) replaced all four with the local, in-memory [`CatalogSearchIndex`](../frontend/lib/features/catalog/domain/catalog_search_index.dart) over the downloaded shared catalog ([CONSTELLATION.md](CONSTELLATION.md)) — Discover's name, ingredient and letter surfaces, and ingredient autocomplete, no longer touch the network per keystroke or query. The independent review's finding #13 removed the gateway's own now-dead `filter.php`/`list.php` support once nothing called it.
+
+**Current surface:** the client keeps exactly one provider-backed method:
+
+| Method | Provider request | Result |
+| --- | --- | --- |
+| `lookupRecipe(id)` | `lookup.php?i=…` | `Recipe?`; null means no match |
+
+`lookupRecipeLocalFirst` (`frontend/lib/features/discovery/application/discovery_providers.dart`) checks the downloaded catalog first and calls `lookupRecipe` only for an id absent from it — a saved recipe whose id has since left the shared snapshot. Lookup accepts a numeric ID; a lookup returning multiple records or a different ID is rejected. Nothing claims to represent the entire provider catalog.
 
 The current client talks to the local recipe gateway, default `http://127.0.0.1:3000/api/cocktails/`, with `--dart-define=ZEST_API_BASE_URL=…` for an alternate absolute base ending in `/`. Only HTTPS or loopback HTTP is accepted; credentials, query and fragment are rejected. Provider-key defines and constructor arguments were removed from Flutter. The gateway alone calls HTTPS TheCocktailDB V2 (purchased keys are V2 keys; see [GATEWAY.md](GATEWAY.md)), with its `COCKTAIL_DB_API_KEY` environment variable (public test key `1` default). The original M2 direct-provider transport is superseded by [GATEWAY.md](GATEWAY.md); models, operation parameters and local cache behavior remain unchanged. Tests inject a transport and gateway base URL.
 

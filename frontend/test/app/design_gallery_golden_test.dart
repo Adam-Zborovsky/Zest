@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/app/zest_app.dart';
 
+import '../support/catalog_wiring.dart';
 import '../support/in_memory_session.dart';
 import '../support/load_fonts.dart';
 
@@ -19,7 +20,13 @@ void main() {
       const capture = ValueKey('gallery-capture');
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [...sessionTestOverrides()],
+          overrides: [
+            ...sessionTestOverrides(),
+            // The app-shell launch check (docs/M11.md finding #3) runs
+            // unconditionally, so every ZestApp pump needs a catalog
+            // repository that never touches the real on-device database.
+            emptyCatalogRepositoryOverride(),
+          ],
           child: const RepaintBoundary(
             key: capture,
             child: ZestApp(showGallery: true),

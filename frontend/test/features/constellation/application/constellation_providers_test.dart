@@ -65,8 +65,9 @@ void main() {
   test('coverage and the graph refresh once an update applies', () async {
     final test = setup();
     final container = test.container;
-    // Arm the freshness wiring the way home does.
-    container.read(catalogFreshnessProvider);
+    // No arming needed: CatalogUpdateController invalidates
+    // catalogCoverageProvider/constellationGraphProvider directly once it
+    // applies (finding #3) — no feature-local freshness provider to read.
 
     final coverageValues = <int>[];
     container.listen(catalogCoverageProvider, (_, next) {
@@ -111,7 +112,6 @@ void main() {
   test('a failed check does not refresh the graph or coverage', () async {
     final test = setup();
     final container = test.container;
-    container.read(catalogFreshnessProvider);
 
     final graphRebuilds = <int>[];
     container.listen(constellationGraphProvider, (_, next) {

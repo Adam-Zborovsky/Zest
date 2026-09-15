@@ -315,6 +315,99 @@ void main() {
       expect(keyed('zest-notice-dismiss'), findsNothing);
       expect(find.text('Your recipe catalog'), findsOneWidget);
     });
+
+    testWidgets(
+      'finding #7: a resume 6+ hours later stages an update with a '
+      'distinct "update available" notice and an Update action',
+      (tester) async {
+        var clock = DateTime(2026, 9, 12, 10);
+        final fetcher = await openHome(
+          tester,
+          seed: [catalogRecipeModel(id: '1', name: 'Kept Drink')],
+          now: () => clock,
+          prepareFetcher: (fetcher) =>
+              fetcher.enqueueAvailable(const CatalogSnapshotUnchanged()),
+        );
+        expect(find.textContaining('Catalog update'), findsNothing);
+
+        clock = clock.add(const Duration(hours: 7));
+        fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('resume-staged'),
+              drinks: [
+                catalogRecipeModel(id: '1', name: 'Kept Drink'),
+                catalogRecipeModel(id: '2', name: 'Staged Drink'),
+              ],
+            ),
+          ),
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+
+        // Staged copy is distinct from the applied wording (finding #7):
+        // "available", never claiming the catalog already changed.
+        expect(
+          find.textContaining('Catalog update available · 1 new recipe'),
+          findsOneWidget,
+        );
+        expect(keyed('zest-notice-action'), findsOneWidget);
+        // Still staged, not applied: the home card's own count is unchanged.
+        expect(find.textContaining('TheCocktailDB catalog, 1 recipe'), findsOneWidget);
+
+        await activate(tester, keyed('zest-notice-action'));
+
+        expect(
+          find.textContaining('TheCocktailDB catalog, 2 recipes'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Catalog update available'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'finding #7: staging while on a non-Home route still offers Update',
+      (tester) async {
+        var clock = DateTime(2026, 9, 12, 10);
+        final fetcher = await openHome(
+          tester,
+          seed: [catalogRecipeModel(id: '1', name: 'Kept Drink')],
+          now: () => clock,
+          prepareFetcher: (fetcher) =>
+              fetcher.enqueueAvailable(const CatalogSnapshotUnchanged()),
+        );
+        router(tester).go('/discover');
+        await tester.pumpAndSettle();
+
+        clock = clock.add(const Duration(hours: 7));
+        fetcher.enqueueAvailable(
+          CatalogSnapshotAvailable(
+            catalogSnapshotFixture(
+              version: fakeCatalogVersion('resume-staged'),
+              drinks: [
+                catalogRecipeModel(id: '1', name: 'Kept Drink'),
+                catalogRecipeModel(id: '2', name: 'Staged Drink'),
+              ],
+            ),
+          ),
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+
+        // The notice is hosted at the app shell (not a Home-local listener),
+        // so it is offered here too, on /discover.
+        expect(router(tester).state.uri.path, '/discover');
+        expect(
+          find.textContaining('Catalog update available · 1 new recipe'),
+          findsOneWidget,
+        );
+        expect(keyed('zest-notice-action'), findsOneWidget);
+      },
+    );
   });
 
   testWidgets('the list view states the same prevalence and connection '
@@ -531,8 +624,8 @@ void main() {
     // graph count line names the pre-bound total, not the bounded list.
     expect(
       find.textContaining(
-        'The most-used ingredients in the loaded '
-        'collection get a place',
+        'The most-used ingredients in the downloaded '
+        'catalog get a place',
       ),
       findsOneWidget,
     );

@@ -7,6 +7,7 @@ import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/widgets/zest_button.dart';
 import 'package:zest/core/widgets/zest_states.dart';
 
+import '../support/catalog_wiring.dart';
 import '../support/in_memory_session.dart';
 import '../support/load_fonts.dart';
 
@@ -20,7 +21,13 @@ Future<void> openGallery(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [...sessionTestOverrides()],
+      overrides: [
+        ...sessionTestOverrides(),
+        // The app-shell launch check (docs/M11.md finding #3) runs
+        // unconditionally, so every ZestApp pump needs a catalog
+        // repository that never touches the real on-device database.
+        emptyCatalogRepositoryOverride(),
+      ],
       child: const ZestApp(showGallery: true),
     ),
   );

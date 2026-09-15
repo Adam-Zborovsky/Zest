@@ -48,13 +48,9 @@ void main() {
           ],
         );
         addTearDown(container.dispose);
-        // Arms the freshness listener, matching every real surface that
-        // reads the search index.
-        container.listen(
-          catalogSearchIndexFreshnessProvider,
-          (_, _) {},
-          fireImmediately: true,
-        );
+        // No arming needed: CatalogUpdateController invalidates the shared
+        // decode directly once it applies (finding #3), which cascades to
+        // the search index automatically.
 
         final before = await container.read(catalogSearchIndexProvider.future);
         expect(before.suggest('margarita'), isEmpty);
