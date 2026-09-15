@@ -283,14 +283,21 @@ final class CatalogSearchIndex {
     ];
   }
 
-  /// Every recipe whose name matches [query] (tiers 1–5), ranked, no limit.
+  /// Every recipe whose name matches [query], ranked, no limit. Tier-5
+  /// (typo) matches are included only when tiers 1–4 return nothing at all
+  /// (finding #10) — otherwise a query with plenty of real matches (e.g.
+  /// "sour") would also pull in unrelated one-edit-distance noise.
   List<String> recipeIdsMatchingName(String query) {
     final prepared = _prepareQuery(query);
     if (prepared == null) return const [];
     final matches = _match(prepared.folded, prepared.words, const {
       CatalogSuggestionKind.recipe,
     });
-    return [for (final match in matches) match.$2.id];
+    final hasNonTypoMatch = matches.any((match) => match.$1 <= 4);
+    final ranked = hasNonTypoMatch
+        ? matches.where((match) => match.$1 <= 4)
+        : matches;
+    return [for (final match in ranked) match.$2.id];
   }
 
   /// Recipe ids that use the ingredient identity named by [identity] (after
@@ -401,11 +408,14 @@ final class CatalogSearchIndex {
   }
 
   /// [queryWord] matches [labelWord] within one Damerau–Levenshtein edit,
-  /// either against the full word or against its prefix of equal length
-  /// (so a typo made partway through typing a longer word still counts).
+  /// either against the full word (query words of 4+ chars, per
+  /// [_matchesWordForTypo]) or against its prefix of equal length — a typo
+  /// made partway through typing a longer word — which needs query words of
+  /// 5+ chars: at 4 chars the equal-length prefix rule matched too many
+  /// unrelated short words (finding #10).
   static bool _typoMatchesWord(String queryWord, String labelWord) {
     if (_withinOneEdit(queryWord, labelWord)) return true;
-    if (labelWord.length >= queryWord.length) {
+    if (queryWord.length >= 5 && labelWord.length >= queryWord.length) {
       final prefix = labelWord.substring(0, queryWord.length);
       if (_withinOneEdit(queryWord, prefix)) return true;
     }

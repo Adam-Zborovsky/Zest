@@ -274,6 +274,62 @@ void main() {
     test('empty query returns no ids', () {
       expect(index.recipeIdsMatchingName(''), isEmpty);
     });
+
+    test(
+      'finding #10: typo-tier noise never joins a query that already has '
+      'real (tier 1-4) matches',
+      () {
+        // "sour" is a real word-prefix match on "Pink Gin Sour" (tier 3):
+        // no other recipe name is anywhere near it edit-distance-wise, but
+        // before the fix every recipe's tier was computed and merged
+        // regardless, so an unrelated typo-tier hit could ride along.
+        expect(index.recipeIdsMatchingName('sour'), ['1003']);
+      },
+    );
+
+    test(
+      'finding #10: typo tier is still used when tiers 1-4 return nothing '
+      'at all',
+      () {
+        // "fasioned" (a dropped 'h') matches nothing at tiers 1-4, but is
+        // one edit from "fashioned" — the fallback must still surface it.
+        final ids = index.recipeIdsMatchingName('fasioned');
+        expect(ids, containsAll(['1001', '1008']));
+      },
+    );
+  });
+
+  group('finding #10: equal-length-prefix typo rule needs 5+ char words', () {
+    late CatalogSearchIndex miniIndex;
+
+    setUp(() {
+      miniIndex = CatalogSearchIndex.fromRecipes([
+        _recipe('2001', 'Flannel Special', ['Whiskey']),
+      ]);
+    });
+
+    test(
+      'a 4-char query one edit from a longer word\'s equal-length prefix '
+      'no longer matches',
+      () {
+        // "glan" is one substitution from "flan" — "Flannel"'s first four
+        // letters — but at 4 chars the equal-length-prefix rule no longer
+        // applies (full-word tolerance still needs 4+, but "glan" is also
+        // 3 characters shorter than "flannel", well past the one-edit
+        // length window, so the full-word check can't rescue it either).
+        expect(miniIndex.recipeIdsMatchingName('glan'), isEmpty);
+      },
+    );
+
+    test(
+      'a 5-char query one edit from a longer word\'s equal-length prefix '
+      'still matches',
+      () {
+        // "glann" is one substitution from "flann" — "Flannel"'s first
+        // five letters — and 5+ chars keeps the equal-length-prefix rule.
+        expect(miniIndex.recipeIdsMatchingName('glann'), ['2001']);
+      },
+    );
   });
 
   group('recipeIdsWithIngredient', () {
