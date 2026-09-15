@@ -47,13 +47,14 @@ Home (`/`) leads with the canvas. Node taps select and highlight a neighborhood 
 
 `ConstellationCanvas` is a borderless camera over the world (`presentation/constellation_canvas.dart`); `ConstellationScene` (`presentation/constellation_scene.dart`) holds each node's live position as an anchor plus a spring displacement plus a float.
 
-- **Height.** 1.2× the screen width, clamped to 440–600 logical pixels.
+- **Size.** The canvas sits in the night band without the page's side padding, flush with the screen edges on phones. Its height is the smaller of 1.2× the screen width and half the screen height, clamped to 300–600 logical pixels, so the start of the page below stays in view.
 - **Entrance.** Once per canvas lifetime, nodes spring in from the seeded scatter with per-node spring rates (damping ratio 0.52), so they arrive out of step.
 - **Float.** Every node drifts on two detuned sines per axis, 5–11 px, with 6–15 s periods derived from a hash of its identity. Larger ingredients drift less. The float never repeats visibly and is identical on every launch.
-- **Gestures.** The canvas claims every pointer that lands on it, so the page scrolls only from outside it.
-  - One finger on a node drags it. Its neighbors are tugged along (10–38% of the travel by edge weight, capped at 80 px) and spring back on release. Discs in the way are shoved clear, and the dropped node stays put. A tap without movement selects the node.
-  - One finger on open space pans the view, with a fling. A tap selects an edge or clears the selection. A double tap springs the camera back to the opening view.
-  - Two fingers pinch-zoom around their midpoint, and a mouse wheel zooms around the cursor. Zoom runs from 0.6× of the fitted world to 3×. The pan is clamped so 30% of the canvas always overlaps the world.
+- **Gestures (revised 2026-09-15).** One finger never moves the view, so the page scrolls through the canvas. The canvas recognizer claims a touch only once a second touch joins it.
+  - A tap on a node selects it. A tap on a line opens it. A tap on open space clears the selection, and a double tap there springs the camera back to the opening view.
+  - A long press on a node picks it up (with a selection haptic) to drag. Its neighbors are tugged along (10–38% of the travel by edge weight, capped at 80 px) and spring back on release. Discs in the way are shoved clear, and the dropped node stays put.
+  - Two fingers pan and pinch-zoom together around their midpoint. Zoom runs from 0.6× of the fitted world to 3×. The pan is clamped so 30% of the canvas always overlaps the world.
+  - With a mouse, pointers are claimed at once. Dragging a node moves it, and dragging open space pans with a fling. Ctrl+wheel or a trackpad pinch (`PointerScaleEvent`) zooms around the cursor. A plain wheel scrolls the page.
 - **No border.** Everything fades out over 32 px at each side. Labels keep their text size at every zoom and are collision-filtered every frame. Search matches and the selected neighborhood are always named. With nothing searched or selected, no name shows at the opening view: each name fades in as zooming grows its node's on-screen radius from 21 to 27 px, so the most-used ingredients reveal first. Node and edge hit targets stay 48 px and 32 px on screen at every zoom.
 - **Ticker.** It runs while ambient float is on, and otherwise only while springs, a fling, or a camera return are settling. Tickers under a covering route are muted by `TickerMode`.
 - **Reduced motion.** Under either flag no ticker exists: no entrance, float, fling, or animated reset. Drag, pan, and zoom still work, and moves apply directly.

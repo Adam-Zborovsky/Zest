@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/design/zest_tokens.dart';
 import '../domain/graph_layout.dart';
@@ -25,14 +26,17 @@ const edgeHitHalfWidth = 16.0;
 /// onto a world larger than the canvas, whose nodes float, can be dragged,
 /// and answer taps.
 ///
-/// Gestures (the canvas owns every pointer that lands on it; the page
-/// scrolls from outside it):
-/// - one finger on a node drags it — neighbors are tugged along and discs
-///   in the way are shoved aside — and a tap selects it;
-/// - one finger elsewhere pans, with a fling; a tap selects an edge or
-///   clears the selection, and a double tap returns to the opening view;
-/// - two fingers pinch-zoom around their midpoint; a mouse wheel zooms
-///   around the cursor.
+/// Gestures. One finger never moves the view, so the page scrolls through
+/// the canvas like any other content:
+/// - a tap on a node selects it, a tap on a line opens it, a tap on open
+///   space clears the selection, and a double tap there returns to the
+///   opening view;
+/// - a long press on a node picks it up to drag — neighbors are tugged
+///   along and discs in the way are shoved aside;
+/// - two fingers pan and pinch-zoom together;
+/// - with a mouse, dragging a node moves it and dragging open space pans
+///   (with a fling); Ctrl+wheel or a trackpad pinch zooms around the
+///   cursor, and a plain wheel scrolls the page.
 ///
 /// Performance contract (the 60fps bar): the layout is computed once per
 /// graph or canvas-size change — never per frame, and never when only the
@@ -78,15 +82,16 @@ class ConstellationCanvas extends StatefulWidget {
   static const minZoomOfFit = 0.6;
   static const maxZoom = 3.0;
 
-  static Size worldSizeFor(Size canvas) => Size(
-    canvas.width * worldScale.width,
-    canvas.height * worldScale.height,
-  );
+  static Size worldSizeFor(Size canvas) =>
+      Size(canvas.width * worldScale.width, canvas.height * worldScale.height);
 
   @override
   State<ConstellationCanvas> createState() => ConstellationCanvasState();
 }
 
+/// A pointer sequence the canvas itself owns: a mouse drag of a node or of
+/// open space, or a two-finger pan and pinch. Long-press node drags and
+/// taps come from their own recognizers.
 enum _Gesture { none, pan, drag, pinch }
 
 class ConstellationCanvasState extends State<ConstellationCanvas>
@@ -112,14 +117,16 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
 
   final _pointers = <int, Offset>{};
   _Gesture _gesture = _Gesture.none;
+  bool _holdingNode = false;
   Offset _downPosition = Offset.zero;
   bool _tapCandidate = false;
   VelocityTracker? _panVelocity;
   double _pinchStartDistance = 1;
   double _pinchStartScale = 1;
   Offset _pinchWorldFocal = Offset.zero;
-  Duration? _lastEmptyTapTime;
-  Offset _lastEmptyTapPosition = Offset.zero;
+  final _tapClock = Stopwatch()..start();
+  Duration? _lastOpenTap;
+  Offset _lastOpenTapPosition = Offset.zero;
 
   bool get _reducedMotion => ZestMotion.reduced(context);
 
@@ -199,6 +206,7 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
     _fitCamera(size, world);
     _pointers.clear();
     _gesture = _Gesture.none;
+    _holdingNode = false;
     if (animated) _wake();
   }
 
@@ -291,22 +299,27 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
     return false;
   }
 
+  void _stopCameraMotion() {
+    _fling = Offset.zero;
+    _returningHome = false;
+  }
+
+  String? _nodeAt(Offset local) => _scene?.nodeAt(
+    _camera.toWorld(local),
+    minHitRadius: maxHitRadius / _camera.scale,
+  );
+
   void _handlePointerDown(PointerDownEvent event) {
     final scene = _scene;
     if (scene == null) return;
-    _fling = Offset.zero;
-    _returningHome = false;
     _pointers[event.pointer] = event.localPosition;
-    if (_pointers.length == 1) {
+    if (event.kind == PointerDeviceKind.mouse) {
+      _stopCameraMotion();
       _downPosition = event.localPosition;
       _tapCandidate = true;
-      final world = _camera.toWorld(event.localPosition);
-      final node = scene.nodeAt(
-        world,
-        minHitRadius: maxHitRadius / _camera.scale,
-      );
+      final node = _nodeAt(event.localPosition);
       if (node != null) {
-        scene.grab(node, world);
+        scene.grab(node, _camera.toWorld(event.localPosition));
         _gesture = _Gesture.drag;
         _wake();
       } else {
@@ -314,9 +327,8 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
         _panVelocity = VelocityTracker.withKind(event.kind)
           ..addPosition(event.timeStamp, event.localPosition);
       }
-    } else {
-      _tapCandidate = false;
-      if (_gesture == _Gesture.drag) scene.release();
+    } else if (_pointers.length >= 2 && !_holdingNode) {
+      _stopCameraMotion();
       _startPinch();
     }
     _frame.ping();
@@ -366,57 +378,63 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
     _frame.ping();
   }
 
-  void _handlePointerEnd(
-    int pointer,
-    Duration timeStamp, {
-    required bool cancelled,
-  }) {
+  void _handlePointerEnd(int pointer, {required bool cancelled}) {
     final position = _pointers.remove(pointer);
     final scene = _scene;
     if (position == null || scene == null) return;
-    if (_pointers.length >= 2) {
-      _startPinch();
-    } else if (_pointers.length == 1) {
-      if (_gesture == _Gesture.pinch) {
-        _gesture = _Gesture.pan;
+    switch (_gesture) {
+      case _Gesture.pinch:
+        // Lifting one of two fingers ends the pinch; a single finger left
+        // behind never pans.
+        if (_pointers.length >= 2) {
+          _startPinch();
+        } else {
+          _gesture = _Gesture.none;
+        }
+      case _Gesture.drag:
+        _gesture = _Gesture.none;
+        final held = scene.draggedIdentity;
+        scene.release();
+        if (_tapCandidate && !cancelled && held != null) {
+          widget.onSelectEdge(null);
+          widget.onSelectNode(held);
+        }
+      case _Gesture.pan:
+        _gesture = _Gesture.none;
+        final velocity = _panVelocity?.getVelocity().pixelsPerSecond;
         _panVelocity = null;
-      }
-    } else {
-      final gesture = _gesture;
-      _gesture = _Gesture.none;
-      final tap = _tapCandidate && !cancelled;
-      switch (gesture) {
-        case _Gesture.drag:
-          final held = scene.draggedIdentity;
-          scene.release();
-          if (tap && held != null) {
-            widget.onSelectEdge(null);
-            widget.onSelectNode(held);
-          }
-        case _Gesture.pan:
-          final velocity = _panVelocity?.getVelocity().pixelsPerSecond;
-          if (tap) {
-            _handleOpenTap(position, timeStamp);
-          } else if (!cancelled &&
-              !_reducedMotion &&
-              velocity != null &&
-              velocity.distance > 120) {
-            _fling = velocity;
-            _wake();
-          }
-        case _Gesture.pinch:
-        case _Gesture.none:
-          break;
-      }
-      _panVelocity = null;
+        if (_tapCandidate && !cancelled) {
+          _handleOpenTap(position);
+        } else if (!cancelled &&
+            !_reducedMotion &&
+            velocity != null &&
+            velocity.distance > 120) {
+          _fling = velocity;
+          _wake();
+        }
+      case _Gesture.none:
+        break;
     }
     _frame.ping();
+  }
+
+  /// A touch tap (mouse clicks are handled with the mouse's own sequence).
+  void _handleTapUp(TapUpDetails details) {
+    if (details.kind == PointerDeviceKind.mouse) return;
+    final node = _nodeAt(details.localPosition);
+    if (node != null) {
+      _lastOpenTap = null;
+      widget.onSelectEdge(null);
+      widget.onSelectNode(node);
+      return;
+    }
+    _handleOpenTap(details.localPosition);
   }
 
   /// A tap away from every node: an edge under it opens that edge; a second
   /// tap on open space in quick succession returns to the opening view;
   /// otherwise the selection clears.
-  void _handleOpenTap(Offset local, Duration timeStamp) {
+  void _handleOpenTap(Offset local) {
     final scene = _scene!;
     final world = _camera.toWorld(local);
     final corridor = edgeHitHalfWidth / _camera.scale;
@@ -424,24 +442,51 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
       final a = scene.positionOf(edge.aIdentity);
       final b = scene.positionOf(edge.bIdentity);
       if (_distanceToSegment(world, a, b) <= corridor) {
-        _lastEmptyTapTime = null;
+        _lastOpenTap = null;
         widget.onSelectNode(null);
         widget.onSelectEdge(edge);
         return;
       }
     }
-    final last = _lastEmptyTapTime;
+    final now = _tapClock.elapsed;
+    final last = _lastOpenTap;
     if (last != null &&
-        timeStamp - last <= kDoubleTapTimeout &&
-        (local - _lastEmptyTapPosition).distance <= kDoubleTapSlop) {
-      _lastEmptyTapTime = null;
+        now - last <= kDoubleTapTimeout &&
+        (local - _lastOpenTapPosition).distance <= kDoubleTapSlop) {
+      _lastOpenTap = null;
       _returnHome();
       return;
     }
-    _lastEmptyTapTime = timeStamp;
-    _lastEmptyTapPosition = local;
+    _lastOpenTap = now;
+    _lastOpenTapPosition = local;
     widget.onSelectNode(null);
     widget.onSelectEdge(null);
+  }
+
+  void _handleLongPressStart(LongPressStartDetails details) {
+    final scene = _scene;
+    final node = _nodeAt(details.localPosition);
+    if (scene == null || node == null || _gesture != _Gesture.none) return;
+    _stopCameraMotion();
+    scene.grab(node, _camera.toWorld(details.localPosition));
+    _holdingNode = true;
+    HapticFeedback.selectionClick();
+    _wake();
+    _frame.ping();
+  }
+
+  void _handleLongPressMove(LongPressMoveUpdateDetails details) {
+    if (!_holdingNode) return;
+    _scene?.dragTo(_camera.toWorld(details.localPosition));
+    _wake();
+    _frame.ping();
+  }
+
+  void _endHold() {
+    if (!_holdingNode) return;
+    _holdingNode = false;
+    _scene?.release();
+    _frame.ping();
   }
 
   void _returnHome() {
@@ -458,15 +503,24 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
   }
 
   void _handlePointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent) return;
+    final double factor;
+    if (event is PointerScaleEvent) {
+      factor = event.scale;
+    } else if (event is PointerScrollEvent &&
+        HardwareKeyboard.instance.isControlPressed) {
+      factor = math.exp(-event.scrollDelta.dy / 300);
+    } else {
+      // A plain wheel belongs to the page scroll.
+      return;
+    }
     GestureBinding.instance.pointerSignalResolver.register(event, (resolved) {
-      final scroll = resolved as PointerScrollEvent;
-      final focal = scroll.localPosition;
+      final focal = resolved.localPosition;
       final world = _camera.toWorld(focal);
-      final scale = (_camera.scale * math.exp(-scroll.scrollDelta.dy / 300))
-          .clamp(_minScale, ConstellationCanvas.maxZoom);
-      _fling = Offset.zero;
-      _returningHome = false;
+      final scale = (_camera.scale * factor).clamp(
+        _minScale,
+        ConstellationCanvas.maxZoom,
+      );
+      _stopCameraMotion();
       _camera
         ..scale = scale
         ..origin = _clampOrigin(focal - world * scale, scale);
@@ -513,8 +567,8 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
           ).textTheme.labelSmall!.copyWith(color: ZestPalette.leaf),
         );
         // Each prepared paint data owns laid-out TextPainters; dispose the
-        // previous set when a new one replaces it, or selection, search, and
-        // gesture ends would leak up to a label set per rebuild.
+        // previous set when a new one replaces it, or selection and search
+        // changes would leak a label set per rebuild.
         _paintData?.dispose();
         _paintData = paintData;
 
@@ -537,6 +591,23 @@ class ConstellationCanvasState extends State<ConstellationCanvas>
                         ..onDown = _handlePointerDown
                         ..onMove = _handlePointerMove
                         ..onEnd = _handlePointerEnd;
+                    }),
+                TapGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                      () => TapGestureRecognizer(debugOwner: this),
+                      (recognizer) => recognizer.onTapUp = _handleTapUp,
+                    ),
+                LongPressGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      LongPressGestureRecognizer
+                    >(() => LongPressGestureRecognizer(debugOwner: this), (
+                      recognizer,
+                    ) {
+                      recognizer
+                        ..onLongPressStart = _handleLongPressStart
+                        ..onLongPressMoveUpdate = _handleLongPressMove
+                        ..onLongPressEnd = ((_) => _endHold())
+                        ..onLongPressCancel = _endHold;
                     }),
               },
               child: MouseRegion(
@@ -568,22 +639,37 @@ final class _FrameNotifier extends ChangeNotifier {
   void ping() => notifyListeners();
 }
 
-/// Claims every pointer that lands on the canvas the moment it goes down,
-/// so the surrounding page scroll never steals a drag, pan, or pinch that
-/// starts on the constellation. Taps are recognized by the canvas itself.
+/// Claims the pointers the canvas moves the view with, and only those, so a
+/// single finger stays with the page scroll:
+/// - a mouse pointer is claimed the moment it goes down (a mouse drag never
+///   scrolls the page);
+/// - a touch pointer is claimed only once a second touch joins it, turning
+///   both into a two-finger pan and pinch. A lone touch that lifts is
+///   released to the tap recognizer.
 class _CanvasPointerRecognizer extends OneSequenceGestureRecognizer {
   _CanvasPointerRecognizer({super.debugOwner});
 
   ValueChanged<PointerDownEvent>? onDown;
   ValueChanged<PointerMoveEvent>? onMove;
-  void Function(int pointer, Duration timeStamp, {required bool cancelled})?
-  onEnd;
+  void Function(int pointer, {required bool cancelled})? onEnd;
+
+  final _pending = <int>{};
+  final _accepted = <int>{};
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
     startTrackingPointer(event.pointer, event.transform);
-    resolvePointer(event.pointer, GestureDisposition.accepted);
     onDown?.call(event);
+    if (event.kind == PointerDeviceKind.mouse) {
+      resolvePointer(event.pointer, GestureDisposition.accepted);
+      return;
+    }
+    _pending.add(event.pointer);
+    if (_pending.length + _accepted.length >= 2) {
+      for (final pointer in _pending.toList()) {
+        resolvePointer(pointer, GestureDisposition.accepted);
+      }
+    }
   }
 
   @override
@@ -591,19 +677,29 @@ class _CanvasPointerRecognizer extends OneSequenceGestureRecognizer {
     if (event is PointerMoveEvent) {
       onMove?.call(event);
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
-      onEnd?.call(
-        event.pointer,
-        event.timeStamp,
-        cancelled: event is PointerCancelEvent,
-      );
+      if (_pending.remove(event.pointer)) {
+        // Never claimed: leave the sequence to the tap recognizer.
+        resolvePointer(event.pointer, GestureDisposition.rejected);
+      } else {
+        _accepted.remove(event.pointer);
+      }
+      onEnd?.call(event.pointer, cancelled: event is PointerCancelEvent);
       stopTrackingPointer(event.pointer);
     }
   }
 
   @override
+  void acceptGesture(int pointer) {
+    _pending.remove(pointer);
+    _accepted.add(pointer);
+  }
+
+  @override
   void rejectGesture(int pointer) {
-    onEnd?.call(pointer, Duration.zero, cancelled: true);
-    super.rejectGesture(pointer);
+    _pending.remove(pointer);
+    _accepted.remove(pointer);
+    onEnd?.call(pointer, cancelled: true);
+    stopTrackingPointer(pointer);
   }
 
   @override

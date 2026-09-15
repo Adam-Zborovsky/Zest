@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zest/core/design/zest_tokens.dart';
 import 'package:zest/features/constellation/domain/ingredient_graph.dart';
@@ -74,18 +75,70 @@ Offset _towardCenter(RenderBox box, Offset from, Offset magnitude) {
 /// A canvas point well away from every node and line of the small graph.
 Offset _openSpace(RenderBox box) => box.localToGlobal(const Offset(30, 30));
 
+/// Moves two fingers by the same [offset] in [steps], or apart by
+/// [spread] each, pumping a frame between steps.
+Future<void> _twoFingers(
+  WidgetTester tester,
+  Offset center, {
+  Offset offset = Offset.zero,
+  Offset spread = Offset.zero,
+  int steps = 5,
+}) async {
+  final first = await tester.startGesture(center - const Offset(40, 0));
+  final second = await tester.startGesture(center + const Offset(40, 0));
+  for (var i = 0; i < steps; i++) {
+    await first.moveBy(offset / steps.toDouble() - spread / steps.toDouble());
+    await second.moveBy(offset / steps.toDouble() + spread / steps.toDouble());
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await first.up();
+  await second.up();
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('dragging a node moves it without scrolling the page or '
-      'selecting it', (tester) async {
+  testWidgets('a one-finger swipe on the canvas scrolls the page and never '
+      'moves the view or a node', (tester) async {
     final (:canvas, :box, :scroll, :selections) = await _pumpCanvas(tester);
-    final start = canvas.screenPositionOf('mint leaf');
-    final travel = _towardCenter(box, start, const Offset(40, 50));
+    final origin = canvas.cameraOrigin;
+    final node = canvas.screenPositionOf('mint leaf');
 
     await tester.timedDragFrom(
-      box.localToGlobal(start),
-      travel,
-      const Duration(seconds: 1),
+      _openSpace(box),
+      const Offset(0, -120),
+      const Duration(milliseconds: 300),
     );
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(0));
+    scroll.jumpTo(0);
+    await tester.pump();
+
+    await tester.timedDragFrom(
+      box.localToGlobal(node),
+      const Offset(0, -120),
+      const Duration(milliseconds: 300),
+    );
+    await tester.pumpAndSettle();
+
+    expect(scroll.offset, greaterThan(0));
+    expect(canvas.cameraOrigin, origin);
+    expect(canvas.screenPositionOf('mint leaf'), node);
+    expect(selections, isEmpty);
+  });
+
+  testWidgets('a long press on a node picks it up to drag without scrolling '
+      'the page or selecting it', (tester) async {
+    final (:canvas, :box, :scroll, :selections) = await _pumpCanvas(tester);
+    final start = canvas.screenPositionOf('mint leaf');
+    final travel = _towardCenter(box, start, const Offset(40, 48));
+
+    final gesture = await tester.startGesture(box.localToGlobal(start));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    for (var i = 0; i < 4; i++) {
+      await gesture.moveBy(travel / 4);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
     await tester.pumpAndSettle();
 
     final moved = canvas.screenPositionOf('mint leaf') - start;
@@ -104,23 +157,20 @@ void main() {
     expect(selections, ['mint leaf']);
   });
 
-  testWidgets('one finger on open space pans the view, not the page', (
-    tester,
-  ) async {
+  testWidgets('two fingers pan the view, not the page', (tester) async {
     final (:canvas, :box, :scroll, selections: _) = await _pumpCanvas(tester);
     final origin = canvas.cameraOrigin;
-    final node = canvas.screenPositionOf('mint leaf');
+    final scale = canvas.cameraScale;
 
-    await tester.timedDragFrom(
-      _openSpace(box),
-      const Offset(50, 30),
-      const Duration(seconds: 1),
+    await _twoFingers(
+      tester,
+      box.localToGlobal(box.size.center(Offset.zero)),
+      offset: const Offset(50, 30),
     );
-    await tester.pumpAndSettle();
 
     expect(canvas.cameraOrigin.dx - origin.dx, closeTo(50, 1));
     expect(canvas.cameraOrigin.dy - origin.dy, closeTo(30, 1));
-    expect(canvas.screenPositionOf('mint leaf').dx - node.dx, closeTo(50, 1));
+    expect(canvas.cameraScale, closeTo(scale, 0.001));
     expect(scroll.offset, 0);
   });
 
@@ -129,17 +179,12 @@ void main() {
     final (:canvas, :box, scroll: _, selections: _) = await _pumpCanvas(tester);
     final openingScale = canvas.cameraScale;
     final openingOrigin = canvas.cameraOrigin;
-    final center = box.localToGlobal(box.size.center(Offset.zero));
 
-    final first = await tester.startGesture(center - const Offset(40, 0));
-    final second = await tester.startGesture(center + const Offset(40, 0));
-    await first.moveBy(const Offset(-20, 0));
-    await second.moveBy(const Offset(20, 0));
-    await first.moveBy(const Offset(-20, 0));
-    await second.moveBy(const Offset(20, 0));
-    await first.up();
-    await second.up();
-    await tester.pumpAndSettle();
+    await _twoFingers(
+      tester,
+      box.localToGlobal(box.size.center(Offset.zero)),
+      spread: const Offset(40, 0),
+    );
 
     expect(canvas.cameraScale, closeTo(openingScale * 2, 0.01));
 
@@ -152,18 +197,49 @@ void main() {
     expect((canvas.cameraOrigin - openingOrigin).distance, lessThan(0.5));
   });
 
-  testWidgets('a mouse wheel zooms the canvas instead of scrolling the page', (
+  testWidgets('with a mouse, dragging open space pans the view', (
+    tester,
+  ) async {
+    final (:canvas, :box, :scroll, selections: _) = await _pumpCanvas(tester);
+    final origin = canvas.cameraOrigin;
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: _openSpace(box));
+    await mouse.down(_openSpace(box));
+    for (var i = 0; i < 5; i++) {
+      await mouse.moveBy(const Offset(10, 6));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await mouse.up();
+    await tester.pumpAndSettle();
+    await mouse.removePointer();
+
+    expect(canvas.cameraOrigin.dx - origin.dx, closeTo(50, 1));
+    expect(canvas.cameraOrigin.dy - origin.dy, closeTo(30, 1));
+    expect(scroll.offset, 0);
+  });
+
+  testWidgets('a plain wheel scrolls the page; Ctrl+wheel zooms the canvas', (
     tester,
   ) async {
     final (:canvas, :box, :scroll, selections: _) = await _pumpCanvas(tester);
     final openingScale = canvas.cameraScale;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
 
     tester.binding.handlePointerEvent(
-      PointerScrollEvent(
-        position: box.localToGlobal(box.size.center(Offset.zero)),
-        scrollDelta: const Offset(0, -150),
-      ),
+      PointerScrollEvent(position: center, scrollDelta: const Offset(0, 150)),
     );
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(0));
+    expect(canvas.cameraScale, openingScale);
+    scroll.jumpTo(0);
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(position: center, scrollDelta: const Offset(0, -150)),
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
     expect(canvas.cameraScale, greaterThan(openingScale));
@@ -204,8 +280,8 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('under reduced motion a drag still moves the node with no '
-      'ticker', (tester) async {
+  testWidgets('under reduced motion a long-press drag still moves the node '
+      'with no ticker', (tester) async {
     tester.platformDispatcher.accessibilityFeaturesTestValue =
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
@@ -214,6 +290,7 @@ void main() {
     final step = _towardCenter(box, start, const Offset(30, 0));
 
     final gesture = await tester.startGesture(box.localToGlobal(start));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
     await gesture.moveBy(step);
     await gesture.moveBy(step);
     expect(tester.binding.transientCallbackCount, 0);

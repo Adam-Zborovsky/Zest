@@ -42,6 +42,7 @@ class DiscoveryFrame extends StatelessWidget {
     this.titleAccent,
     this.intro,
     this.band,
+    this.bandBleed,
   });
 
   final Widget child;
@@ -62,6 +63,11 @@ class DiscoveryFrame extends StatelessWidget {
 
   /// Extra content on the night field below the heading.
   final Widget? band;
+
+  /// Night-field content below [band] without the page's side padding:
+  /// flush with the screen edges on phones, the full page width on wide
+  /// screens.
+  final Widget? bandBleed;
 
   @override
   Widget build(BuildContext context) {
@@ -87,54 +93,60 @@ class DiscoveryFrame extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       NightBand(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            ZestSpace.page,
-                            ZestSpace.md + topInset,
-                            ZestSpace.page,
-                            ZestSpace.lg,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _FrameTopBar(back: back, onBack: onBack),
-                              if (eyebrow != null) ...[
-                                const SizedBox(height: ZestSpace.xl),
-                                Text(
-                                  eyebrow!,
-                                  style: textTheme.labelMedium!.copyWith(
-                                    color: ZestPalette.nightMuted,
-                                    letterSpacing: 1.1,
-                                  ),
-                                ),
-                              ],
-                              if (title != null) ...[
-                                SizedBox(
-                                  height: eyebrow == null
-                                      ? ZestSpace.xl
-                                      : ZestSpace.xs,
-                                ),
-                                DiscoveryHeading(
-                                  title!,
-                                  accent: titleAccent,
-                                  large: true,
-                                ),
-                              ],
-                              if (intro != null) ...[
-                                const SizedBox(height: ZestSpace.md),
-                                Text(
-                                  intro!,
-                                  style: textTheme.bodyLarge!.copyWith(
-                                    color: ZestPalette.nightMuted,
-                                  ),
-                                ),
-                              ],
-                              if (band != null) ...[
-                                const SizedBox(height: ZestSpace.xl),
-                                band!,
-                              ],
-                            ],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                ZestSpace.page,
+                                ZestSpace.md + topInset,
+                                ZestSpace.page,
+                                bandBleed == null ? ZestSpace.lg : ZestSpace.md,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _FrameTopBar(back: back, onBack: onBack),
+                                  if (eyebrow != null) ...[
+                                    const SizedBox(height: ZestSpace.xl),
+                                    Text(
+                                      eyebrow!,
+                                      style: textTheme.labelMedium!.copyWith(
+                                        color: ZestPalette.nightMuted,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ],
+                                  if (title != null) ...[
+                                    SizedBox(
+                                      height: eyebrow == null
+                                          ? ZestSpace.xl
+                                          : ZestSpace.xs,
+                                    ),
+                                    DiscoveryHeading(
+                                      title!,
+                                      accent: titleAccent,
+                                      large: true,
+                                    ),
+                                  ],
+                                  if (intro != null) ...[
+                                    const SizedBox(height: ZestSpace.md),
+                                    Text(
+                                      intro!,
+                                      style: textTheme.bodyLarge!.copyWith(
+                                        color: ZestPalette.nightMuted,
+                                      ),
+                                    ),
+                                  ],
+                                  if (band != null) ...[
+                                    const SizedBox(height: ZestSpace.xl),
+                                    band!,
+                                  ],
+                                ],
+                              ),
+                            ),
+                            ?bandBleed,
+                          ],
                         ),
                       ),
                       Padding(
