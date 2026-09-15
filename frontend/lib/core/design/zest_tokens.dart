@@ -79,6 +79,11 @@ abstract final class ZestMotion {
   static const pop = Duration(milliseconds: 320);
   static const easeOut = Cubic(0.2, 0.0, 0.0, 1.0);
 
+  /// Whether idle, looping motion — the constellation float — runs at all.
+  /// Reduced motion always disables it regardless. The test harness turns
+  /// it off (test/flutter_test_config.dart) so `pumpAndSettle` can settle.
+  static bool ambientMotion = true;
+
   static bool reduced(BuildContext context) =>
       MediaQuery.disableAnimationsOf(context) ||
       MediaQuery.accessibleNavigationOf(context);

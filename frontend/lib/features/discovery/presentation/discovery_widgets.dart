@@ -294,11 +294,15 @@ class RecipeImage extends ConsumerWidget {
     super.key,
     required this.url,
     required this.name,
-    this.compact = false,
+    this.square = false,
   });
   final String? url;
   final String name;
-  final bool compact;
+
+  /// A square image filling the width — TheCocktailDB thumbnails are
+  /// square, so nothing is cropped — instead of the full-width 260-pixel
+  /// band used on detail pages.
+  final bool square;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -315,7 +319,7 @@ class RecipeImage extends ConsumerWidget {
       image: ref.watch(recipeImageProvider)(uri.toString()),
       fit: BoxFit.cover,
       width: double.infinity,
-      height: compact ? 140 : 260,
+      height: square ? null : 260,
       semanticLabel: '$name — image from TheCocktailDB',
       frameBuilder: (context, child, frame, synchronous) =>
           frame != null || synchronous
@@ -338,7 +342,7 @@ class RecipeImage extends ConsumerWidget {
 
   Widget _framed(BuildContext context, Widget child) => ClipRRect(
     borderRadius: ZestShape.recipe.resolve(Directionality.of(context)),
-    child: child,
+    child: square ? AspectRatio(aspectRatio: 1, child: child) : child,
   );
 
   Widget _fallback(BuildContext context, String label) => Column(
@@ -347,13 +351,13 @@ class RecipeImage extends ConsumerWidget {
       _framed(
         context,
         SizedBox(
-          height: compact ? 140 : 260,
+          height: square ? null : 260,
           child: ColoredBox(
             color: Theme.of(context).colorScheme.secondaryContainer,
             child: Center(
               child: BotanicalArt(
                 motif: BotanicalMotif.emptyGlass,
-                size: compact ? 72 : 112,
+                size: square ? 64 : 112,
               ),
             ),
           ),

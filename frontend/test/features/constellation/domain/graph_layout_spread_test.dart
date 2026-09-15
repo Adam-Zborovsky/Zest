@@ -46,7 +46,9 @@ void main() {
     expect(graph.edges.length, greaterThan(pairs / 2));
   });
 
-  for (final size in const [Size(760, 400), Size(372, 400)]) {
+  // The world sizes the home canvas lays out in: the viewport enlarged by
+  // ConstellationCanvas.worldScale on a desktop page and on a phone.
+  for (final size in const [Size(1026, 750), Size(502, 558)]) {
     group('on a ${size.width.toInt()}×${size.height.toInt()} canvas', () {
       final layout = GraphLayout.compute(graph, size: size);
       final inner = Size(

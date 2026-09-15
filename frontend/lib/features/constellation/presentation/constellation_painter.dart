@@ -6,6 +6,7 @@ import '../../../core/design/zest_tokens.dart';
 import '../domain/graph_layout.dart';
 import '../domain/ingredient_graph.dart';
 import '../domain/ingredient_kind.dart';
+import 'constellation_scene.dart';
 import 'ingredient_glyph.dart';
 
 /// Node radius mapping; see [GraphLayout.nodeRadius], which the layout also
@@ -13,12 +14,24 @@ import 'ingredient_glyph.dart';
 double constellationNodeRadius(int prevalence, int maxPrevalence) =>
     GraphLayout.nodeRadius(prevalence, maxPrevalence);
 
-/// Everything the painter needs for one canvas state: the graph, its layout,
-/// the emphasis implied by the current selection and search filter, each
-/// node's glyph kind, and the collision-filtered label set. Prepared once
-/// per state change — never per animation frame — so the settle and
-/// selection animations repaint without re-laying out text or allocating
-/// Paint objects (glyph paints are cached per kind in ingredient_glyph).
+/// The view onto the constellation world: a screen point is
+/// `world * scale + origin`. Mutated by the canvas's gestures and read by
+/// the painter at paint time.
+final class ConstellationCamera {
+  double scale = 1;
+  Offset origin = Offset.zero;
+
+  Offset toScreen(Offset world) => world * scale + origin;
+  Offset toWorld(Offset screen) => (screen - origin) / scale;
+}
+
+/// Everything the painter needs for one canvas state: the graph, the live
+/// scene, the emphasis implied by the current selection and search filter,
+/// each node's glyph kind, and the collision-filtered label set. Prepared
+/// once per state change — a selection, filter, drop, or finished zoom —
+/// never per animation frame, so the float and the drag springs repaint
+/// without re-laying out text or allocating Paint objects (glyph paints are
+/// cached per kind in ingredient_glyph).
 ///
 /// The canvas paints on the Night Garden field: glyph discs colored by
 /// [IngredientKind], peach string lines whose opacity and width carry edge
@@ -26,18 +39,20 @@ double constellationNodeRadius(int prevalence, int maxPrevalence) =>
 /// line and halo for the selection.
 ///
 /// Label rule (documented contract):
-/// 1. When a search filter is active, every matching node is a candidate.
-/// 2. When something is selected, its neighborhood nodes are candidates.
-/// 3. Otherwise (and as filler), the top 8 nodes by prevalence are
-///    candidates.
-/// Candidates are accepted in that priority order, skipping any label whose
-/// padded text rectangle would overlap an already-accepted label — legibility
-/// beats completeness, and the search field plus the info surface below the
-/// canvas always name the selected things in text.
+/// 1. When a search filter is active, every matching node is pinned.
+/// 2. When something is selected, its neighborhood nodes are pinned.
+/// 3. When nothing is searched or selected, no name shows at the opening
+///    view; each node's name fades in as zooming grows its on-screen radius
+///    from [revealStart] to [revealFull], so the most-used ingredients
+///    reveal first.
+/// Labels are accepted per frame in that priority order (then prevalence),
+/// skipping any whose padded rectangle would overlap an already-accepted
+/// label at the current zoom — legibility beats completeness, and the
+/// search field plus the info surface below the canvas always name the
+/// selected things in text. Labels keep their text size at every zoom.
 final class ConstellationPaintData {
   ConstellationPaintData({
     required this.graph,
-    required this.layout,
     required IngredientNode? selectedNode,
     required IngredientEdge? selectedEdge,
     required String query,
@@ -123,8 +138,9 @@ final class ConstellationPaintData {
       );
     }
 
-    // Labels: candidates in priority order, then greedy collision filtering.
-    final candidates = <String>[
+    // Labels: text laid out once here in priority order; which ones show is
+    // decided per frame by [visibleLabels].
+    final pinned = <String>[
       for (final node in graph.nodes)
         if (matching.contains(node.identity)) node.identity,
       if (neighborhood != null) ...[
@@ -136,45 +152,76 @@ final class ConstellationPaintData {
         selectedEdge.aIdentity,
         selectedEdge.bIdentity,
       ],
-      if (trimmedQuery.isEmpty)
-        for (final node in graph.nodes.take(labelTopCount)) node.identity,
     ];
-    final acceptedRects = <Rect>[];
+    final revealing =
+        trimmedQuery.isEmpty && selectedNode == null && selectedEdge == null;
     final seen = <String>{};
-    for (final identity in candidates) {
-      if (!seen.add(identity)) continue;
-      final nodePaint = nodePaints[identity];
-      if (nodePaint == null) continue;
-      final position = layout.positionOf(identity);
-      final painter = TextPainter(
-        text: TextSpan(text: _display(identity), style: labelStyle),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout(maxWidth: 160);
-      final rect = Rect.fromLTWH(
-        position.dx - painter.width / 2 - _labelPadX,
-        position.dy + nodePaint.labelOffset,
-        painter.width + _labelPadX * 2,
-        painter.height + _labelPadY * 2,
+    void addLabel(String identity, {required bool pinned}) {
+      if (!seen.add(identity) || !nodePaints.containsKey(identity)) return;
+      labels.add(
+        _LabelPaint(
+          identity: identity,
+          pinned: pinned,
+          painter: TextPainter(
+            text: TextSpan(text: _display(identity), style: labelStyle),
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          )..layout(maxWidth: 160),
+        ),
       );
-      final overlaps = acceptedRects.any((accepted) => accepted.overlaps(rect));
-      if (overlaps) {
-        painter.dispose();
-        continue;
+    }
+
+    for (final identity in pinned) {
+      addLabel(identity, pinned: true);
+    }
+    if (revealing) {
+      for (final node in graph.nodes) {
+        addLabel(node.identity, pinned: false);
       }
-      acceptedRects.add(rect);
-      labels.add(_LabelPaint(identity: identity, painter: painter));
     }
   }
 
-  /// How many top-prevalence nodes get labels when nothing focuses attention.
-  static const labelTopCount = 8;
+  /// On-screen node radius, in logical pixels, at which a zoom-revealed
+  /// name starts to fade in and is fully shown. The largest disc (26 px)
+  /// crosses [revealStart] just past the fitted opening zoom; the smallest
+  /// (10 px) is fully named before the 3× zoom limit.
+  static const revealStart = 21.0;
+  static const revealFull = 27.0;
+
+  /// The labels to draw at [scale], each with its rectangle relative to the
+  /// camera origin and its opacity, after priority-order collision
+  /// filtering. Allocation is bounded by the 40-node view.
+  List<({_LabelPaint label, Rect rect, double opacity})> visibleLabels(
+    ConstellationScene scene,
+    double scale, {
+    double selectionScale = 1,
+  }) {
+    final visible = <({_LabelPaint label, Rect rect, double opacity})>[];
+    for (final label in labels) {
+      final nodePaint = nodePaints[label.identity]!;
+      final opacity = label.pinned
+          ? 1.0
+          : ((nodePaint.radius * scale - revealStart) /
+                    (revealFull - revealStart))
+                .clamp(0.0, 1.0);
+      if (opacity == 0) continue;
+      final rect = _labelRect(
+        scene.positionOf(label.identity) * scale,
+        nodePaint,
+        label.painter,
+        scale,
+        selectionScale,
+      );
+      if (visible.any((accepted) => accepted.rect.overlaps(rect))) continue;
+      visible.add((label: label, rect: rect, opacity: opacity));
+    }
+    return visible;
+  }
 
   static const _labelPadX = 7.0;
   static const _labelPadY = 2.0;
 
   final IngredientGraph graph;
-  final GraphLayout layout;
   final nodePaints = <String, _NodePaint>{};
   final edgePaints = <_EdgePaint>[];
   final labels = <_LabelPaint>[];
@@ -185,6 +232,25 @@ final class ConstellationPaintData {
     }
     labels.clear();
   }
+}
+
+/// A label pill under a node drawn at [screenCenter]: the pill keeps its
+/// text size while its distance below the node follows the zoomed radius.
+Rect _labelRect(
+  Offset screenCenter,
+  _NodePaint nodePaint,
+  TextPainter painter,
+  double scale,
+  double selectionScale,
+) {
+  final radius =
+      nodePaint.radius * scale * (nodePaint.selected ? selectionScale : 1);
+  return Rect.fromLTWH(
+    screenCenter.dx - painter.width / 2 - ConstellationPaintData._labelPadX,
+    screenCenter.dy + radius + (nodePaint.selected ? 9 : 5),
+    painter.width + ConstellationPaintData._labelPadX * 2,
+    painter.height + ConstellationPaintData._labelPadY * 2,
+  );
 }
 
 String _display(String identity) => identity.isEmpty
@@ -205,9 +271,6 @@ final class _NodePaint {
   final bool dimmed;
   final bool selected;
   final bool emphasized;
-
-  /// Labels sit below the disc and clear the selection halo.
-  double get labelOffset => radius + (selected ? 9 : 5);
 }
 
 final class _EdgePaint {
@@ -218,38 +281,48 @@ final class _EdgePaint {
 }
 
 final class _LabelPaint {
-  const _LabelPaint({required this.identity, required this.painter});
+  const _LabelPaint({
+    required this.identity,
+    required this.pinned,
+    required this.painter,
+  });
 
   final String identity;
+
+  /// Shown at every zoom (search match or selection) rather than revealed
+  /// by zooming in.
+  final bool pinned;
   final TextPainter painter;
 }
 
-/// Paints the constellation. Work per frame is O(nodes + edges) — at the
-/// bounded 40-node view that is at most 40 glyphs, 780 edge curves, and a
-/// fixed label set, with every Paint object and text layout precomputed. The
-/// 60fps bar rests on that bound.
+/// Paints the constellation through the [camera]. Work per frame is
+/// O(nodes + edges) — at the bounded 40-node view that is at most 40
+/// glyphs, 780 edge curves, and a fixed label set, with every Paint object
+/// and text layout precomputed. The 60fps bar rests on that bound.
+///
+/// The canvas has no visible border: everything dissolves into the night
+/// field over [fadeExtent] at each side, so panning and zooming read as
+/// moving through open space rather than inside a box.
 class ConstellationPainter extends CustomPainter {
   ConstellationPainter({
     required this.data,
-    required this.progress,
-    this.initialPositions,
-    this.selectionScale = 1,
+    required this.scene,
+    required this.camera,
+    required this.selectionScale,
+    super.repaint,
   });
 
   final ConstellationPaintData data;
-
-  /// 0 = initial scatter, 1 = settled layout. Reduced motion always renders
-  /// with 1 and never creates an animation.
-  final double progress;
-
-  /// The scatter the settle animation starts from; null when rendering the
-  /// settled layout directly.
-  final Map<String, Offset>? initialPositions;
+  final ConstellationScene scene;
+  final ConstellationCamera camera;
 
   /// Radius multiplier for the selected node while its pop plays; 1 at rest
   /// and always 1 under reduced motion.
-  final double selectionScale;
+  final double Function() selectionScale;
 
+  static const fadeExtent = 32.0;
+
+  static final _layerPaint = Paint();
   static final _labelBackdrop = Paint()..color = ZestPalette.peach;
   static final _emphasisRing = Paint()
     ..style = PaintingStyle.stroke
@@ -260,19 +333,22 @@ class ConstellationPainter extends CustomPainter {
     ..strokeWidth = 3
     ..color = ZestPalette.grapefruit;
 
-  Offset _positionOf(String identity) {
-    final settled = data.layout.positionOf(identity);
-    final initial = initialPositions?[identity];
-    if (initial == null || progress >= 1) return settled;
-    return Offset.lerp(initial, settled, progress)!;
-  }
+  Size? _fadeSize;
+  List<Paint> _fadePaints = const [];
 
   @override
   void paint(Canvas canvas, Size size) {
+    final bounds = Offset.zero & size;
+    final pop = selectionScale();
+    canvas.saveLayer(bounds, _layerPaint);
+
+    canvas.save();
+    canvas.translate(camera.origin.dx, camera.origin.dy);
+    canvas.scale(camera.scale);
     // Edges first so nodes sit on top.
     for (final edgePaint in data.edgePaints) {
-      final a = _positionOf(edgePaint.edge.aIdentity);
-      final b = _positionOf(edgePaint.edge.bIdentity);
+      final a = scene.positionOf(edgePaint.edge.aIdentity);
+      final b = scene.positionOf(edgePaint.edge.bIdentity);
       final delta = b - a;
       final length = delta.distance;
       // A slight perpendicular bow reads as loose string without changing
@@ -290,10 +366,10 @@ class ConstellationPainter extends CustomPainter {
     }
 
     for (final entry in data.nodePaints.entries) {
-      final position = _positionOf(entry.key);
+      final position = scene.positionOf(entry.key);
       final nodePaint = entry.value;
       final radius = nodePaint.selected
-          ? nodePaint.radius * selectionScale
+          ? nodePaint.radius * pop
           : nodePaint.radius;
       paintIngredientGlyph(
         canvas,
@@ -309,36 +385,73 @@ class ConstellationPainter extends CustomPainter {
         canvas.drawCircle(position, radius + 5, _selectionHalo);
       }
     }
+    canvas.restore();
 
-    for (final label in data.labels) {
-      final position = _positionOf(label.identity);
-      final nodePaint = data.nodePaints[label.identity]!;
-      final rect = Rect.fromLTWH(
-        position.dx -
-            label.painter.width / 2 -
-            ConstellationPaintData._labelPadX,
-        position.dy + nodePaint.labelOffset,
-        label.painter.width + ConstellationPaintData._labelPadX * 2,
-        label.painter.height + ConstellationPaintData._labelPadY * 2,
-      );
+    // Labels in screen space, so text stays readable at every zoom.
+    for (final visible in data.visibleLabels(
+      scene,
+      camera.scale,
+      selectionScale: pop,
+    )) {
+      final rect = visible.rect.shift(camera.origin);
+      final fading = visible.opacity < 1;
+      if (fading) {
+        canvas.saveLayer(
+          rect.inflate(1),
+          Paint()..color = Color.fromRGBO(0, 0, 0, visible.opacity),
+        );
+      }
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
         _labelBackdrop,
       );
-      label.painter.paint(
+      visible.label.painter.paint(
         canvas,
         Offset(
           rect.left + ConstellationPaintData._labelPadX,
           rect.top + ConstellationPaintData._labelPadY,
         ),
       );
+      if (fading) canvas.restore();
     }
+
+    for (final fade in _fadesFor(size)) {
+      canvas.drawRect(bounds, fade);
+    }
+    canvas.restore();
+  }
+
+  /// Two alpha masks, one per axis, multiplied into the layer.
+  List<Paint> _fadesFor(Size size) {
+    if (_fadeSize == size) return _fadePaints;
+    final bounds = Offset.zero & size;
+    Paint mask(Alignment begin, Alignment end, double extent) {
+      final stop = (fadeExtent / extent).clamp(0.0, 0.5);
+      return Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = LinearGradient(
+          begin: begin,
+          end: end,
+          colors: const [
+            Color(0x00000000),
+            Color(0xFF000000),
+            Color(0xFF000000),
+            Color(0x00000000),
+          ],
+          stops: [0, stop, 1 - stop, 1],
+        ).createShader(bounds);
+    }
+
+    _fadeSize = size;
+    return _fadePaints = [
+      mask(Alignment.centerLeft, Alignment.centerRight, size.width),
+      mask(Alignment.topCenter, Alignment.bottomCenter, size.height),
+    ];
   }
 
   @override
   bool shouldRepaint(ConstellationPainter oldDelegate) =>
-      progress != oldDelegate.progress ||
-      selectionScale != oldDelegate.selectionScale ||
       !identical(data, oldDelegate.data) ||
-      !identical(initialPositions, oldDelegate.initialPositions);
+      !identical(scene, oldDelegate.scene) ||
+      !identical(camera, oldDelegate.camera);
 }
