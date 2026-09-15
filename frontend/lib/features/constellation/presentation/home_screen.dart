@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -57,7 +59,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  static const _canvasMinHeight = 440.0;
+  static const _canvasMinHeight = 300.0;
   static const _canvasMaxHeight = 600.0;
 
   bool _listView = false;
@@ -119,7 +121,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       intro:
           'The most-used ingredients in the downloaded catalog get a place. '
           'Ingredients that appear together in recipes pull close.',
-      band: showGraph ? _band(graph) : null,
+      band: showGraph ? _viewSwitch() : null,
+      bandBleed: showGraph && !_listView ? _canvas(context, graph) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -141,9 +144,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   'Ingredients appear here once the recipe catalog is '
                   'downloaded to this device.',
               actionLabel: 'Download catalog',
-              onAction: () => ref
-                  .read(catalogUpdateControllerProvider.notifier)
-                  .checkNow(),
+              onAction: () =>
+                  ref.read(catalogUpdateControllerProvider.notifier).checkNow(),
             )
           else if (_listView)
             _listContentView(context, graph, coverageLabel)
@@ -165,63 +167,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Night-field content: the view switch and, in graph view, the canvas.
-  Widget _band(IngredientGraph graph) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
+  /// Night-field content inside the page padding: the Graph/List switch.
+  Widget _viewSwitch() => Wrap(
+    spacing: ZestSpace.sm,
+    runSpacing: ZestSpace.sm,
     children: [
-      Wrap(
-        spacing: ZestSpace.sm,
-        runSpacing: ZestSpace.sm,
-        children: [
-          ZestChip(
-            key: const ValueKey('home-view-graph'),
-            label: 'Graph',
-            selected: !_listView,
-            onSelected: (_) => setState(() => _listView = false),
-          ),
-          ZestChip(
-            key: const ValueKey('home-view-list'),
-            label: 'List',
-            selected: _listView,
-            onSelected: (_) => setState(() => _listView = true),
-          ),
-        ],
+      ZestChip(
+        key: const ValueKey('home-view-graph'),
+        label: 'Graph',
+        selected: !_listView,
+        onSelected: (_) => setState(() => _listView = false),
       ),
-      if (!_listView) ...[
-        const SizedBox(height: ZestSpace.md),
-        NightDotField(
-          child: SizedBox(
-            // Roomy on phones, capped so a desktop page still shows what
-            // follows the band.
-            height: (MediaQuery.sizeOf(context).width * 1.2).clamp(
-              _canvasMinHeight,
-              _canvasMaxHeight,
-            ),
-            child: ConstellationCanvas(
-              key: const ValueKey('constellation-canvas'),
-              graph: graph,
-              selectedNodeId: _selectedNodeId,
-              selectedEdge: _selectedEdge,
-              query: _search.text,
-              onSelectNode: (identity) => setState(() {
-                _selectedNodeId = identity;
-                _selectedEdge = null;
-              }),
-              onSelectEdge: (edge) {
-                setState(() {
-                  _selectedEdge = edge;
-                  _selectedNodeId = null;
-                });
-                if (edge != null) {
-                  showSharedRecipesSheet(context, edge: edge, graph: graph);
-                }
-              },
-            ),
-          ),
-        ),
-      ],
+      ZestChip(
+        key: const ValueKey('home-view-list'),
+        label: 'List',
+        selected: _listView,
+        onSelected: (_) => setState(() => _listView = true),
+      ),
     ],
   );
+
+  /// The canvas, flush with the screen edges. Its height leaves the start
+  /// of the page below in view on a phone, so it reads as more to scroll.
+  Widget _canvas(BuildContext context, IngredientGraph graph) {
+    final screen = MediaQuery.sizeOf(context);
+    return NightDotField(
+      child: SizedBox(
+        height: math
+            .min(screen.width * 1.2, screen.height * 0.5)
+            .clamp(_canvasMinHeight, _canvasMaxHeight),
+        child: ConstellationCanvas(
+          key: const ValueKey('constellation-canvas'),
+          graph: graph,
+          selectedNodeId: _selectedNodeId,
+          selectedEdge: _selectedEdge,
+          query: _search.text,
+          onSelectNode: (identity) => setState(() {
+            _selectedNodeId = identity;
+            _selectedEdge = null;
+          }),
+          onSelectEdge: (edge) {
+            setState(() {
+              _selectedEdge = edge;
+              _selectedNodeId = null;
+            });
+            if (edge != null) {
+              showSharedRecipesSheet(context, edge: edge, graph: graph);
+            }
+          },
+        ),
+      ),
+    );
+  }
 
   Widget _graphDetails(BuildContext context, IngredientGraph graph) {
     final query = _search.text.trim().toLowerCase();

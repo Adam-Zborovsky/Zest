@@ -88,10 +88,10 @@ Adam found the M5 screens flat and crowded, relaxed the M5 "no new tokens, fonts
 - **Motion.** Added a one-shot pop on the newly selected node and a press-sink on shadowed buttons and tiles at the feedback duration. Nothing loops. Under either reduced-motion flag no pop controller is created and sinks are immediate; the settle rules below are unchanged.
 - **Living constellation (2026-09-15).** Adam asked for a more spacious, chaotic graph that floats and can be moved and explored. This supersedes "Nothing loops" for the home canvas only:
   - Nodes float slowly and spring in on entrance.
-  - Nodes can be dragged; neighbors follow and discs in the way are pushed aside.
-  - The view pans, pinch-zooms, wheel-zooms, and double-taps back to the start.
-  - The canvas has no visible border; content dissolves into the night field at the edges.
-  - The canvas owns touch, and the page scrolls from outside it.
+  - A long press picks a node up to drag; neighbors follow and discs in the way are pushed aside.
+  - Two fingers pan and pinch-zoom the view, and a double tap returns to the start.
+  - The canvas has no visible border: it runs flush with the screen edges, and content dissolves into the night field.
+  - One finger always scrolls the page, even over the canvas. The canvas height leaves the page below in view.
   - Reduced motion removes every automatic movement, but direct manipulation stays.
 
   Contracts are in [CONSTELLATION.md](CONSTELLATION.md) under "Living canvas".
