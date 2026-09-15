@@ -302,7 +302,15 @@ final class CatalogSearchIndex {
 
   /// Recipe ids that use the ingredient identity named by [identity] (after
   /// [normalizeIngredientName]), ordered by folded recipe name then id.
-  /// An unknown or blank identity returns an empty list.
+  ///
+  /// [normalizeIngredientName] only lowercases and collapses whitespace —
+  /// it does not fold diacritics — so free text like "creme de cassis"
+  /// normalizes to an identity that never exactly matches the catalog's own
+  /// "crème de cassis". When the direct lookup misses, this falls back to
+  /// an exact *folded* match ([foldSearchText]) against every ingredient
+  /// entry's label, identity and reviewed aliases (finding #11), so the
+  /// same free text a person would type for that ingredient still resolves
+  /// to it. An unknown or blank identity returns an empty list.
   List<String> recipeIdsWithIngredient(String identity) {
     final String normalized;
     try {
@@ -310,7 +318,17 @@ final class CatalogSearchIndex {
     } on FormatException {
       return const [];
     }
-    return _ingredientRecipeIds[normalized] ?? const [];
+    final direct = _ingredientRecipeIds[normalized];
+    if (direct != null) return direct;
+    final folded = foldSearchText(identity);
+    if (folded.isEmpty) return const [];
+    for (final entry in _entries) {
+      if (entry.kind == CatalogSuggestionKind.ingredient &&
+          entry.exactMatchTexts.contains(folded)) {
+        return _ingredientRecipeIds[entry.id] ?? const [];
+      }
+    }
+    return const [];
   }
 
   /// Folds and defensively truncates [query]; returns null when there is

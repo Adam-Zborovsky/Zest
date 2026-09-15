@@ -348,6 +348,20 @@ void main() {
     test('unknown identity returns an empty list', () {
       expect(index.recipeIdsWithIngredient('unobtainium'), isEmpty);
     });
+
+    test(
+      'finding #11: an unaccented free-text identity resolves by exact '
+      'folded match ("creme de cassis" finds Crème de Cassis recipes)',
+      () {
+        // normalizeIngredientName only lowercases; it never strips the
+        // accent, so this only succeeds through the folded-match fallback.
+        expect(
+          index.recipeIdsWithIngredient('creme de cassis'),
+          index.recipeIdsWithIngredient('Crème de Cassis'),
+        );
+        expect(index.recipeIdsWithIngredient('creme de cassis'), ['1007']);
+      },
+    );
   });
 
   group('CatalogSearchIndex.empty', () {
