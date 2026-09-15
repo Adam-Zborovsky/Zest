@@ -9,7 +9,6 @@ import 'package:http/testing.dart';
 import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
 import 'package:zest/features/catalog/application/catalog_providers.dart';
-import 'package:zest/features/catalog/application/catalog_update_controller.dart';
 import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/discovery/application/discovery_providers.dart';
 import 'package:zest/features/discovery/data/cocktail_db_client.dart';
@@ -383,12 +382,46 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      // No screen in this route tree triggers the launch check (that only
-      // happens from the home screen's own initState); drive it explicitly.
-      await container.read(catalogUpdateControllerProvider.notifier).checkNow();
-      await tester.pumpAndSettle();
+      // The app shell's own launch check (finding #3) already ran on the
+      // first frame above — no route-specific screen needs to trigger it,
+      // and a cold deep link straight to /discover exercises exactly that.
       expect(find.text("Couldn't download the catalog"), findsOneWidget);
       expect(keyed('catalog-download-failed'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'finding #12: a cold deep link to /discover/results with an empty '
+    'catalog shows the download state, not empty results',
+    (tester) async {
+      final fetcher = FakeCatalogSnapshotFetcher()
+        ..enqueueError(
+          const CocktailApiException(CocktailApiErrorKind.network),
+        );
+      final database = openInMemoryCatalog();
+      addTearDown(database.close);
+      final container = ProviderContainer(
+        overrides: [
+          ...catalogTestOverrides(database: database, fetcher: fetcher),
+          cocktailDbClientProvider.overrideWithValue(
+            CocktailDbClient(client: MockClient((_) async => discoveryResponse(null))),
+          ),
+          ...collectionTestOverrides(),
+          ...sessionTestOverrides(),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const ZestApp(
+            initialLocation: '/discover/results?mode=name&q=Paper',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(keyed('results-catalog-status'), findsOneWidget);
+      expect(find.text('No recipes found'), findsNothing);
     },
   );
 
