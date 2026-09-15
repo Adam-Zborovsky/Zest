@@ -1,0 +1,10 @@
+.dart_tool
+build
+.git
+.idea
+.vscode
+android/.gradle
+android/local.properties
+ios/Pods
+.env
+.env.*
