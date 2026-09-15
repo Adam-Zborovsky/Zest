@@ -271,10 +271,32 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                               ),
                             ),
                             const SizedBox(height: ZestSpace.lg),
-                            for (final recipe in recipes.take(6)) ...[
-                              RecipeResultCard(recipe: recipe, query: query),
-                              const SizedBox(height: ZestSpace.lg),
-                            ],
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final preview = recipes.take(6).toList();
+                                final columns = recipeGridColumns(
+                                  context,
+                                  constraints.maxWidth,
+                                );
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (
+                                      var row = 0;
+                                      row * columns < preview.length;
+                                      row++
+                                    )
+                                      RecipeCardRow(
+                                        recipes: preview,
+                                        row: row,
+                                        columns: columns,
+                                        query: query,
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
                             if (recipes.length > 6)
                               ZestButton(
                                 key: const ValueKey('see-all-results'),
@@ -332,6 +354,57 @@ String resultTitle(DiscoveryQuery query) => switch (query.mode) {
   DiscoveryMode.letter => 'Beginning with ${query.value.toUpperCase()}',
 };
 
+/// Result cards per row: as many ~130-pixel cards (scaled with text size)
+/// as fit, between 1 and 4 — two on a phone, up to four on a wide page,
+/// and a single column only when large text would crush two.
+int recipeGridColumns(BuildContext context, double width) {
+  final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+  final minCard = 130 * textScale.clamp(1.0, 2.0);
+  return (width / minCard).floor().clamp(1, 4);
+}
+
+/// One row of [RecipeResultCard]s from [recipes]: equal widths, equal
+/// heights, and an unfilled last row keeps the same card width.
+class RecipeCardRow extends StatelessWidget {
+  const RecipeCardRow({
+    super.key,
+    required this.recipes,
+    required this.row,
+    required this.columns,
+    required this.query,
+  });
+  final List<RecipeSummary> recipes;
+  final int row;
+  final int columns;
+  final DiscoveryQuery query;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = row * columns;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ZestSpace.md),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var column = 0; column < columns; column++) ...[
+              if (column > 0) const SizedBox(width: ZestSpace.md),
+              Expanded(
+                child: start + column < recipes.length
+                    ? RecipeResultCard(
+                        recipe: recipes[start + column],
+                        query: query,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class RecipeResultCard extends StatelessWidget {
   const RecipeResultCard({
     super.key,
@@ -344,18 +417,26 @@ class RecipeResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ZestCard(
     recipe: true,
+    padding: const EdgeInsets.all(ZestSpace.md),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        RecipeImage(url: recipe.thumbnailUrl, name: recipe.name, compact: true),
-        const SizedBox(height: ZestSpace.lg),
-        DiscoveryHeading(recipe.name),
-        const SizedBox(height: ZestSpace.xs),
-        Text('TheCocktailDB', style: Theme.of(context).textTheme.bodySmall),
+        RecipeImage(url: recipe.thumbnailUrl, name: recipe.name, square: true),
+        const SizedBox(height: ZestSpace.md),
+        Semantics(
+          header: true,
+          child: Text(
+            recipe.name,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        // Pins the button to the card bottom so a row's buttons line up
+        // whatever the name lengths.
+        const Spacer(),
         const SizedBox(height: ZestSpace.md),
         ZestButton(
           key: ValueKey('recipe-${recipe.id}'),
-          label: 'View recipe',
+          label: 'View',
           semanticLabel: 'View recipe: ${recipe.name}',
           kind: ZestButtonKind.secondary,
           onPressed: () => context.push(
@@ -434,15 +515,25 @@ class ResultsScreen extends ConsumerWidget {
         if (results.hasValue && !results.isLoading && !results.hasError)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: ZestSpace.page),
-            sliver: SliverList.builder(
-              itemCount: results.requireValue.length,
-              itemBuilder: (context, index) => Padding(
-                padding: const EdgeInsets.only(bottom: ZestSpace.lg),
-                child: RecipeResultCard(
-                  recipe: results.requireValue[index],
-                  query: query,
-                ),
-              ),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final recipes = results.requireValue;
+                final columns = recipeGridColumns(
+                  context,
+                  constraints.crossAxisExtent,
+                );
+                // Rows stay lazily built: long letter results never lay out
+                // every card at once.
+                return SliverList.builder(
+                  itemCount: (recipes.length / columns).ceil(),
+                  itemBuilder: (context, row) => RecipeCardRow(
+                    recipes: recipes,
+                    row: row,
+                    columns: columns,
+                    query: query,
+                  ),
+                );
+              },
             ),
           ),
       ],
