@@ -19,7 +19,8 @@ import 'ingredient_graph.dart';
 /// therefore scaled down by the graph's mean degree — relationships still
 /// pull related ingredients closer, but connectivity alone cannot clump the
 /// graph — and the settled shape is stretched to use the whole canvas before
-/// discs are separated by their painted radius.
+/// a seeded scatter loosens the shape and discs are separated by their
+/// painted radius.
 ///
 /// The layout is mode-independent: motion and reduced-motion presentation
 /// both render these final positions; only the presentation decides whether
@@ -43,7 +44,12 @@ final class GraphLayout {
   static const _goldenAngle = 2.399963229728653;
 
   /// Extra space kept between neighboring discs beyond their radii.
-  static const clearanceGap = 8.0;
+  static const clearanceGap = 18.0;
+
+  /// Seeded scatter applied after the fit, as a share of the ideal edge
+  /// length: breaks the even lattice a force layout converges to so the
+  /// constellation reads as loose and wild rather than gridded.
+  static const _chaos = 0.42;
 
   /// Upper bound on collision-resolution rounds.
   static const _separationRounds = 120;
@@ -193,7 +199,17 @@ final class GraphLayout {
       _clampAll(positions, bounds);
     }
 
-    _fitToBounds(positions, bounds.deflate(_fitMargin));
+    final fitBounds = bounds.deflate(_fitMargin);
+    _fitToBounds(positions, fitBounds);
+    for (final node in nodes) {
+      final angle = random.nextDouble() * math.pi * 2;
+      final reach = random.nextDouble() * ideal * _chaos;
+      positions[node.identity] = _clampPoint(
+        positionOf(node.identity) +
+            Offset(math.cos(angle), math.sin(angle)) * reach,
+        fitBounds,
+      );
+    }
     _separate(graph, positions, bounds);
     return GraphLayout._(Map.unmodifiable(positions));
   }

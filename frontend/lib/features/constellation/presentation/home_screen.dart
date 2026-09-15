@@ -57,7 +57,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  static const _canvasHeight = 400.0;
+  static const _canvasMinHeight = 440.0;
+  static const _canvasMaxHeight = 600.0;
 
   bool _listView = false;
   String? _selectedNodeId;
@@ -190,7 +191,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(height: ZestSpace.md),
         NightDotField(
           child: SizedBox(
-            height: _canvasHeight,
+            // Roomy on phones, capped so a desktop page still shows what
+            // follows the band.
+            height: (MediaQuery.sizeOf(context).width * 1.2).clamp(
+              _canvasMinHeight,
+              _canvasMaxHeight,
+            ),
             child: ConstellationCanvas(
               key: const ValueKey('constellation-canvas'),
               graph: graph,

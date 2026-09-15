@@ -11,7 +11,6 @@ import 'package:zest/app/zest_app.dart';
 import 'package:zest/core/network/cocktail_api_exception.dart';
 import 'package:zest/features/catalog/data/catalog_repository.dart';
 import 'package:zest/features/catalog/data/catalog_snapshot_client.dart';
-import 'package:zest/features/constellation/domain/graph_layout.dart';
 import 'package:zest/features/constellation/domain/ingredient_graph.dart';
 import 'package:zest/features/constellation/presentation/constellation_canvas.dart';
 import 'package:zest/features/constellation/presentation/constellation_painter.dart';
@@ -133,36 +132,39 @@ Future<void> activate(WidgetTester tester, Finder target) async {
 GoRouter router(WidgetTester tester) =>
     GoRouter.of(tester.element(find.byType(Scaffold).last));
 
-/// Rebuilds the same deterministic layout the canvas computed: same graph
-/// from the same synthetic recipes, same canvas size, same default seed.
-(RenderBox box, IngredientGraph graph, GraphLayout layout) canvasGeometry(
-  WidgetTester tester,
-  List<Recipe> recipes,
-) {
+/// The canvas box, the same graph rebuilt from the same synthetic recipes,
+/// and the canvas state, which reports where each node is drawn through
+/// the camera (the suite runs without ambient float, so that is the
+/// deterministic layout).
+(RenderBox box, IngredientGraph graph, ConstellationCanvasState canvas)
+canvasGeometry(WidgetTester tester, List<Recipe> recipes) {
   final box = tester.renderObject<RenderBox>(keyed('constellation-canvas'));
   final graph = IngredientGraph.build(recipes);
-  final layout = GraphLayout.compute(graph, size: box.size);
-  return (box, graph, layout);
+  final canvas = tester.state<ConstellationCanvasState>(
+    keyed('constellation-canvas'),
+  );
+  return (box, graph, canvas);
 }
 
-/// The midpoint of an edge far enough from every node for a clean tap,
-/// together with the edge it belongs to.
+/// The on-screen midpoint of an edge far enough from every node for a clean
+/// tap, together with the edge it belongs to.
 (Offset, IngredientEdge) clearEdgeMidpoint(
   IngredientGraph graph,
-  GraphLayout layout,
+  ConstellationCanvasState canvas,
+  Size size,
 ) {
   for (final edge in graph.edges) {
     final mid = Offset.lerp(
-      layout.positionOf(edge.aIdentity),
-      layout.positionOf(edge.bIdentity),
+      canvas.screenPositionOf(edge.aIdentity),
+      canvas.screenPositionOf(edge.bIdentity),
       0.5,
     )!;
+    if (!(Offset.zero & size).deflate(maxHitRadius).contains(mid)) continue;
     final clear = graph.nodes.every((node) {
-      final radius = constellationNodeRadius(
-        node.prevalence,
-        graph.maxPrevalence,
-      );
-      return (mid - layout.positionOf(node.identity)).distance >
+      final radius =
+          constellationNodeRadius(node.prevalence, graph.maxPrevalence) *
+          canvas.cameraScale;
+      return (mid - canvas.screenPositionOf(node.identity)).distance >
           radius + maxHitRadius + 4;
     });
     if (clear) return (mid, edge);
@@ -487,8 +489,8 @@ void main() {
     // follow the reader back.
     await tester.ensureVisible(keyed('constellation-canvas'));
     await tester.pumpAndSettle();
-    final (box, _, layout) = canvasGeometry(tester, threeLetterRecipes());
-    await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+    final (box, _, canvas) = canvasGeometry(tester, threeLetterRecipes());
+    await tester.tapAt(box.localToGlobal(canvas.screenPositionOf('mint leaf')));
     await tester.pumpAndSettle();
     expect(keyed('constellation-clear'), findsOneWidget);
 
@@ -515,10 +517,10 @@ void main() {
 
     await tester.ensureVisible(keyed('constellation-canvas'));
     await tester.pumpAndSettle();
-    final (box, graph, layout) = canvasGeometry(tester, threeLetterRecipes());
+    final (box, graph, canvas) = canvasGeometry(tester, threeLetterRecipes());
 
     // Node selection: the info surface states the same prevalence phrase.
-    await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+    await tester.tapAt(box.localToGlobal(canvas.screenPositionOf('mint leaf')));
     await tester.pumpAndSettle();
     expect(find.text('Mint leaf'), findsOneWidget);
     expect(
@@ -530,7 +532,7 @@ void main() {
     expect(find.text('Mint leaf'), findsNothing);
 
     // Edge selection: the shared-recipe sheet opens straight from the canvas.
-    final (midpoint, edge) = clearEdgeMidpoint(graph, layout);
+    final (midpoint, edge) = clearEdgeMidpoint(graph, canvas, box.size);
     await tester.tapAt(box.localToGlobal(midpoint));
     await tester.pumpAndSettle();
     expect(
@@ -697,8 +699,10 @@ void main() {
       // The static canvas stays fully interactive.
       await tester.ensureVisible(keyed('constellation-canvas'));
       await tester.pump();
-      final (box, graph, layout) = canvasGeometry(tester, threeLetterRecipes());
-      await tester.tapAt(box.localToGlobal(layout.positionOf('mint leaf')));
+      final (box, _, canvas) = canvasGeometry(tester, threeLetterRecipes());
+      await tester.tapAt(
+        box.localToGlobal(canvas.screenPositionOf('mint leaf')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Mint leaf'), findsOneWidget);
       expect(
