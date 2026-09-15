@@ -20,5 +20,5 @@ COPY --from=build /app/dist ./dist
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod 0555 ./docker-entrypoint.sh && mkdir -p /app/data/photos
 
-EXPOSE 3000
+EXPOSE 8181
 ENTRYPOINT ["./docker-entrypoint.sh"]
