@@ -22,7 +22,7 @@ services:
     build:
       context: ../frontend
       args:
-        ZEST_API_BASE_URL: ${ZEST_API_BASE_URL:?Set ZEST_API_BASE_URL in deploy/.env.production}
+        ZEST_API_BASE_URL: ${ZEST_API_BASE_URL:?Set ZEST_API_BASE_URL in deploy/.env}
     container_name: zest-frontend
     restart: unless-stopped
     depends_on:

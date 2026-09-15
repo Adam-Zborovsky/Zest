@@ -14,24 +14,22 @@ This is a reviewable deployment candidate. It is not a declaration that Zest is 
 
 ```sh
 cd deploy
-cp .env.production.example .env.production
-chmod 600 .env.production
+cp .env.example .env
+chmod 600 .env
 ```
 
-Edit `.env.production` locally. Never commit it. Its real public host, provider key, and database password are intentionally absent from this repository.
+Edit `.env` locally. Never commit it. Its real public host, provider key, and database password are intentionally absent from this repository. Docker Compose loads this exact filename automatically for both build arguments and runtime service configuration.
 
 Validate the Compose model without starting it:
 
 ```sh
-docker compose --env-file .env.production config
+docker compose config
 ```
 
-Build the images with the same explicit environment file. Compose uses this
-file to resolve the Flutter build argument; a service-level `env_file` alone
-does not participate in Docker Compose interpolation.
+Build and start the stack with the standard Compose command:
 
 ```sh
-docker compose --env-file .env.production build
+docker compose up -d --build
 ```
 
 ## Deployment prerequisites still requiring an explicit decision
