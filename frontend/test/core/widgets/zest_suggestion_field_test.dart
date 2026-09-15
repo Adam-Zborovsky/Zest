@@ -85,11 +85,14 @@ ZestSuggestionField<String> _field({
   announceDebounce: announceDebounce,
 );
 
-Finder _liveText(String text) => find.ancestor(
-  of: find.text(text),
-  matching: find.byWidgetPredicate(
-    (widget) => widget is Semantics && widget.properties.liveRegion == true,
-  ),
+// Finding #9: the suggestion-count live region is visually hidden — no
+// `Text` descendant to find — so its announcement is read from the
+// `Semantics` node's own `label` instead of the render tree.
+Finder _liveText(String text) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.liveRegion == true &&
+      widget.properties.label == text,
 );
 
 void main() {
@@ -439,6 +442,97 @@ void main() {
       expect(_liveText('3 suggestions'), findsNothing);
       expect(_liveText('No suggestions'), findsNothing);
     });
+
+    testWidgets('selecting an option clears the suggestion-count '
+        'announcement immediately', (tester) async {
+      await _pump(
+        tester,
+        _field(announceDebounce: const Duration(milliseconds: 20)),
+      );
+      await tester.enterText(find.byType(TextFormField), 'gin');
+      await tester.pump(const Duration(milliseconds: 30));
+      expect(_liveText('3 suggestions'), findsOneWidget);
+
+      await tester.tap(find.text('Gin').last);
+      await tester.pump();
+      expect(_liveText('3 suggestions'), findsNothing);
+    });
+
+    testWidgets(
+      'a selection\'s own programmatic text rewrite never announces a '
+      'stale suggestion count',
+      (tester) async {
+        await _pump(
+          tester,
+          _field(announceDebounce: const Duration(milliseconds: 20)),
+        );
+        await tester.enterText(find.byType(TextFormField), 'gin');
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(_liveText('3 suggestions'), findsOneWidget);
+
+        // Selecting rewrites the field's text to 'Gin' — itself still a
+        // match for 'gin' — programmatically. That rewrite must never
+        // schedule (or leave standing) an announcement of its own.
+        await tester.tap(find.text('Gin').last);
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(_liveText('3 suggestions'), findsNothing);
+        expect(_liveText('1 suggestion'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Escape clears the suggestion-count announcement',
+      (tester) async {
+        await _pump(
+          tester,
+          _field(announceDebounce: const Duration(milliseconds: 20)),
+        );
+        await tester.enterText(find.byType(TextFormField), 'gin');
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(_liveText('3 suggestions'), findsOneWidget);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(_liveText('3 suggestions'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a user-driven highlight change politely announces the option',
+      (tester) async {
+        final announcements = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMessageHandler(
+          SystemChannels.accessibility.name,
+          (message) async {
+            final decoded = SystemChannels.accessibility.codec.decodeMessage(
+              message,
+            );
+            if (decoded is Map && decoded['type'] == 'announce') {
+              final data = decoded['data'];
+              if (data is Map && data['message'] is String) {
+                announcements.add(data['message'] as String);
+              }
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMessageHandler(
+            SystemChannels.accessibility.name,
+            null,
+          ),
+        );
+
+        await _pump(tester, _field());
+        await tester.enterText(find.byType(TextFormField), 'gin');
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+
+        expect(announcements, contains('Gin Fizz, 8 letters'));
+      },
+    );
   });
 
   group('layout resilience', () {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import '../design/zest_tokens.dart';
@@ -146,8 +147,7 @@ class ZestSuggestionField<T extends Object> extends StatefulWidget {
   final Duration announceDebounce;
 
   @override
-  State<ZestSuggestionField<T>> createState() =>
-      _ZestSuggestionFieldState<T>();
+  State<ZestSuggestionField<T>> createState() => _ZestSuggestionFieldState<T>();
 }
 
 class _ZestSuggestionFieldState<T extends Object>
@@ -156,6 +156,13 @@ class _ZestSuggestionFieldState<T extends Object>
   FocusNode? _internalFocusNode;
   Timer? _announceTimer;
   String? _announcement;
+
+  /// True for the span of a selection: the controller's text is about to be
+  /// set programmatically (by [RawAutocomplete] itself, and often again by
+  /// the caller's [ZestSuggestionField.onSelected]), which must never be
+  /// mistaken for the person typing and re-announce a stale suggestion
+  /// count (finding #9).
+  bool _suppressAnnouncement = false;
 
   /// True once the person has pressed Up/Down since the options were last
   /// (re)opened for the current text. Enter only commits an option while
@@ -184,7 +191,12 @@ class _ZestSuggestionFieldState<T extends Object>
   }
 
   void _onFocusChange() {
-    if (!_focusNode.hasFocus && _highlightTouched) {
+    if (_focusNode.hasFocus) return;
+    // Losing focus closes the options panel (a tap outside unfocuses via
+    // onTapOutside) — the suggestion count is stale the moment it's gone
+    // (finding #9).
+    _clearAnnouncement();
+    if (_highlightTouched) {
       setState(() => _highlightTouched = false);
     }
   }
@@ -193,9 +205,10 @@ class _ZestSuggestionFieldState<T extends Object>
     final query = value.text;
     final results = query.trim().isEmpty
         ? <T>[]
-        : widget.suggestionsFor(
-            query,
-          ).take(widget.maxVisible).toList(growable: false);
+        : widget
+              .suggestionsFor(query)
+              .take(widget.maxVisible)
+              .toList(growable: false);
     if (_highlightTouched) {
       // Scheduled for after this build: optionsBuilder runs mid-flight
       // inside RawAutocomplete's own field-change handling, where calling
@@ -205,6 +218,12 @@ class _ZestSuggestionFieldState<T extends Object>
           setState(() => _highlightTouched = false);
         }
       });
+    }
+    if (_suppressAnnouncement) {
+      // This options rebuild was caused by a programmatic controller write
+      // (a selection just landed), not by the person typing — never
+      // announce a count for it (finding #9).
+      return results;
     }
     _scheduleAnnouncement(query, results.length);
     return results;
@@ -216,14 +235,29 @@ class _ZestSuggestionFieldState<T extends Object>
   /// index change instead would also fire when the index is silently
   /// re-clamped after a keystroke shrinks the option list — not a real
   /// highlight touch.
+  ///
+  /// Escape is observed here too, purely to clear the suggestion-count
+  /// announcement: [RawAutocomplete]'s own `Shortcuts` closes the options
+  /// panel for it without this widget's involvement, but the stale count
+  /// must not linger in the live region once nothing is showing.
   KeyEventResult _observeArrowKeys(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _clearAnnouncement();
+      return KeyEventResult.ignored;
+    }
+    if ((event.logicalKey == LogicalKeyboardKey.arrowUp ||
             event.logicalKey == LogicalKeyboardKey.arrowDown) &&
         !_highlightTouched) {
       setState(() => _highlightTouched = true);
     }
     return KeyEventResult.ignored;
+  }
+
+  void _clearAnnouncement() {
+    _announceTimer?.cancel();
+    _announceTimer = null;
+    if (_announcement != null) setState(() => _announcement = null);
   }
 
   void _scheduleAnnouncement(String query, int count) {
@@ -243,6 +277,21 @@ class _ZestSuggestionFieldState<T extends Object>
     });
   }
 
+  /// Wraps [ZestSuggestionField.onSelected]: suppresses the suggestion-count
+  /// announcement for the controller-text rewrite a selection triggers (both
+  /// [RawAutocomplete]'s own and any the caller makes in its `onSelected`),
+  /// and clears whatever count was showing — the panel is closing, so it
+  /// reads as stale immediately (finding #9).
+  void _handleSelected(T option) {
+    _suppressAnnouncement = true;
+    _clearAnnouncement();
+    widget.onSelected(option);
+    // The controller-text rewrite above already ran `_optionsFor`
+    // synchronously (a `TextEditingController` listener), so it's safe to
+    // lift the guard immediately after rather than waiting a frame.
+    _suppressAnnouncement = false;
+  }
+
   String _displayStringFor(T option) =>
       widget.replaceTextOnSelect ? widget.labelFor(option) : _controller.text;
 
@@ -257,7 +306,7 @@ class _ZestSuggestionFieldState<T extends Object>
           focusNode: _focusNode,
           optionsBuilder: _optionsFor,
           displayStringForOption: _displayStringFor,
-          onSelected: widget.onSelected,
+          onSelected: _handleSelected,
           optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
           fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
             Widget field = Focus(
@@ -337,20 +386,14 @@ class _AnnouncementRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = text;
+    // Visually hidden (zero size, no layout impact either way) but always
+    // present in the semantics tree so its `label` change is what a screen
+    // reader announces — finding #9 explicitly rejects rendering this as
+    // visible text, which shifted layout every time the count changed.
     return Semantics(
       liveRegion: true,
-      child: value == null
-          ? const SizedBox.shrink()
-          : Padding(
-              padding: const EdgeInsets.only(top: ZestSpace.xs),
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                  color: ZestPalette.secondaryInk,
-                ),
-              ),
-            ),
+      label: text ?? '',
+      child: const SizedBox.shrink(),
     );
   }
 }
@@ -362,7 +405,7 @@ class _AnnouncementRegion extends StatelessWidget {
 /// options view not reliably reflecting that index — but only renders (and
 /// scrolls to) a highlight once [touched] is true, so nothing reads as
 /// selected before the person has pressed Up/Down.
-class _OptionsPanel<T extends Object> extends StatelessWidget {
+class _OptionsPanel<T extends Object> extends StatefulWidget {
   const _OptionsPanel({
     required this.options,
     required this.touched,
@@ -388,10 +431,52 @@ class _OptionsPanel<T extends Object> extends StatelessWidget {
   final AutocompleteOnSelected<T> onSelected;
 
   @override
+  State<_OptionsPanel<T>> createState() => _OptionsPanelState<T>();
+}
+
+class _OptionsPanelState<T extends Object> extends State<_OptionsPanel<T>> {
+  /// The highlight index last announced, so a rebuild that doesn't move the
+  /// highlight (e.g. the options list itself changing) never re-announces
+  /// the same option — only an actual, user-driven highlight change does
+  /// (finding #8). `-2` is a value [AutocompleteHighlightedOption] never
+  /// takes (it's -1 when untouched, otherwise a valid list index).
+  int _lastAnnounced = -2;
+
+  @override
   Widget build(BuildContext context) {
-    final highlighted = touched
+    final highlighted = widget.touched
         ? AutocompleteHighlightedOption.of(context)
         : -1;
+    if (highlighted != -1 &&
+        highlighted != _lastAnnounced &&
+        highlighted < widget.options.length) {
+      _lastAnnounced = highlighted;
+      final label = widget.semanticLabelFor(widget.options[highlighted]);
+      final direction = Directionality.of(context);
+      final view = View.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // `SemanticsService.announce` is deprecated in favor of the
+        // view-scoped `sendAnnouncement`.
+        SemanticsService.sendAnnouncement(
+          view,
+          label,
+          direction,
+          assertiveness: Assertiveness.polite,
+        );
+      });
+    } else if (highlighted == -1) {
+      // The panel reopened or the highlight was reset (e.g. a fresh
+      // keystroke) — the next real highlight must announce again even if
+      // it lands back on the same index as before.
+      _lastAnnounced = -2;
+    }
+    final options = widget.options;
+    final labelFor = widget.labelFor;
+    final semanticLabelFor = widget.semanticLabelFor;
+    final captionFor = widget.captionFor;
+    final optionBuilder = widget.optionBuilder;
+    final onSelected = widget.onSelected;
+    final style = widget.style;
     final reduced = ZestMotion.reduced(context);
     Widget panel = Material(
       color: ZestPalette.peach,
@@ -401,7 +486,9 @@ class _OptionsPanel<T extends Object> extends StatelessWidget {
         side: BorderSide(color: ZestPalette.leaf, width: 1.5),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: _rowHeight * 5.5),
+        constraints: const BoxConstraints(
+          maxHeight: _OptionsPanel._rowHeight * 5.5,
+        ),
         child: ListView.builder(
           padding: EdgeInsets.zero,
           shrinkWrap: true,
