@@ -4,7 +4,7 @@
 
 Commands ran from their owning directories on the development PC, addressing all 20 findings in [reviews/M11.md](reviews/M11.md):
 
-- Frontend: `flutter analyze` — no issues; `flutter test` — all **585 tests** passed; `test/features/catalog/application/catalog_update_controller_test.dart` run 3× — all **18 tests** passed each time.
+- Frontend: `flutter analyze` — no issues; `flutter test` — all **587 tests** passed; `test/features/catalog/application/catalog_update_controller_test.dart` run 3× — all **18 tests** passed each time.
 - Backend: `npm run typecheck` and `npm run build` — clean; `npm test` — all **99 tests** passed; `npm run demo` — exits 0, no network/server/Docker.
 - No Docker container, server, watcher, provider network call, key, or personal data was used.
 
