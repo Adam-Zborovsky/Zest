@@ -1,7 +1,7 @@
 services:
   zest-backend:
     build:
-      context: ../backend
+      context: ./backend
     container_name: zest-backend
     restart: unless-stopped
     env_file:
@@ -20,7 +20,7 @@ services:
 
   zest-frontend:
     build:
-      context: ../frontend
+      context: ./frontend
       args:
         ZEST_API_BASE_URL: ${ZEST_API_BASE_URL:?Set ZEST_API_BASE_URL in deploy/.env}
     container_name: zest-frontend
